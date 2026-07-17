@@ -121,8 +121,9 @@ class TestDualturn:
         assert peek["dtype"] == "int32"  # 离散码判据
         assert rep["splits_json"] == {"train": 1, "test": 1}
 
-    def test_loader_not_ready(self, tmp_path):
-        with pytest.raises(NotImplementedError):
+    def test_load_frame_labels_missing_session(self, tmp_path):
+        (tmp_path / "data").mkdir()
+        with pytest.raises(KeyError, match="未在"):
             dualturn.load_frame_labels(tmp_path, "s1")
 
 

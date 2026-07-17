@@ -3,6 +3,9 @@ delivery_sample_rate: 24000
 master_seed: 20260717
 
 voices: # V6 定选后回填（EN/ZH 各固定一音色）
+  # 候选（2026-07-17，qwen3tts-custom 本机可用）：en → ryan / aiden；zh → vivian / serena / uncle_fu
+  # 定选流程：serve_qwen3_tts.ps1 起服务 → 每候选试听 1-2 句 → 回填此处 →
+  #   uv run python scripts/wp6_build_stimuli.py synth --limit 10 → post → qc（V6 判据）
   en: null
   zh: null
 

@@ -39,9 +39,21 @@ models:
 tts:
   root: 'C:\artificial_intelligence\models\tts\qwen3tts-custom'
   venv_python: 'C:\artificial_intelligence\models\tts\qwen3tts-custom\.venv\Scripts\python.exe'
-  # 合成命令模板（V6 冻结音色后回填）。占位符：{python} {text} {voice} {out_wav} {seed}
-  # 示例："{python} -m qwen3tts_custom.synth --text {text} --voice {voice} --out {out_wav} --seed {seed}"
-  synth_command: null
+  # 合成前须先启动本地服务（qwen3tts-custom 目录）：
+  #   pwsh -NoProfile -File .\scripts\serve_qwen3_tts.ps1     # http://127.0.0.1:8091
+  # 模板占位符：{python} {text} {voice} {out_wav} {seed}；语言由音色自动映射（runners/tts/synth_cli.py）。
+  # 注意：seed 目前经 SpeechRequest 尽力传递，未生效时 CLI 会注明（待其暴露 seed 字段）。
+  synth_command:
+    - '{python}'
+    - 'C:\artificial_intelligence\repos\The_Floor_Control_Circuit\runners\tts\synth_cli.py'
+    - '--text'
+    - '{text}'
+    - '--voice'
+    - '{voice}'
+    - '--out'
+    - '{out_wav}'
+    - '--seed'
+    - '{seed}'
 
 benchmarks:
   fdbench: 'C:\artificial_intelligence\Benchmark\FDBench_v1.5'

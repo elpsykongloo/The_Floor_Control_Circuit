@@ -114,6 +114,24 @@ def ffmpeg_exe() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
+def audio_channels(media_path: str | Path) -> int:
+    """用 ffmpeg -i 的流信息判断音频声道数（无 ffprobe 时的替代）。识别失败返回 -1。"""
+    import re as _re
+
+    proc = subprocess.run(
+        [ffmpeg_exe(), "-hide_banner", "-i", str(media_path)], capture_output=True, text=True
+    )
+    info = proc.stderr
+    m = _re.search(r"Audio:.*?(\d+)\s+channels", info)
+    if m:
+        return int(m.group(1))
+    if _re.search(r"Audio:.*?\bstereo\b", info):
+        return 2
+    if _re.search(r"Audio:.*?\bmono\b", info):
+        return 1
+    return -1
+
+
 def media_to_dual_mono_24k(media_path: str | Path, out_dir: str | Path) -> tuple[Path, Path]:
     """立体声媒体（音轨双人各占一声道）→ 两个 24 kHz 单声道 wav。"""
     media_path, out_dir = Path(media_path), Path(out_dir)

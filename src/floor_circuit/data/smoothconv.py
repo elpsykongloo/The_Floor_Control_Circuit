@@ -121,13 +121,67 @@ def to_va_segs(df: pd.DataFrame, channel: int) -> list[Seg]:
     return [Seg(float(r.start_s), float(r.end_s)) for r in sub.itertuples(index=False)]
 
 
+_LABEL_VALUES = {"complete", "incomplete", "backchannel", "wait"}
+
+
+def _flat_items(d: dict, prefix: str = "") -> list[tuple[str, Any]]:
+    out = []
+    for k, v in d.items():
+        key = f"{prefix}{k}"
+        if isinstance(v, dict):
+            out.extend(_flat_items(v, prefix=f"{key}."))
+        else:
+            out.append((key, v))
+    return out
+
+
+def _dir_inventory(dir_path: Path, sample_n: int = 12) -> dict:
+    """目录里没有 *.json 时的清点回退（DuplexConv 情形）：找出标注实际形态。"""
+    from collections import Counter
+
+    files = [p for p in dir_path.rglob("*") if p.is_file()]
+    suffixes = Counter(p.suffix.lower() for p in files)
+    samples = [str(p.relative_to(dir_path)) for p in sorted(files, key=str)[:sample_n]]
+    big = sorted(files, key=lambda p: p.stat().st_size, reverse=True)[:5]
+    return {
+        "n_files_total": len(files),
+        "by_suffix": dict(suffixes.most_common(20)),
+        "sample_paths": samples,
+        "largest": [{"path": str(p.relative_to(dir_path)), "mb": round(p.stat().st_size / 1e6, 1)} for p in big],
+    }
+
+
 def self_check(dir_path: str | Path, n_files: int = 20) -> dict:
-    """抽样解析并统计字段覆盖率与标签分布，供本机核对 schema。"""
-    files = sorted(Path(dir_path).rglob("*.json"))[:n_files]
+    """抽样解析并统计字段覆盖率与标签分布；额外输出定位信息：
+    - key_union：条目字段名全集（含一层嵌套 parent.child）→ 收紧别名表的依据；
+    - label_value_hits：值命中 {complete,incomplete,backchannel,wait} 的字段路径 → 标签真身；
+    - sample_item：首条原始条目（字符串截断 80 字符）；
+    - 目录无 *.json 时回退为 inventory（后缀分布 + 样例路径 + 最大文件）。"""
+    from collections import Counter
+
+    dir_path = Path(dir_path)
+    files = sorted(dir_path.rglob("*.json"))[:n_files]
     report: dict = {"n_files_found": len(files), "files_ok": 0, "errors": [], "label_counts": {}}
+    if not files:
+        report["inventory"] = _dir_inventory(dir_path)
+        report.update(n_rows=0, label_coverage=0.0, text_coverage=0.0, channel_unknown_rows=0)
+        return report
+    key_union: Counter = Counter()
+    label_hits: Counter = Counter()
     n_rows, n_label, n_text, n_ch_unknown = 0, 0, 0, 0
-    for f in files:
+    for fi, f in enumerate(files):
         try:
+            payload = json.loads(f.read_text(encoding="utf-8"))
+            items = _iter_items(payload)
+            for it in items[:200]:
+                for key, val in _flat_items(it):
+                    key_union[key] += 1
+                    if isinstance(val, str) and val.strip().lower() in _LABEL_VALUES:
+                        label_hits[key] += 1
+            if fi == 0 and items:
+                report["sample_item"] = {
+                    k: (v[:80] if isinstance(v, str) else v) for k, v in _flat_items(items[0])
+                }
             df = parse_file(f)
         except Exception as e:
             report["errors"].append({"file": str(f), "error": repr(e)})
@@ -139,6 +193,8 @@ def self_check(dir_path: str | Path, n_files: int = 20) -> dict:
         n_ch_unknown += int((df["channel"] < 0).sum())
         for k, v in df["turn_label"].value_counts(dropna=True).items():
             report["label_counts"][str(k)] = report["label_counts"].get(str(k), 0) + int(v)
+    report["key_union"] = dict(key_union.most_common(40))
+    report["label_value_hits"] = dict(label_hits.most_common(10))
     report.update(
         n_rows=n_rows,
         label_coverage=(n_label / n_rows if n_rows else 0.0),
