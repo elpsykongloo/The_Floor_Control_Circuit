@@ -9,7 +9,7 @@ import pandas as pd
 
 from floor_circuit.events.detect import ChannelContext, detect_all
 from floor_circuit.events.ipu import build_ipus
-from floor_circuit.events.labels import build_labels
+from floor_circuit.events.labels import build_labels, coalesce_unique_labels
 from floor_circuit.events.turns import build_turns_en, is_backchannel
 from floor_circuit.events.vad import rasterize
 from floor_circuit.schemas import Event, Seg, Turn
@@ -99,7 +99,7 @@ def labels_both_roles(
                 t1_deltas_ms,
             )
         )
-    return pd.concat(parts, ignore_index=True)
+    return coalesce_unique_labels(pd.concat(parts, ignore_index=True))
 
 
 def gold_turns_to_va(turns: list[Turn]) -> list[Seg]:

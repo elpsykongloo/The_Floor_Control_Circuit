@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
+import pytest
 
-from floor_circuit.events.detect import ChannelContext, detect_all
+from floor_circuit.events.detect import ChannelContext, detect_all, overlap_episodes
 from floor_circuit.events.ipu import build_ipus
-from floor_circuit.events.labels import build_labels, t5_states
+from floor_circuit.events.labels import build_labels, coalesce_unique_labels, t5_states
 from floor_circuit.events.vad import rasterize
 from floor_circuit.schemas import Seg, State
 
@@ -74,6 +76,42 @@ class TestT2:
         for s in pos_steps:
             t_e = (s + 1) * STEP
             assert t_e < 3.5 <= t_e + 0.4 + 1e-9
+
+    def test_overlapping_episode_windows_coalesce_identical_steps(self, ev_cfg):
+        agent_segs = [Seg(1.0, 6.0)]
+        other_segs = [Seg(3.0, 3.2), Seg(3.4, 3.8)]
+        ca, co = make_ctx(agent_segs), make_ctx(other_segs)
+        episodes = overlap_episodes(ca.mask, co.mask, DT, ev_cfg["events"])
+        assert [episode["trigger_t"] for episode in episodes] == [3.0, 3.4]
+
+        df, _ = labels_for(ev_cfg, agent_segs, other_segs)
+        t2 = df[df["target"] == "T2"]
+        assert len(t2) == 17
+        assert not t2.duplicated(["target", "agent_channel", "step", "delta_ms"]).any()
+
+    def test_same_key_with_conflicting_fields_fails(self):
+        rows = pd.DataFrame(
+            [
+                {
+                    "agent_channel": 0,
+                    "target": "T2",
+                    "step": 40,
+                    "t": 3.28,
+                    "label": 0,
+                    "delta_ms": None,
+                },
+                {
+                    "agent_channel": 0,
+                    "target": "T2",
+                    "step": 40,
+                    "t": 3.28,
+                    "label": 1,
+                    "delta_ms": None,
+                },
+            ]
+        )
+        with pytest.raises(ValueError, match="标签唯一键存在字段冲突"):
+            coalesce_unique_labels(rows)
 
 
 class TestT3:

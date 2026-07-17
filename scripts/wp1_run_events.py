@@ -29,12 +29,36 @@ from floor_circuit.events.vad import SileroVad
 from floor_circuit.schemas import events_to_dataframe
 from floor_circuit.stimuli.qc import load_wav
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def _sha256_file(path: Path, chunk_size: int = 1 << 20) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(chunk_size), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _event_pipeline_code_sha256(repo_root: Path | None = None) -> str:
+    """稳定哈希事件标签管线源码，使代码变更必然令旧完成标记失效。"""
+    root = (repo_root or REPO_ROOT).resolve()
+    paths = [
+        root / "scripts" / "wp1_run_events.py",
+        root / "src" / "floor_circuit" / "schemas.py",
+        *(root / "src" / "floor_circuit" / "events").rglob("*.py"),
+    ]
+    paths = sorted(set(paths), key=lambda path: path.relative_to(root).as_posix())
+    missing = [str(path) for path in paths if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(f"事件管线代码指纹缺少文件：{missing}")
+    digest = hashlib.sha256()
+    for path in paths:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        payload = path.read_bytes()
+        for field in (relative, payload):
+            digest.update(len(field).to_bytes(8, byteorder="big"))
+            digest.update(field)
     return digest.hexdigest()
 
 
@@ -52,14 +76,23 @@ def _write_json_atomic(path: Path, payload: dict) -> None:
             tmp.unlink()
 
 
-def _session_fingerprint(sdir: Path, settings_sha256: str) -> dict:
+def _session_fingerprint(
+    sdir: Path,
+    settings_sha256: str,
+    event_pipeline_code_sha256: str | None = None,
+) -> dict:
     """快速绑定源音频版本与事件设置；输出文件另用内容哈希校验。"""
+    code_sha256 = event_pipeline_code_sha256 or _event_pipeline_code_sha256()
     audio = {}
     for channel in (0, 1):
         path = sdir / f"audio_ch{channel}.wav"
         stat = path.stat()
         audio[path.name] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
-    return {"settings_sha256": settings_sha256, "source_audio": audio}
+    return {
+        "settings_sha256": settings_sha256,
+        "event_pipeline_code_sha256": code_sha256,
+        "source_audio": audio,
+    }
 
 
 def _write_session_outputs(
@@ -175,6 +208,7 @@ def main() -> None:
     grids = load_config("grids")
     step_s = float(grids["clocks"][args.clock]["step_ms"]) / 1000.0
     deltas = list(grids["delta_grid"][f"{args.clock}_ms"])
+    event_pipeline_code_sha256 = _event_pipeline_code_sha256()
     settings_sha256 = hashlib.sha256(
         json.dumps(
             {
@@ -183,6 +217,7 @@ def main() -> None:
                 "step_s": step_s,
                 "deltas": deltas,
                 "lang": args.lang,
+                "event_pipeline_code_sha256": event_pipeline_code_sha256,
             },
             ensure_ascii=False,
             sort_keys=True,
@@ -201,11 +236,16 @@ def main() -> None:
         "n_sessions": len(sessions),
         "n_cached": 0,
         "n_processed": 0,
+        "event_pipeline_code_sha256": event_pipeline_code_sha256,
         "sessions": [],
     }
     for sdir in sessions:
         sid = sdir.name
-        fingerprint = _session_fingerprint(sdir, settings_sha256)
+        fingerprint = _session_fingerprint(
+            sdir,
+            settings_sha256,
+            event_pipeline_code_sha256,
+        )
         cached = _cached_session_summary(sdir, out_dir, fingerprint)
         if cached is not None:
             summary["sessions"].append(cached)

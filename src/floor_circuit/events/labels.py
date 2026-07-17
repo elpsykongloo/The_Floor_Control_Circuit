@@ -19,6 +19,36 @@ from floor_circuit.events.detect import (
 )
 from floor_circuit.schemas import Event, EventKind, State
 
+LABEL_KEY_COLUMNS = ("target", "agent_channel", "step", "delta_ms")
+
+
+def coalesce_unique_labels(frame: pd.DataFrame) -> pd.DataFrame:
+    """按正式标签键收敛完全相同的重复行；同键字段冲突时硬失败。
+
+    T2 的多个合法重叠 episode 可能覆盖同一决策时钟步。此时它们表达的是同一个监督
+    观测，完全一致的行只保留一次。任何 label、t 或未来扩展字段不一致都代表上游语义
+    冲突，禁止依赖行顺序静默选取。
+    """
+    missing = [column for column in LABEL_KEY_COLUMNS if column not in frame.columns]
+    if missing:
+        raise ValueError(f"标签表缺少唯一键列：{missing}")
+    duplicate_rows = frame.loc[
+        frame.duplicated(list(LABEL_KEY_COLUMNS), keep=False)
+    ]
+    conflict_keys: list[tuple] = []
+    for key, group in duplicate_rows.groupby(
+        list(LABEL_KEY_COLUMNS),
+        dropna=False,
+        sort=False,
+    ):
+        if len(group.drop_duplicates(keep="first")) > 1:
+            conflict_keys.append(key if isinstance(key, tuple) else (key,))
+    if conflict_keys:
+        sample = conflict_keys[:5]
+        suffix = f"，另有 {len(conflict_keys) - 5} 个" if len(conflict_keys) > 5 else ""
+        raise ValueError(f"标签唯一键存在字段冲突：{sample}{suffix}")
+    return frame.drop_duplicates(list(LABEL_KEY_COLUMNS), keep="first").reset_index(drop=True)
+
 
 def clock_rasterize(mask: np.ndarray, dt: float, step_s: float, n_steps: int) -> np.ndarray:
     """dt 栅格 → 时钟步栅格（步内任一 dt 帧活跃即活跃）。"""
@@ -188,7 +218,8 @@ def build_labels(
         rows.append(_row(agent_ch, "T4", s, step_s, label))
 
     df = pd.DataFrame(rows, columns=["agent_channel", "target", "step", "t", "label", "delta_ms"])
-    return df.sort_values(["target", "delta_ms", "step"], kind="stable").reset_index(drop=True)
+    df = df.sort_values(["target", "delta_ms", "step"], kind="stable").reset_index(drop=True)
+    return coalesce_unique_labels(df)
 
 
 def _row(ch: int, target: str, step: int, step_s: float, label: int, delta_ms=None) -> dict:

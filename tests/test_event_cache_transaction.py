@@ -75,3 +75,33 @@ def test_event_cache_rejects_two_readable_files_without_completion_marker(tmp_pa
     fingerprint = module._session_fingerprint(session_dir, "settings")
 
     assert module._cached_session_summary(session_dir, out_dir, fingerprint) is None
+
+
+def test_event_cache_rejects_marker_after_pipeline_code_changes(tmp_path):
+    module = _load_module()
+    session_dir = tmp_path / "audio" / "session-a"
+    out_dir = tmp_path / "events-output"
+    fake_repo = tmp_path / "fake-repo"
+    session_dir.mkdir(parents=True)
+    out_dir.mkdir()
+    (fake_repo / "scripts").mkdir(parents=True)
+    (fake_repo / "src" / "floor_circuit" / "events").mkdir(parents=True)
+    (fake_repo / "scripts" / "wp1_run_events.py").write_text("入口 = 1\n", encoding="utf-8")
+    (fake_repo / "src" / "floor_circuit" / "schemas.py").write_text("模式 = 1\n", encoding="utf-8")
+    labels_source = fake_repo / "src" / "floor_circuit" / "events" / "labels.py"
+    labels_source.write_text("版本 = 1\n", encoding="utf-8")
+    _write_wav(session_dir / "audio_ch0.wav")
+    _write_wav(session_dir / "audio_ch1.wav")
+
+    code_v1 = module._event_pipeline_code_sha256(fake_repo)
+    fingerprint_v1 = module._session_fingerprint(session_dir, "settings", code_v1)
+    events = pd.DataFrame({"event_id": ["e1"], "value": [1]})
+    labels = pd.DataFrame({"step": [0, 1], "label": [0, 1]})
+    module._write_session_outputs(events, labels, session_dir, out_dir, fingerprint_v1)
+    assert module._cached_session_summary(session_dir, out_dir, fingerprint_v1) is not None
+
+    labels_source.write_text("版本 = 2\n", encoding="utf-8")
+    code_v2 = module._event_pipeline_code_sha256(fake_repo)
+    assert code_v2 != code_v1
+    fingerprint_v2 = module._session_fingerprint(session_dir, "settings", code_v2)
+    assert module._cached_session_summary(session_dir, out_dir, fingerprint_v2) is None
