@@ -16,14 +16,20 @@ from floor_circuit.probes.linear import SessionData
 
 
 def eligible_rows(
-    labels: pd.DataFrame, target: str, delta_ms: int | None, agent_channel: int
+    labels: pd.DataFrame,
+    target: str,
+    delta_ms: int | None,
+    agent_channel: int,
+    max_steps: int | None = None,
 ) -> pd.DataFrame:
     sub = labels[(labels["target"] == target) & (labels["agent_channel"] == agent_channel)]
     if target == "T1":
         if delta_ms is None:
             raise ValueError("T1 需要 delta_ms")
         sub = sub[sub["delta_ms"] == delta_ms]
-    return sub
+    if max_steps is not None:
+        sub = sub[sub["step"] < int(max_steps)]
+    return sub.sort_values("step", kind="stable")
 
 
 def run_dir_for(runs_root: str | Path, session_id: str, agent_channel: int) -> Path:

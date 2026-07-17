@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -47,5 +49,11 @@ def load_manifest(run_dir: str | Path) -> RunManifest:
 def save_manifest(run_dir: str | Path, manifest: RunManifest) -> Path:
     path = Path(run_dir) / "manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(manifest.model_dump_json(indent=1), encoding="utf-8")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{time.time_ns()}.tmp")
+    try:
+        tmp.write_text(manifest.model_dump_json(indent=1), encoding="utf-8")
+        tmp.replace(path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
     return path

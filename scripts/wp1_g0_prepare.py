@@ -26,6 +26,20 @@ from floor_circuit.config import data_root, load_paths
 from floor_circuit.data.dualturn import iter_sessions, load_splits, split_sessions
 
 
+def _read_shard_session_ids(root: Path, shard_glob: str) -> set[str]:
+    """仅读取目标分片的会话编号列，用于核对划分元数据与发布文件。"""
+    import pyarrow.parquet as pq
+
+    data_dir = root / "data"
+    if not data_dir.exists():
+        data_dir = root
+    session_ids: set[str] = set()
+    for shard in sorted(data_dir.glob(shard_glob)):
+        table = pq.read_table(shard, columns=["session_id"])
+        session_ids.update(str(value) for value in table.column("session_id").to_pylist())
+    return session_ids
+
+
 def _fail(summary: dict, message: str) -> None:
     """硬失败前必落报告（两端协作反馈回路）。"""
     summary["error"] = message
@@ -68,7 +82,45 @@ def main() -> None:
             _fail(summary, f"划分 '{args.split}' 解析到 0 个会话：splits 元素结构异常，请回传 splits.json 顶层样例")
         print(f"划分 {args.split}：{len(wanted)} 会话")
 
-    for sess in iter_sessions(root, sessions=wanted, limit=args.limit):
+    shard_glob = "*.parquet"
+    expected_available = len(wanted) if wanted is not None else None
+    if not args.all_sessions:
+        data_dir = root / "data"
+        if not data_dir.exists():
+            data_dir = root
+        split_glob = f"{args.split}-*.parquet"
+        if any(data_dir.glob(split_glob)):
+            shard_glob = split_glob
+            print(f"按文件名前缀只读取 {split_glob}")
+            release_ids = _read_shard_session_ids(root, shard_glob)
+            missing_from_release = sorted(wanted - release_ids)
+            extra_in_release = sorted(release_ids - wanted)
+            declared_without_audio = {
+                str(session_id) for session_id in payload.get("sessions_without_audio", [])
+            }
+            undeclared_missing = sorted(set(missing_from_release) - declared_without_audio)
+            expected_available = len(wanted & release_ids)
+            summary["source_shards"] = {
+                "glob": shard_glob,
+                "n_split_ids": len(wanted),
+                "n_release_ids": len(release_ids),
+                "n_expected_available": expected_available,
+                "missing_from_release": missing_from_release,
+                "undeclared_missing": undeclared_missing,
+                "extra_in_release": extra_in_release,
+            }
+            if missing_from_release:
+                print(
+                    f"[warning] splits.json 中有 {len(missing_from_release)} 个 {args.split} 会话未出现在发布分片："
+                    f"{', '.join(missing_from_release)}"
+                )
+            if undeclared_missing:
+                print(
+                    f"[warning] 其中 {len(undeclared_missing)} 个会话也未列入 sessions_without_audio："
+                    f"{', '.join(undeclared_missing)}"
+                )
+
+    for sess in iter_sessions(root, sessions=wanted, limit=args.limit, shard_glob=shard_glob):
         sdir = out_root / sess.session_id
         sdir.mkdir(parents=True, exist_ok=True)
         for ch in (0, 1):
@@ -97,6 +149,15 @@ def main() -> None:
         )
         summary["n_ok"] += 1
         print(f"{sess.session_id}: {sess.num_frames} 帧 / {sess.duration_s:.1f}s")
+    if wanted is not None:
+        assert expected_available is not None
+        expected = min(expected_available, args.limit) if args.limit is not None else expected_available
+        if summary["n_ok"] != expected:
+            _fail(
+                summary,
+                f"划分 '{args.split}' 预期导出 {expected} 个会话，实际 {summary['n_ok']}；"
+                f"读取分片模式为 {shard_glob}",
+            )
     if isinstance(payload, dict):
         summary["splits_meta"] = {
             k: v for k, v in payload.items() if k in ("total_sessions", "split_counts", "sessions_without_audio")

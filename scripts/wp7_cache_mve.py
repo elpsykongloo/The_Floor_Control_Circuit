@@ -9,13 +9,223 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import subprocess
+import wave
 from pathlib import Path
 
 from _bootstrap import REPO_ROOT, write_report_json
 
 from floor_circuit.config import data_root, load_config, load_paths
+
+
+def _git_commit() -> str:
+    """读取本次缓存所用代码提交号；无法读取时拒绝生成生产计划。"""
+    try:
+        return subprocess.check_output(
+            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+            text=True,
+            encoding="utf-8",
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("无法读取当前 Git 提交号，拒绝生成缺少代码溯源的缓存计划") from exc
+
+
+def _runner_code_version(runner: Path) -> str:
+    """提交号附加实际 runner 内容哈希，覆盖未提交烟测的真实代码状态。"""
+    shared = REPO_ROOT / "runners" / "_shared" / "moshi_family.py"
+    sources = (("shared", shared), ("entry", runner))
+    content = hashlib.sha256()
+    for label, path in sources:
+        content.update(label.encode("ascii") + b"\0")
+        content.update(path.read_bytes())
+        content.update(b"\0")
+    try:
+        source_commit = subprocess.check_output(
+            [
+                "git",
+                "-C",
+                str(REPO_ROOT),
+                "log",
+                "-1",
+                "--format=%H",
+                "--",
+                *(str(path.relative_to(REPO_ROOT)) for _, path in sources),
+            ],
+            text=True,
+            encoding="utf-8",
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("无法读取 runner 最近提交，拒绝生成生产计划") from exc
+    return f"{source_commit[:7]}+runner.{content.hexdigest()}"
+
+
+def _option_value(command: list[str], option: str) -> str:
+    try:
+        return command[command.index(option) + 1]
+    except (ValueError, IndexError) as exc:
+        raise ValueError(f"命令缺少参数 {option}：{command}") from exc
+
+
+def validate_audio_inputs(commands: list[list[str]]) -> dict:
+    """批量加载模型前检查全部 WAV 的存在性、格式、帧数与双通道对齐。"""
+    problems: set[str] = set()
+    audio_info: dict[Path, tuple[int, int]] = {}
+    output_dirs = [Path(_option_value(command, "--out")) for command in commands]
+    if len(set(output_dirs)) != len(output_dirs):
+        problems.add("输出目录存在重复，分片执行会产生写入竞态")
+
+    for command in commands:
+        pair: list[tuple[Path, tuple[int, int] | None]] = []
+        for option in ("--audio-agent", "--audio-other"):
+            path = Path(_option_value(command, option))
+            info = audio_info.get(path)
+            if info is None:
+                if not path.is_file():
+                    problems.add(f"缺少音频：{path}")
+                else:
+                    try:
+                        with wave.open(str(path), "rb") as wav:
+                            channels = wav.getnchannels()
+                            sample_rate = wav.getframerate()
+                            n_frames = wav.getnframes()
+                            sample_width = wav.getsampwidth()
+                            compression = wav.getcomptype()
+                        if channels != 1 or sample_rate != 24000 or n_frames <= 0:
+                            problems.add(
+                                f"音频格式错误：{path}（声道={channels}，采样率={sample_rate}，帧数={n_frames}）"
+                            )
+                        if sample_width not in (2, 4) or compression != "NONE":
+                            problems.add(
+                                f"音频编码不受支持：{path}（位宽={sample_width * 8}，压缩={compression}）"
+                            )
+                        info = (sample_rate, n_frames)
+                        audio_info[path] = info
+                    except (OSError, EOFError, wave.Error) as exc:
+                        problems.add(f"音频头不可读：{path}（{exc!r}）")
+            pair.append((path, info))
+        if pair[0][1] is not None and pair[1][1] is not None and pair[0][1][1] != pair[1][1][1]:
+            problems.add(
+                f"双通道帧数不一致：{pair[0][0]}={pair[0][1][1]}，{pair[1][0]}={pair[1][1][1]}"
+            )
+
+    if problems:
+        preview = "\n".join(f"- {problem}" for problem in sorted(problems)[:20])
+        suffix = f"\n另有 {len(problems) - 20} 项未展示" if len(problems) > 20 else ""
+        raise ValueError(f"MVE 输入完整性检查失败（{len(problems)} 项）：\n{preview}{suffix}")
+    return {
+        "n_audio_files": len(audio_info),
+        "n_output_dirs": len(output_dirs),
+        "n_sessions": len({_option_value(command, "--session-id") for command in commands}),
+    }
+
+
+def select_shard(commands: list[list[str]], num_shards: int, shard_id: int) -> list[list[str]]:
+    """按稳定步长切片；不同 shard_id 的输出集合互斥。"""
+    if num_shards < 1:
+        raise ValueError("--num-shards 必须至少为 1")
+    if shard_id < 0 or shard_id >= num_shards:
+        raise ValueError(f"--shard-id 必须满足 0 <= shard_id < {num_shards}")
+    return commands[shard_id::num_shards]
+
+
+def _powershell_quote(value: str | Path) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def render_ps1(commands: list[list[str]], cuda_visible_devices: str | None = None) -> str:
+    """生成遇到任一原生命令非零退出即终止的 PowerShell 7 脚本。"""
+    lines = [
+        "$ErrorActionPreference = 'Stop'",
+        "$PSNativeCommandUseErrorActionPreference = $true",
+        "function Test-MveRun {",
+        (
+            "    param([string]$ManifestPath, [string]$CodeVersion, [string]$Layers,"
+            " [double]$MaxSeconds, [double]$MimiChunkSeconds,"
+            " [int]$ForwardChunkSteps)"
+        ),
+        "    if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) { return $false }",
+        "    try {",
+        "        $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json",
+        "        if ($manifest.code_version -ne $CodeVersion) { return $false }",
+        "        if ((@($manifest.layers) -join ',') -ne $Layers) { return $false }",
+        "        if ([long]$manifest.n_steps -le 0) { return $false }",
+        (
+            "        if ([double]$manifest.extra.execution.max_seconds"
+            " -ne $MaxSeconds) { return $false }"
+        ),
+        (
+            "        if ([double]$manifest.extra.execution.mimi_chunk_seconds"
+            " -ne $MimiChunkSeconds) { return $false }"
+        ),
+        (
+            "        if ([int]$manifest.extra.execution.forward_chunk_steps"
+            " -ne $ForwardChunkSteps) { return $false }"
+        ),
+        (
+            "        if ($manifest.extra.execution.forward_mode"
+            " -ne 'streaming_teacher_forced_backbone') { return $false }"
+        ),
+        (
+            "        if ($manifest.extra.delay_application"
+            " -ne 'global_once_before_streaming_forward') { return $false }"
+        ),
+        "        if (-not [bool]$manifest.extra.execution.transformer_state_preserved) { return $false }",
+        "        if (-not [bool]$manifest.extra.execution.mimi_state_preserved) { return $false }",
+        "        if (-not [bool]$manifest.extra.execution.depformer_skipped) { return $false }",
+        (
+            "        if ($manifest.extra.execution.latent_kind"
+            " -ne 'pre_quantization_continuous') { return $false }"
+        ),
+        "        $files = @($manifest.extra.output_files.PSObject.Properties)",
+        "        if ($files.Count -eq 0) { return $false }",
+        "        $runDir = Split-Path -Parent $ManifestPath",
+        "        foreach ($file in $files) {",
+        "            $path = Join-Path $runDir $file.Name",
+        "            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }",
+        "            if ((Get-Item -LiteralPath $path).Length -ne [long]$file.Value) { return $false }",
+        "        }",
+        "        return $true",
+        "    } catch {",
+        "        return $false",
+        "    }",
+        "}",
+    ]
+    if cuda_visible_devices is not None:
+        lines.insert(2, f"$env:CUDA_VISIBLE_DEVICES = {_powershell_quote(cuda_visible_devices)}")
+    for command in commands:
+        out_dir = Path(_option_value(command, "--out"))
+        done_marker = out_dir / "manifest.json"
+        code_version = _option_value(command, "--code-version")
+        layers = _option_value(command, "--layers")
+        max_seconds = _option_value(command, "--max-seconds")
+        mimi_chunk_seconds = _option_value(command, "--mimi-chunk-seconds")
+        forward_chunk_steps = _option_value(command, "--forward-chunk-steps")
+        invocation = " ".join(["&", *(_powershell_quote(part) for part in command)])
+        lines.extend(
+            [
+                (
+                    "if (-not (Test-MveRun "
+                    f"-ManifestPath {_powershell_quote(done_marker)} "
+                    f"-CodeVersion {_powershell_quote(code_version)} "
+                    f"-Layers {_powershell_quote(layers)} "
+                    f"-MaxSeconds {max_seconds} "
+                    f"-MimiChunkSeconds {mimi_chunk_seconds} "
+                    f"-ForwardChunkSteps {forward_chunk_steps})) {{"
+                ),
+                f"    {invocation}",
+                (
+                    f'    if ($LASTEXITCODE -ne 0) {{ throw "Moshi runner 失败'
+                    f'（退出码 $LASTEXITCODE）：{out_dir.name}" }}'
+                ),
+                "}",
+            ]
+        )
+    return "\n".join(lines) + "\n"
 
 
 def build_commands() -> tuple[list[list[str]], dict]:
@@ -30,6 +240,15 @@ def build_commands() -> tuple[list[list[str]], dict]:
     weights = paths["models"]["moshi"]["weights_moshiko"]
     layers = ",".join(str(x) for x in grids["layers"])
     max_s = float(grids["max_minutes_per_session"]) * 60.0
+    mimi_chunk_seconds = float(grids["mimi_chunk_seconds"])
+    forward_chunk_steps = int(grids["forward_chunk_steps"])
+    if max_s <= 0:
+        raise ValueError("mve.max_minutes_per_session 必须大于 0")
+    if mimi_chunk_seconds <= 0:
+        raise ValueError("mve.mimi_chunk_seconds 必须大于 0")
+    if forward_chunk_steps <= 0:
+        raise ValueError("mve.forward_chunk_steps 必须大于 0")
+    code_version = _runner_code_version(runner)
     audio_root = data_root() / "candor_extracted"
     out_root = data_root() / "activations" / "moshi" / "mve_r1"
     cmds = []
@@ -47,41 +266,86 @@ def build_commands() -> tuple[list[list[str]], dict]:
                     "--session-id", sid,
                     "--layers", layers,
                     "--max-seconds", str(max_s),
+                    "--mimi-chunk-seconds", str(mimi_chunk_seconds),
+                    "--forward-chunk-steps", str(forward_chunk_steps),
                     "--out", str(out_dir),
+                    "--code-version", code_version,
                 ]
             )
-    meta = {"n_sessions": len(sessions), "n_runs": len(cmds), "train": len(train), "eval": len(evals)}
+    meta = {
+        "n_sessions": len(sessions),
+        "n_runs": len(cmds),
+        "train": len(train),
+        "eval": len(evals),
+        "code_version": code_version,
+        "git_commit": _git_commit(),
+        "layers": list(grids["layers"]),
+        "max_seconds": max_s,
+        "mimi_chunk_seconds": mimi_chunk_seconds,
+        "forward_chunk_steps": forward_chunk_steps,
+    }
     return cmds, meta
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--emit-ps1", help="写 PowerShell 批处理到该路径")
-    ap.add_argument("--exec", action="store_true", help="当场串行执行（长跑，建议先 --limit 2 冒烟）")
+    action = ap.add_mutually_exclusive_group(required=True)
+    action.add_argument("--emit-ps1", help="写 PowerShell 批处理到该路径")
+    action.add_argument("--exec", action="store_true", help="当场串行执行（长跑，建议先 --limit 2 冒烟）")
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--num-shards", type=int, default=1, help="静态互斥分片总数")
+    ap.add_argument("--shard-id", type=int, default=0, help="当前分片编号（从 0 开始）")
+    ap.add_argument("--cuda-visible-devices", help="写入批处理的 CUDA_VISIBLE_DEVICES，例如 0 或 1")
     args = ap.parse_args()
-    cmds, meta = build_commands()
-    if args.limit:
+    all_cmds, meta = build_commands()
+    try:
+        input_meta = validate_audio_inputs(all_cmds)
+        cmds = select_shard(all_cmds, args.num_shards, args.shard_id)
+    except ValueError as exc:
+        ap.error(str(exc))
+    if args.limit is not None:
+        if args.limit < 1:
+            ap.error("--limit 必须至少为 1")
         cmds = cmds[: args.limit]
+    failures = []
     if args.emit_ps1:
-        lines = ["$ErrorActionPreference = 'Stop'"]
-        for c in cmds:
-            quoted = " ".join(f'"{p}"' if " " in p else p for p in c)
-            done_marker = Path(c[-1]) / "manifest.json"
-            lines.append(f"if (-not (Test-Path '{done_marker}')) {{ {quoted} }}")
         Path(args.emit_ps1).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.emit_ps1).write_text("\n".join(lines), encoding="utf-8")
-        print(f"已写 {len(cmds)} 条命令 → {args.emit_ps1}（幂等：有 manifest.json 的 run 跳过）")
-    elif args.exec:
-        n_ok = 0
-        for i, c in enumerate(cmds):
-            print(f"[{i + 1}/{len(cmds)}] {Path(c[-1]).name}")
-            proc = subprocess.run(c)
-            n_ok += int(proc.returncode == 0)
-        print(f"完成 {n_ok}/{len(cmds)}")
+        Path(args.emit_ps1).write_text(
+            render_ps1(cmds, args.cuda_visible_devices),
+            encoding="utf-8",
+        )
+        print(
+            f"已写 {len(cmds)} 条命令 → {args.emit_ps1}"
+            "（仅跳过有效且与当前代码、层配置匹配的 manifest）"
+        )
     else:
-        ap.error("需要 --emit-ps1 或 --exec")
-    write_report_json("wp7_cache_plan.json", {**meta, "emitted": len(cmds)})
+        n_ok = 0
+        exec_env = os.environ.copy()
+        if args.cuda_visible_devices is not None:
+            exec_env["CUDA_VISIBLE_DEVICES"] = args.cuda_visible_devices
+        for i, c in enumerate(cmds):
+            run_name = Path(_option_value(c, "--out")).name
+            print(f"[{i + 1}/{len(cmds)}] {run_name}")
+            proc = subprocess.run(c, env=exec_env)
+            if proc.returncode != 0:
+                failures.append({"run": run_name, "returncode": proc.returncode})
+                break
+            n_ok += 1
+        print(f"完成 {n_ok}/{len(cmds)}")
+    write_report_json(
+        "wp7_cache_plan.json",
+        {
+            **meta,
+            "input_validation": input_meta,
+            "num_shards": args.num_shards,
+            "shard_id": args.shard_id,
+            "cuda_visible_devices": args.cuda_visible_devices,
+            "emitted": len(cmds),
+            "failures": failures,
+        },
+    )
+    if failures:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

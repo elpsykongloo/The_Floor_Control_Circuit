@@ -44,7 +44,16 @@ def _session_ids(args) -> list[str]:
 def _extract_one(index: pd.DataFrame, sid: str, out_dir: Path) -> dict:
     sess_out = out_dir / sid
     if (sess_out / "audio_ch0.wav").exists() and (sess_out / "audio_ch1.wav").exists():
-        return {"session": sid, "mode": "already_done"}
+        channel_map_path = sess_out / "channel_map.json"
+        try:
+            channel_map = json.loads(channel_map_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            channel_map = {}
+        return {
+            "session": sid,
+            "mode": str(channel_map.get("mode", "already_done")),
+            "cached": True,
+        }
     got = extract_members(index, [sid], ["audio", "transcript_backbiter"], out_dir)
     mp3s = [p for p in got if p.suffix.lower() in (".mp3", ".wav", ".flac", ".m4a")]
     if mp3s:
@@ -113,6 +122,8 @@ def main() -> None:
     ok_modes = ("stereo_split", "two_files", "already_done")
     report["n_converted_ok"] = sum(1 for c in report["converted"] if c["mode"] in ok_modes)
     write_report_json("candor_extract_summary.json", report)
+    if args.from_split:
+        write_report_json(f"candor_extract_{args.group}_summary.json", report)
     print(f"完成：{report['n_converted_ok']}/{len(session_ids)} 会话可用")
     if report["n_converted_ok"] < len(session_ids):
         print("有失败样本：请回传 reports/candor_extract_summary.json")

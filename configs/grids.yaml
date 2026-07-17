@@ -30,6 +30,8 @@ mve:
   n_sessions_train: 160 # 自 CANDOR 探针训练划分（60% 侧）
   n_sessions_eval: 40 # 自 CANDOR 验证划分（15% 侧）；25% 因果评估侧绝不触碰
   max_minutes_per_session: 10
+  mimi_chunk_seconds: 0.08 # 官方在线路径的一帧：保持 Mimi streaming 状态与实时编码语义
+  forward_chunk_steps: 128 # 保持 transformer streaming 状态，约 10.24 秒/块
   seeds: [0, 1, 2]
   neg_downsample_ratio: 5 # 负类:正类 = 5:1（文档/00 §8）
   probe_c_grid: [0.01, 0.1, 1.0]
