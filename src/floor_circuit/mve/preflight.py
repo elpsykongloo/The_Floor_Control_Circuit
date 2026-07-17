@@ -168,7 +168,7 @@ def _validate_label(
         spec = run_specs.get((sid, channel))
         if spec is None:
             continue
-        for target, delta in (("T1", t1_delta_ms), ("T4", None), ("T5", None)):
+        for target, delta in (("T1", t1_delta_ms), ("T5", None)):
             rows = eligible_rows(
                 labels,
                 target,
@@ -178,6 +178,16 @@ def _validate_label(
             )
             if rows.empty:
                 issues.append(f"{sid}/agent{channel}: 前 {spec.n_steps} 步缺少 {target} 标签")
+        for target, delta in (("T1", t1_delta_ms), ("T4", None)):
+            rows = eligible_rows(
+                labels,
+                target,
+                delta,
+                channel,
+                max_steps=spec.n_steps,
+            )
+            if not rows.empty and not np.isin(rows["label"].to_numpy(), [0, 1]).all():
+                issues.append(f"{sid}/agent{channel}: {target} 含非二值标签")
         t5 = eligible_rows(labels, "T5", None, channel, max_steps=spec.n_steps)
         if len(t5) != spec.n_steps or not np.array_equal(
             t5["step"].to_numpy(dtype=np.int64),
@@ -185,6 +195,58 @@ def _validate_label(
         ):
             issues.append(f"{sid}/agent{channel}: T5 必须逐步覆盖 0..{spec.n_steps - 1}，实际 {len(t5)} 行")
     return issues
+
+
+def _validate_target_pools(
+    labels_root: Path,
+    session_pools: dict[str, list[str]],
+    run_specs: dict[tuple[str, int], RunSpec],
+    t1_delta_ms: int,
+) -> tuple[list[str], dict]:
+    """允许 T4 单角色或单会话无事件，但训练池与验证池都必须具备二分类监督。"""
+
+    issues: list[str] = []
+    summary: dict[str, dict] = {}
+    for pool_name in ("train", "val"):
+        target_values: dict[str, list[np.ndarray]] = {"T1": [], "T4": []}
+        for sid in session_pools[pool_name]:
+            label_path = labels_root / f"{sid}.parquet"
+            if not label_path.is_file():
+                continue
+            try:
+                labels = pd.read_parquet(label_path)
+            except Exception:
+                continue
+            for channel in (0, 1):
+                spec = run_specs.get((sid, channel))
+                if spec is None:
+                    continue
+                for target, delta in (("T1", t1_delta_ms), ("T4", None)):
+                    rows = eligible_rows(
+                        labels,
+                        target,
+                        delta,
+                        channel,
+                        max_steps=spec.n_steps,
+                    )
+                    target_values[target].append(rows["label"].to_numpy(dtype=np.int64))
+        pool_summary: dict[str, dict] = {}
+        for target, parts in target_values.items():
+            values = np.concatenate(parts) if parts else np.empty(0, dtype=np.int64)
+            n_positive = int(np.sum(values == 1))
+            n_negative = int(np.sum(values == 0))
+            pool_summary[target] = {
+                "n_rows": len(values),
+                "n_positive": n_positive,
+                "n_negative": n_negative,
+            }
+            if n_positive == 0 or n_negative == 0:
+                issues.append(
+                    f"{pool_name} 池 {target} 必须同时含正负类，"
+                    f"当前正类={n_positive}、负类={n_negative}"
+                )
+        summary[pool_name] = pool_summary
+    return issues, summary
 
 
 def _validate_run(
@@ -310,6 +372,7 @@ def preflight_mve_inputs(
     labels_root: str | Path,
     audio_root: str | Path,
     session_ids: list[str],
+    session_pools: dict[str, list[str]],
     layers: list[int],
     expected_n_steps: int,
     expected_clock_hz: float,
@@ -324,6 +387,15 @@ def preflight_mve_inputs(
     runs_root, labels_root, audio_root = Path(runs_root), Path(labels_root), Path(audio_root)
     if len(session_ids) != len(set(session_ids)):
         raise MvePreflightError("MVE 会话列表含重复项")
+    if set(session_pools) != {"train", "val"}:
+        raise MvePreflightError("session_pools 必须且只能包含 train/val")
+    train_ids, val_ids = session_pools["train"], session_pools["val"]
+    if len(train_ids) != len(set(train_ids)) or len(val_ids) != len(set(val_ids)):
+        raise MvePreflightError("MVE train/val 池含重复会话")
+    if set(train_ids) & set(val_ids):
+        raise MvePreflightError("MVE train/val 池存在会话重叠")
+    if set(train_ids) | set(val_ids) != set(session_ids):
+        raise MvePreflightError("MVE train/val 池与总会话列表不一致")
 
     issues: list[str] = []
     specs: dict[tuple[str, int], RunSpec] = {}
@@ -369,6 +441,14 @@ def preflight_mve_inputs(
             continue
         issues.extend(_validate_label(label_path, sid, specs, t1_delta_ms))
 
+    pool_issues, pool_summary = _validate_target_pools(
+        labels_root,
+        session_pools,
+        specs,
+        t1_delta_ms,
+    )
+    issues.extend(pool_issues)
+
     expected_runs = len(session_ids) * 2
     if len(specs) != expected_runs:
         issues.append(f"通过 manifest 基础读取的 run 为 {len(specs)}/{expected_runs}")
@@ -392,5 +472,6 @@ def preflight_mve_inputs(
         "source_audio_hashes_verified": len(session_ids) * 2,
         "latent_kind": "pre_quantization_continuous",
         "n_labels": len(session_ids),
+        "target_pools": pool_summary,
     }
     return specs, report

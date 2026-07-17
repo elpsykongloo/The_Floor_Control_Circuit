@@ -116,6 +116,14 @@ def fit_probe_streaming(
         y_val = np.asarray(y_val, dtype=np.int64)
         if X_val.ndim != 2 or len(X_val) != len(y_val):
             raise ValueError(f"{sid} 验证特征与标签形状不一致")
+        if X_val.shape[1] != X_train.shape[1]:
+            raise ValueError(
+                f"{sid} 验证特征维度 {X_val.shape[1]}，训练维度 {X_train.shape[1]}"
+            )
+        if len(y_val) == 0:
+            for c in models:
+                scores_by_c[c][sid] = (y_val, np.empty(0, dtype=np.float64))
+            continue
         X_val_scaled = scaler.transform(X_val, copy=False)
         for c, model in models.items():
             score = model.predict_proba(X_val_scaled)[:, 1].astype(np.float64)

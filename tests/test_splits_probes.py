@@ -116,6 +116,25 @@ class TestStats:
         shuffled = shuffle_labels_within_session(per, seed=0)
         assert abs(pooled_metrics(shuffled)["auc"] - 0.5) < 0.06
 
+    def test_empty_cluster_is_preserved_without_breaking_bootstrap(self):
+        strong = self.make_per_session(1.5, seed=4)
+        strong["empty"] = (
+            np.empty(0, dtype=np.int64),
+            np.empty(0, dtype=np.float64),
+        )
+        weak = {
+            sid: (values[0], np.zeros(len(values[0]), dtype=np.float64))
+            for sid, values in strong.items()
+        }
+
+        metrics = pooled_metrics(strong)
+        ci = cluster_bootstrap_auc(strong, n_boot=100, seed=0)
+        advantage = paired_advantage_bootstrap(strong, {"weak": weak}, n_boot=100, seed=0)
+
+        assert metrics["n_sessions"] == 11
+        assert ci["n_boot_effective"] == 100
+        assert advantage["n_boot_effective"] == 100
+
     def test_g1_branches(self):
         assert g1_verdict(0.08, 0.02, 0.05, 0.02) == "full_e1"
         assert g1_verdict(0.08, -0.01, 0.05, 0.02) == "backup_mve"  # 点估计过线但 CI 下界 ≤ 0

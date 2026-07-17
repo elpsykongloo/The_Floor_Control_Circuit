@@ -206,6 +206,7 @@ def test_preflight_validates_runs_arrays_latent_and_labels(tmp_path):
         labels,
         audio,
         sessions,
+        {"train": ["s1"], "val": ["s2"]},
         layers,
         expected_n_steps=6,
         expected_clock_hz=12.5,
@@ -236,6 +237,7 @@ def test_preflight_rejects_quantized_latent_and_missing_layer(tmp_path):
             labels,
             audio,
             ["s1"],
+            {"train": ["s1"], "val": []},
             layers,
             6,
             12.5,
@@ -273,6 +275,7 @@ def test_preflight_rejects_stale_runner_execution_and_source_audio(tmp_path):
             labels,
             audio,
             ["s1"],
+            {"train": ["s1"], "val": []},
             layers,
             6,
             12.5,
@@ -288,6 +291,63 @@ def test_preflight_rejects_stale_runner_execution_and_source_audio(tmp_path):
     assert "mimi_chunk_seconds" in message
     assert "mimi_state_preserved" in message
     assert "当前 CANDOR WAV 不一致" in message
+
+
+def test_preflight_allows_empty_t4_roles_and_preserves_pool_supervision(tmp_path):
+    sessions = ["train", "val-full", "val-empty"]
+    runs, labels, audio, layers = _world(tmp_path, sessions)
+    train_frame = pd.read_parquet(labels / "train.parquet")
+    train_frame = train_frame[
+        ~((train_frame["target"] == "T4") & (train_frame["agent_channel"] == 0))
+    ]
+    train_frame.to_parquet(labels / "train.parquet")
+    empty_frame = pd.read_parquet(labels / "val-empty.parquet")
+    empty_frame = empty_frame[empty_frame["target"] != "T4"]
+    empty_frame.to_parquet(labels / "val-empty.parquet")
+
+    _specs, report = preflight_mve_inputs(
+        runs,
+        labels,
+        audio,
+        sessions,
+        {"train": ["train"], "val": ["val-full", "val-empty"]},
+        layers,
+        6,
+        12.5,
+        240,
+        "test-runner",
+        6 / 12.5,
+        0.08,
+        128,
+    )
+
+    assert report["target_pools"]["train"]["T4"]["n_rows"] == 6
+    assert report["target_pools"]["val"]["T4"]["n_rows"] == 12
+
+
+def test_preflight_rejects_target_pool_without_both_classes(tmp_path):
+    sessions = ["train", "val"]
+    runs, labels, audio, layers = _world(tmp_path, sessions)
+    frame = pd.read_parquet(labels / "val.parquet")
+    frame.loc[frame["target"] == "T4", "label"] = 1
+    frame.to_parquet(labels / "val.parquet")
+
+    with pytest.raises(MvePreflightError, match="val 池 T4 必须同时含正负类"):
+        preflight_mve_inputs(
+            runs,
+            labels,
+            audio,
+            sessions,
+            {"train": ["train"], "val": ["val"]},
+            layers,
+            6,
+            12.5,
+            240,
+            "test-runner",
+            6 / 12.5,
+            0.08,
+            128,
+        )
 
 
 def test_eligible_rows_caps_and_orders_by_manifest_steps():
@@ -328,6 +388,34 @@ def test_hazard_baseline_uses_each_role_n_steps(tmp_path, monkeypatch):
 
     assert len(result["eval"][0]) == 8
     assert len(result["eval"][1]) == 8
+
+
+def test_hazard_baseline_preserves_empty_eval_cluster(tmp_path, monkeypatch):
+    module = _load_wp7()
+    labels_root = tmp_path / "flat"
+    labels_root.mkdir()
+    _labels(8).to_parquet(labels_root / "train.parquet")
+    empty = _labels(8)
+    empty = empty[empty["target"] != "T4"]
+    empty.to_parquet(labels_root / "eval.parquet")
+    monkeypatch.setattr(module, "_labels_root", lambda: labels_root)
+    specs = {
+        (sid, channel): RunSpec(
+            sid,
+            channel,
+            tmp_path,
+            4,
+            12.5,
+            ("a" * 64, "b" * 64),
+        )
+        for sid in ("train", "eval")
+        for channel in (0, 1)
+    }
+
+    result = module.hazard_baseline(["train"], ["eval"], "T4", None, specs)
+
+    assert result["eval"][0].shape == (0,)
+    assert result["eval"][1].shape == (0,)
 
 
 def test_audio_prefix_reader_stops_at_run_time_domain(tmp_path):

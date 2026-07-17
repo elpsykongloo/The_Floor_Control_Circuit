@@ -250,7 +250,16 @@ def hazard_baseline(
     X_tr = np.concatenate([feats[s][0] for s in sessions_train])
     y_tr = np.concatenate([feats[s][1] for s in sessions_train])
     clf = fit_hazard(X_tr, y_tr)
-    return {sid: (feats[sid][1], clf.predict_proba(feats[sid][0])[:, 1]) for sid in sessions_eval}
+    out: PerSession = {}
+    for sid in sessions_eval:
+        X_eval, y_eval = feats[sid]
+        scores = (
+            clf.predict_proba(X_eval)[:, 1]
+            if len(y_eval)
+            else np.empty(0, dtype=np.float64)
+        )
+        out[sid] = (y_eval, scores)
+    return out
 
 
 def _acoustic_windows_peak_bytes(
@@ -423,6 +432,7 @@ def main() -> None:
         _labels_root(),
         data_root() / "candor_extracted",
         sessions,
+        {"train": train, "val": evals},
         [int(layer) for layer in mve_cfg["layers"]],
         expected_n_steps,
         clock_hz,

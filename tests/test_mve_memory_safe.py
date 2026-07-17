@@ -148,6 +148,49 @@ def test_feature_loaders_enforce_explicit_memory_limits(tmp_path):
         load_session_feature(runs, labels, "s0", specs, 4, "T1", 240, max_bytes=1)
 
 
+def test_double_empty_t4_session_is_preserved_as_zero_row_cluster(tmp_path):
+    runs, labels, specs = _memory_world(tmp_path, ["s0"])
+
+    features, values = load_session_feature(
+        runs,
+        labels,
+        "s0",
+        specs,
+        4,
+        "T4",
+        None,
+    )
+
+    assert features.shape == (0, 5)
+    assert values.shape == (0,)
+
+
+def test_streaming_probe_scores_empty_validation_cluster_explicitly():
+    rng = np.random.default_rng(8)
+    X_train = rng.normal(size=(40, 3)).astype(np.float32)
+    y_train = np.tile([0, 1], 20)
+    X_full = rng.normal(size=(8, 3)).astype(np.float32)
+    y_full = np.tile([0, 1], 4)
+
+    def provide(sid: str) -> tuple[np.ndarray, np.ndarray]:
+        if sid == "empty":
+            return np.empty((0, 3), dtype=np.float32), np.empty(0, dtype=np.int64)
+        return X_full.copy(), y_full.copy()
+
+    _fit, scores = fit_probe_streaming(
+        X_train,
+        y_train,
+        ["full", "empty"],
+        provide,
+        [0.1],
+        seed=0,
+    )
+
+    assert scores["full"][0].shape == (8,)
+    assert scores["empty"][0].shape == (0,)
+    assert scores["empty"][1].shape == (0,)
+
+
 def test_gru_validation_and_evaluation_are_batched():
     calls: list[int] = []
 
@@ -171,3 +214,11 @@ def test_gru_validation_and_evaluation_are_batched():
     expected = torch.from_numpy(windows[:, 0, 0]).sigmoid().numpy()
     assert calls == [4, 4, 3]
     assert scores == pytest.approx(expected)
+    empty = predict_gru_batched(
+        FakeModel(),
+        np.empty((0, 3, 2), dtype=np.float32),
+        np.zeros(2, dtype=np.float32),
+        np.ones(2, dtype=np.float32),
+        batch_size=4,
+    )
+    assert empty.shape == (0,)

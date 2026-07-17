@@ -198,8 +198,6 @@ def _checked_feature_dim(
     dims: set[int] = set()
     max_role_rows = 0
     for role in roles:
-        if not len(role.steps):
-            continue
         array = _feature_array(
             runs_root,
             role.session_id,
@@ -208,13 +206,13 @@ def _checked_feature_dim(
             feature,
         )
         dims.add(int(array.shape[1]))
-        if int(role.steps[-1]) >= int(array.shape[0]):
+        if len(role.steps) and int(role.steps[-1]) >= int(array.shape[0]):
             raise ValueError(
                 f"{role.session_id}/agent{role.agent_channel} 的步号越过特征长度"
             )
         max_role_rows = max(max_role_rows, len(role.steps))
     if len(dims) != 1:
-        raise ValueError(f"特征维度不唯一或训练样本为空：{sorted(dims)}")
+        raise ValueError(f"特征维度不唯一或没有可读数组：{sorted(dims)}")
     return dims.pop(), max_role_rows
 
 
