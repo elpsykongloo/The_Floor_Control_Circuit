@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-07-17T11:42:50.340873+00:00",
+ "generated_at": "2026-07-17T12:45:27.697942+00:00",
  "n_files_found": 0,
  "files_ok": 0,
  "errors": [],
@@ -47,7 +47,133 @@
     "path": "Edu\\audios\\Edu_0027.tar",
     "mb": 8255.4
    }
-  ]
+  ],
+  "tar_peek": {
+   "tar": "Edu_0001.tar",
+   "members": [
+    {
+     "name": "Edu--000001.wav",
+     "size": 4485164
+    },
+    {
+     "name": "Edu--000002.wav",
+     "size": 10598440
+    },
+    {
+     "name": "Edu--000003.wav",
+     "size": 12893228
+    },
+    {
+     "name": "Edu--000004.wav",
+     "size": 50294828
+    },
+    {
+     "name": "Edu--000005.wav",
+     "size": 2181164
+    },
+    {
+     "name": "Edu--000006.wav",
+     "size": 28612652
+    },
+    {
+     "name": "Edu--000007.wav",
+     "size": 17476652
+    },
+    {
+     "name": "Edu--000008.wav",
+     "size": 27838508
+    },
+    {
+     "name": "Edu--000009.wav",
+     "size": 4153388
+    },
+    {
+     "name": "Edu--000010.wav",
+     "size": 2328620
+    },
+    {
+     "name": "Edu--000011.wav",
+     "size": 21027884
+    },
+    {
+     "name": "Edu--000012.wav",
+     "size": 24078380
+    },
+    {
+     "name": "Edu--000013.wav",
+     "size": 5621804
+    },
+    {
+     "name": "Edu--000014.wav",
+     "size": 14011436
+    },
+    {
+     "name": "Edu--000015.wav",
+     "size": 11363372
+    },
+    {
+     "name": "Edu--000016.wav",
+     "size": 28643372
+    },
+    {
+     "name": "Edu--000017.wav",
+     "size": 3330092
+    },
+    {
+     "name": "Edu--000018.wav",
+     "size": 8669228
+    },
+    {
+     "name": "Edu--000021.wav",
+     "size": 13894700
+    },
+    {
+     "name": "Edu--000022.wav",
+     "size": 10779692
+    },
+    {
+     "name": "Edu--000025.wav",
+     "size": 2414636
+    },
+    {
+     "name": "Edu--000026.wav",
+     "size": 18137132
+    },
+    {
+     "name": "Edu--000027.wav",
+     "size": 8386604
+    },
+    {
+     "name": "Edu--000028.wav",
+     "size": 6297644
+    },
+    {
+     "name": "Edu--000029.wav",
+     "size": 7796780
+    },
+    {
+     "name": "Edu--000030.wav",
+     "size": 7661608
+    },
+    {
+     "name": "Edu--000031.wav",
+     "size": 5873708
+    },
+    {
+     "name": "Edu--000032.wav",
+     "size": 45441064
+    },
+    {
+     "name": "Edu--000033.wav",
+     "size": 10042412
+    },
+    {
+     "name": "Edu--000035.wav",
+     "size": 16794664
+    }
+   ],
+   "json_sample": null
+  }
  },
  "n_rows": 0,
  "label_coverage": 0.0,

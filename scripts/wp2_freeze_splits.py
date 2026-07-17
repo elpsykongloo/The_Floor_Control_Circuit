@@ -14,7 +14,31 @@ import pandas as pd
 from _bootstrap import REPO_ROOT, write_report_json
 
 from floor_circuit.config import data_root, load_paths
-from floor_circuit.data.splits import CANDOR_RATIOS, SMOOTHCONV_RATIOS, freeze_split, write_split
+from floor_circuit.data.splits import (
+    CANDOR_RATIOS,
+    SMOOTHCONV_RATIOS,
+    freeze_split,
+    load_split,
+    write_split,
+)
+
+
+def _frozen_summaries(out_dir: Path, seed: int) -> dict[str, dict]:
+    """从已有冻结文件重建摘要，避免分数据集运行时覆盖先前结果。"""
+    summaries: dict[str, dict] = {}
+    for path in sorted(out_dir.glob("*.json")):
+        payload = load_split(path)
+        dataset = str(payload.get("dataset", path.stem))
+        frozen_seed = int(payload["seed"])
+        if frozen_seed != seed:
+            raise SystemExit(
+                f"{path} 的冻结种子为 {frozen_seed}，本次为 {seed}；拒绝合并不同种子的摘要"
+            )
+        summaries[dataset] = {
+            "counts": payload["counts"],
+            "sha256": payload["sha256"],
+        }
+    return summaries
 
 
 def _freeze_one(dataset: str, sessions: list[str], ratios: dict, seed: int, out_dir: Path) -> dict:
@@ -36,7 +60,7 @@ def main() -> None:
     )
     args = ap.parse_args()
     out_dir = REPO_ROOT / "configs" / "splits"
-    summary: dict = {"seed": args.seed, "datasets": {}}
+    summary: dict = {"seed": args.seed, "datasets": _frozen_summaries(out_dir, args.seed)}
 
     if args.dataset in ("candor", "all"):
         index = pd.read_parquet(data_root() / "raw_index" / "candor_index.parquet")

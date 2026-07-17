@@ -1,9 +1,19 @@
 {
- "generated_at": "2026-07-17T11:59:41.961485+00:00",
- "n_pairs": 20,
- "pass_rate": 0.3,
- "fail_duration": 14,
- "fail_loudness": 1,
- "fail_sr": 0,
- "fail_clip": 0
+ "generated_at": "2026-07-17T12:45:33.123238+00:00",
+ "minimal_pairs": {
+  "n_pairs": 20,
+  "pass_rate": 0.95,
+  "fail_duration": 0,
+  "fail_loudness": 1,
+  "fail_sr": 0,
+  "fail_clip": 0
+ },
+ "transform_pairs": {
+  "n_pairs": 40,
+  "pass_rate": 0.975,
+  "fail_duration": 0,
+  "fail_loudness": 1,
+  "fail_sr": 0,
+  "fail_clip": 0
+ }
 }

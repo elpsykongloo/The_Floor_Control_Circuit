@@ -1,21 +1,19 @@
-# 刺激质检报告（S1 配平）
+# 刺激质检报告（S1，双轨协议）
 
-- 对数：20，通过率：30.00%
-- 未过项：时长 14，响度 1，采样率 0，削波 0
+## 最小对（complete vs incomplete，响度配平）：20 对，通过率 95.00%
+- 未过：响度 1，采样率 0，削波 0（时长为前缀关系，不判死，见 duration_ratio）
 
-| id          | lang   | a                                                                                | b                                                                                  | sr_ok   | clip_ok   |   duration_diff_pct | duration_ok   |   lufs_diff | loudness_ok   | pass   |
-|:------------|:-------|:---------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------|:--------|:----------|--------------------:|:--------------|------------:|:--------------|:-------|
-| s1_en_00_00 | en     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_00\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_00\incomplete.wav | True    | True      |            20       | False         | 2.77235e-06 | True          | False  |
-| s1_en_00_01 | en     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_01\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_01\incomplete.wav | True    | True      |            10       | False         | 4.78059e-06 | True          | False  |
-| s1_en_00_02 | en     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_02\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_02\incomplete.wav | True    | True      |            25       | False         | 8.09889e-06 | True          | False  |
-| s1_en_00_03 | en     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_03\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_03\incomplete.wav | True    | True      |            18.75    | False         | 4.51344e-06 | True          | False  |
-| s1_en_00_04 | en     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_04\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_04\incomplete.wav | True    | True      |            12.5     | False         | 8.27008e-07 | True          | False  |
-| s1_en_00_05 | en     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_05\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_05\incomplete.wav | True    | True      |             5.26316 | False         | 1.2083e-06  | True          | False  |
-| s1_en_00_06 | en     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_06\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_06\incomplete.wav | True    | True      |            11.9048  | False         | 2.90936e-06 | True          | False  |
-| s1_en_00_07 | en     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_07\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\en\s1_en_00_07\incomplete.wav | True    | True      |            12.5     | False         | 2.98124e-06 | True          | False  |
-| s1_zh_00_00 | zh     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_00\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_00\incomplete.wav | True    | True      |            32.2222  | False         | 2.76266e-06 | True          | False  |
-| s1_zh_00_01 | zh     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_01\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_01\incomplete.wav | True    | True      |            27.2727  | False         | 1.53826e-06 | True          | False  |
-| s1_zh_00_02 | zh     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_02\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_02\incomplete.wav | True    | True      |            14.0845  | False         | 5.98001e-08 | True          | False  |
-| s1_zh_00_04 | zh     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_04\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_04\incomplete.wav | True    | True      |            19.2982  | False         | 6.60564e-06 | True          | False  |
-| s1_zh_00_06 | zh     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_06\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_06\incomplete.wav | True    | True      |            48.6111  | False         | 2.17702e-06 | True          | False  |
-| s1_zh_00_08 | zh     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_08\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_08\incomplete.wav | True    | True      |            25.974   | False         | 1.24865     | False         | False  |
+## 变换对（原版 vs F0 拉平，时长 ±5% + 响度）：40 对，通过率 97.50%
+- 未过：时长 0，响度 1
+
+### 最小对未过明细
+
+| id          | lang   | a                                                                                | b                                                                                  | sr_ok   | clip_ok   |   duration_diff_pct |   duration_ratio |   lufs_diff | loudness_ok   | duration_checked   | duration_ok   | pass   |
+|:------------|:-------|:---------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------|:--------|:----------|--------------------:|-----------------:|------------:|:--------------|:-------------------|:--------------|:-------|
+| s1_zh_00_08 | zh     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_08\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_08\incomplete.wav | True    | True      |              25.974 |          0.74026 |     1.24865 | False         | False              | True          | False  |
+
+### 变换对未过明细
+
+| id                          | lang   | a                                                                                | b                                                                                       | sr_ok   | clip_ok   |   duration_diff_pct |   duration_ratio |   lufs_diff | loudness_ok   | duration_checked   | duration_ok   | pass   |
+|:----------------------------|:-------|:---------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------|:--------|:----------|--------------------:|-----------------:|------------:|:--------------|:-------------------|:--------------|:-------|
+| s1_zh_00_08_complete_f0flat | zh     | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_08\complete.wav | D:\data_storage\The_Floor_Control_Circuit\stimuli\s1\zh\s1_zh_00_08\complete_f0flat.wav | True    | True      |                   0 |                1 |     1.52267 | False         | True               | True          | False  |

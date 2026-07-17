@@ -1,0 +1,22 @@
+{
+ "generated_at": "2026-07-17T12:51:16.776791+00:00",
+ "seed": 20260717,
+ "datasets": {
+  "candor": {
+   "counts": {
+    "probe_train": 994,
+    "probe_val": 248,
+    "causal_eval": 414
+   },
+   "sha256": "5241f152f202cdba9256e56df3b68ac122c85f9428745bcc0078f9b5d1b422e2"
+  },
+  "smoothconv": {
+   "counts": {
+    "train": 1752,
+    "eval_sdt": 751
+   },
+   "sha256": "6c2b7bdb26b76f0e77d242a823f8090607e2a7f634faa874d9b7e3ab2d771b79"
+  }
+ },
+ "note": "DualTurn 沿官方 splits.json，不在此生成；冻结后跑 prereg_fingerprint.py 回填哈希"
+}

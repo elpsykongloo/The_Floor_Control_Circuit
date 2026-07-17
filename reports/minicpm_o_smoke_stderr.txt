@@ -1,0 +1,22 @@
+C:\artificial_intelligence\models\Full-Duplex\MiniCPM-o-4.5\.venv\lib\site-packages\transformers\utils\hub.py:105: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+Traceback (most recent call last):
+  File "C:\artificial_intelligence\repos\The_Floor_Control_Circuit\runners\minicpm_o\run.py", line 168, in <module>
+    main()
+  File "C:\artificial_intelligence\repos\The_Floor_Control_Circuit\runners\minicpm_o\run.py", line 142, in main
+    for r in collect_stream(args):
+  File "C:\artificial_intelligence\repos\The_Floor_Control_Circuit\runners\minicpm_o\run.py", line 40, in collect_stream
+    model = AutoModel.from_pretrained(
+  File "C:\artificial_intelligence\models\Full-Duplex\MiniCPM-o-4.5\.venv\lib\site-packages\transformers\models\auto\auto_factory.py", line 531, in from_pretrained
+    config, kwargs = AutoConfig.from_pretrained(
+  File "C:\artificial_intelligence\models\Full-Duplex\MiniCPM-o-4.5\.venv\lib\site-packages\transformers\models\auto\configuration_auto.py", line 1121, in from_pretrained
+    config_class = get_class_from_dynamic_module(
+  File "C:\artificial_intelligence\models\Full-Duplex\MiniCPM-o-4.5\.venv\lib\site-packages\transformers\dynamic_module_utils.py", line 570, in get_class_from_dynamic_module
+    return get_class_in_module(class_name, final_module, force_reload=force_download)
+  File "C:\artificial_intelligence\models\Full-Duplex\MiniCPM-o-4.5\.venv\lib\site-packages\transformers\dynamic_module_utils.py", line 267, in get_class_in_module
+    module_spec.loader.exec_module(module)
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "D:\cache\huggingface\modules\transformers_modules\MiniCPM-o-4.5\configuration_minicpmo.py", line 25, in <module>
+    from .modeling_navit_siglip import SiglipVisionConfig
+ModuleNotFoundError: No module named 'transformers_modules.MiniCPM-o-4'

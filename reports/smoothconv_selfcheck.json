@@ -1,9 +1,13 @@
 {
- "generated_at": "2026-07-17T11:42:43.579811+00:00",
+ "generated_at": "2026-07-17T12:45:18.288832+00:00",
  "n_files_found": 20,
  "files_ok": 20,
  "errors": [],
- "label_counts": {},
+ "label_counts": {
+  "complete": 466,
+  "incomplete": 221,
+  "backchannel": 138
+ },
  "sample_item": {
   "id": "dc366aaa-f08d-4b49-9d52-392e5724270b",
   "channelIndex": 0,
@@ -41,7 +45,7 @@
   "attributes.turn": 825
  },
  "n_rows": 940,
- "label_coverage": 0.0,
+ "label_coverage": 0.8776595744680851,
  "text_coverage": 0.9914893617021276,
  "channel_unknown_rows": 0
 }

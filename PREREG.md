@@ -48,7 +48,17 @@
 由 `uv run python scripts/prereg_fingerprint.py` 自动回填（configs/*.yaml 与 configs/splits/*.json 的 sha256）。
 
 <!-- FINGERPRINT:BEGIN -->
-（待划分冻结后生成）
+
+指纹生成时间：2026-07-17T12:54:19.350221+00:00
+
+| 文件 | sha256 |
+| --- | --- |
+| configs\events.yaml | `9dc6441216cda4f2759201bc5c0395f241361202924be03d549b029e97255c51` |
+| configs\grids.yaml | `41ccbaa7710aaf9b919f1ad1668f17cd0c14c50612e7687b9e055d9ababf1d12` |
+| configs\paths.windows.yaml | `f4523178302f90b513740e220238890b605261ee4ca38b22ab5949a5aa581b0d` |
+| configs\splits\candor.json | `0378ca258a5daebbf9bc5c966e552da7640a90499f2b3d9f0b21b465be93c02e` |
+| configs\splits\smoothconv.json | `5e8612883f3eb671a6a58d51707cd0d5a3f23232725338e9d7832e13730991b7` |
+| configs\stimuli.yaml | `dfdec98f07e5078cd326248c36d341cd9132ea8ef96250fb4e03fd6061942378` |
 <!-- FINGERPRINT:END -->
 
 ## 5. 结果登记

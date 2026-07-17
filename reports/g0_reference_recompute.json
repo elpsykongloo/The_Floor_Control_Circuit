@@ -1,0 +1,45 @@
+{
+ "generated_at": "2026-07-17T13:05:48.063794+00:00",
+ "source": {
+  "repository": "https://github.com/anyreachai/dualturn",
+  "commit": "2d0db21e767b953f5017c1cc697928b54161d645",
+  "file": "dualturn/data/relabel_context_aware.py",
+  "sha256": "357b377cbf538d5feca9da2f0b07ca1f6e82d3de27ad8f086328f7d381d93089"
+ },
+ "input_contract": "生成阶段仅向参考函数传入 vad_ch0/vad_ch1；四类目标轨仅用于事后比较",
+ "root": "D:\\data_storage\\The_Floor_Control_Circuit\\dualturn_prep",
+ "split": "test",
+ "limit": null,
+ "expected_sessions": 138,
+ "n_sessions": 138,
+ "n_channel_frames": 1030734,
+ "label_totals": {
+  "eot": {
+   "pred": 5886,
+   "gold": 5886
+  },
+  "hold": {
+   "pred": 12755,
+   "gold": 12755
+  },
+  "bot": {
+   "pred": 2694,
+   "gold": 2694
+  },
+  "bc": {
+   "pred": 11412,
+   "gold": 11412
+  }
+ },
+ "mismatch": {
+  "eot": 0,
+  "hold": 0,
+  "bot": 0,
+  "bc": 0
+ },
+ "total_mismatch": 0,
+ "exact_equal": true,
+ "n_mismatched_sessions": 0,
+ "mismatched_sessions_truncated": false,
+ "mismatched_sessions": []
+}
