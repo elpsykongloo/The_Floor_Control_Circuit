@@ -124,11 +124,29 @@ class TestStats:
 
 
 class TestHazardFeatures:
-    def test_shapes_and_duration(self):
+    def test_event_timers_state_duration_and_overlap_merge(self):
         from floor_circuit.probes.baselines import hazard_features
 
-        states = np.array([4, 4, 1, 1, 1, 0, 0, 4], dtype=np.int8)
+        # GAP → A 独占 → overlap → B 独占 → GAP → overlap → GAP
+        states = np.array([4, 0, 0, 2, 5, 1, 4, 3, 4], dtype=np.int8)
         X = hazard_features(states, step_s=0.08)
-        assert X.shape == (8, 8)
-        assert X[1, 0] == np.float32(0.08) and X[4, 0] == np.float32(0.16)
-        assert X[2, 0] == 0.0  # 切换步时长归零
+        assert X.shape == (9, 8)
+        # 任一 ONSET：A 在 step1，B 在 step3，双通道在 step7。
+        assert X[[1, 3, 7], 0].tolist() == [0.0, 0.0, 0.0]
+        assert X[4, 0] == pytest.approx(0.08)
+        # 任一 OFFSET：A 在 step5，B 在 step6，双通道在 step8。
+        assert X[[5, 6, 8], 1].tolist() == [0.0, 0.0, 0.0]
+        # 最近独占说话人从 A 变为 B，穿过 overlap 后在 step5 记切换。
+        assert X[5, 2] == 0.0
+        assert X[6, 2] == pytest.approx(0.08)
+        # YIELD、UNRESOLVED、HOLD 均归入无未来泄漏的 OVERLAP 桶。
+        assert np.array_equal(X[3, 4:], [0, 0, 1, 0])
+        assert np.array_equal(X[4, 4:], [0, 0, 1, 0])
+        assert np.array_equal(X[7, 4:], [0, 0, 1, 0])
+        assert X[4, 3] == pytest.approx(0.08)  # overlap 状态连续，不因结局码改变而归零
+
+    def test_speaker_switch_survives_gap(self):
+        from floor_circuit.probes.baselines import hazard_features
+
+        X = hazard_features(np.array([0, 4, 4, 1], dtype=np.int8), step_s=0.08)
+        assert X[3, 2] == 0.0

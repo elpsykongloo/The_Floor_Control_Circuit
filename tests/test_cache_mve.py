@@ -136,9 +136,11 @@ class TestMveOrchestration:
         res = evaluate_target(summary, {"noise": noise_baseline}, n_boot=100,
                               full_thr=0.05, backup_thr=0.02)
         assert res["best_layer"] == 12 and res["verdict"] == "full_e1"
+        assert set(res["baseline_metrics"]["noise"]) >= {"auc", "auprc", "balanced_acc"}
         assert abs(res["shuffled_auc"] - 0.5) < 0.12
         overall = overall_g1({"T1": res}, 0.05, 0.02)
         report = render_report({"T1": res}, overall, {"layers": [4, 12], "seeds": [0, 1],
                                                       "bootstrap_n": 100,
                                                       "n_train_sessions": 5, "n_eval_sessions": 3})
         assert "full_e1" in report and "| L12 |" in report
+        assert "| noise |" in report and "AUPRC" in report

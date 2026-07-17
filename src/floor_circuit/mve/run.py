@@ -89,6 +89,7 @@ def evaluate_target(
             for k, v in layer_summary.items()
         },
         "advantage": adv,
+        "baseline_metrics": {name: pooled_metrics(scores) for name, scores in baselines.items()},
         "probe_ci": cluster_bootstrap_auc(rep, n_boot=n_boot, seed=boot_seed),
         "shuffled_auc": pooled_metrics(shuffled)["auc"],
         "verdict": g1_verdict(adv["advantage_point"], adv["ci_lo"], full_thr, backup_thr),
@@ -138,7 +139,17 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
             "",
             f"- 最优层：L{m['best_layer']}；探针 AUC {adv['probe_auc']:.4f}"
             f"（95% CI [{m['probe_ci']['ci_lo']:.4f}, {m['probe_ci']['ci_hi']:.4f}]）",
-            "- 基线 AUC：" + "，".join(f"{k} {v:.4f}" for k, v in adv["baseline_aucs"].items()),
+            "",
+            "| 基线 | AUC | AUPRC | balanced acc |",
+            "| --- | --- | --- | --- |",
+        ]
+        for name, metrics in sorted(m["baseline_metrics"].items()):
+            lines.append(
+                f"| {name} | {metrics['auc']:.4f} | {metrics['auprc']:.4f} | "
+                f"{metrics['balanced_acc']:.4f} |"
+            )
+        lines += [
+            "",
             f"- shuffled-labels sanity AUC：{m['shuffled_auc']:.4f}（期望 ≈ 0.5）",
             f"- **优势 = {adv['advantage_point']:+.4f}**（95% CI [{adv['ci_lo']:+.4f}, {adv['ci_hi']:+.4f}]）",
             f"- 该目标裁决：`{m['verdict']}`",

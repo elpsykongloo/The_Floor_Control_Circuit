@@ -19,6 +19,29 @@ def make_windows(feats: np.ndarray, idx: np.ndarray, context: int = CONTEXT_STEP
     return out
 
 
+def predict_gru_batched(
+    model,
+    windows: np.ndarray,
+    mean: np.ndarray,
+    scale: np.ndarray,
+    batch_size: int,
+) -> np.ndarray:
+    """固定小批推理，禁止验证或评估阶段物化整集 GRU 序列输出。"""
+
+    import torch
+
+    if batch_size <= 0:
+        raise ValueError("batch_size 必须大于 0")
+    scores: list[np.ndarray] = []
+    model.eval()
+    with torch.no_grad():
+        for start in range(0, len(windows), batch_size):
+            batch = (windows[start : start + batch_size] - mean) / scale
+            logits = model(torch.from_numpy(batch).float())
+            scores.append(logits.sigmoid().cpu().numpy())
+    return np.concatenate(scores) if scores else np.empty(0, dtype=np.float32)
+
+
 def train_eval_gru(
     train: list[tuple[np.ndarray, np.ndarray]],
     val: list[tuple[np.ndarray, np.ndarray]],
@@ -75,9 +98,7 @@ def train_eval_gru(
             loss = loss_fn(model(xb), yb)
             loss.backward()
             opt.step()
-        model.eval()
-        with torch.no_grad():
-            pv = model(torch.from_numpy(norm(X_va)).float()).sigmoid().numpy()
+        pv = predict_gru_batched(model, X_va, mu, sd, batch_size)
         auc = float(roc_auc_score(y_va, pv)) if len(np.unique(y_va)) > 1 else 0.5
         if auc > best_auc + 1e-4:
             best_auc, bad = auc, 0
@@ -90,8 +111,7 @@ def train_eval_gru(
         model.load_state_dict(best_state)
     model.eval()
     out = {}
-    with torch.no_grad():
-        for sid, (w, y) in eval_sets.items():
-            scores = model(torch.from_numpy(norm(w)).float()).sigmoid().numpy()
-            out[sid] = (np.asarray(y, dtype=np.int64), scores.astype(np.float64))
+    for sid, (w, y) in eval_sets.items():
+        scores = predict_gru_batched(model, w, mu, sd, batch_size)
+        out[sid] = (np.asarray(y, dtype=np.int64), scores.astype(np.float64))
     return out

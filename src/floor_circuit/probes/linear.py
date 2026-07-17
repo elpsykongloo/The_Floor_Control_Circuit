@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -10,6 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 SessionData = dict[str, tuple[np.ndarray, np.ndarray]]  # sid -> (X [n,d], y [n])
+SessionProvider = Callable[[str], tuple[np.ndarray, np.ndarray]]
 
 
 def downsample_negatives(
@@ -69,6 +71,70 @@ def fit_probe(
             best = (float(c), clf)
     assert best is not None
     return ProbeFit(best_c=best[0], seed=seed, scaler=scaler, model=best[1], val_auc_by_c=val_aucs)
+
+
+def fit_probe_streaming(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    val_sids: list[str],
+    val_provider: SessionProvider,
+    c_grid: list[float],
+    seed: int,
+) -> tuple[ProbeFit, dict[str, tuple[np.ndarray, np.ndarray]]]:
+    """在已抽样训练矩阵上拟合，并逐会话读取验证特征。
+
+    所有 C 先完成拟合，随后验证集只扫描一次；内存中长期保留的验证材料仅有一维标签和分数。
+    ``X_train`` 会被原地标准化，调用方不得依赖调用后的原始特征值。
+    """
+
+    from sklearn.metrics import roc_auc_score
+
+    X_train = np.asarray(X_train, dtype=np.float32)
+    y_train = np.asarray(y_train, dtype=np.int64)
+    if X_train.ndim != 2 or len(X_train) != len(y_train):
+        raise ValueError("训练特征与标签形状不一致")
+    if len(np.unique(y_train)) < 2:
+        raise ValueError("训练标签必须同时包含正负类")
+    if not c_grid:
+        raise ValueError("C 网格不能为空")
+
+    scaler = StandardScaler(copy=False).fit(X_train)
+    X_train_scaled = scaler.transform(X_train, copy=False)
+    models: dict[float, LogisticRegression] = {}
+    for c_value in c_grid:
+        c = float(c_value)
+        model = LogisticRegression(C=c, max_iter=2000, solver="lbfgs", random_state=seed)
+        model.fit(X_train_scaled, y_train)
+        models[c] = model
+
+    scores_by_c: dict[float, dict[str, tuple[np.ndarray, np.ndarray]]] = {
+        c: {} for c in models
+    }
+    for sid in val_sids:
+        X_val, y_val = val_provider(sid)
+        X_val = np.asarray(X_val, dtype=np.float32)
+        y_val = np.asarray(y_val, dtype=np.int64)
+        if X_val.ndim != 2 or len(X_val) != len(y_val):
+            raise ValueError(f"{sid} 验证特征与标签形状不一致")
+        X_val_scaled = scaler.transform(X_val, copy=False)
+        for c, model in models.items():
+            score = model.predict_proba(X_val_scaled)[:, 1].astype(np.float64)
+            scores_by_c[c][sid] = (y_val, score)
+
+    val_aucs: dict[float, float] = {}
+    for c, per_session in scores_by_c.items():
+        y_all = np.concatenate([per_session[sid][0] for sid in val_sids])
+        score_all = np.concatenate([per_session[sid][1] for sid in val_sids])
+        val_aucs[c] = float(roc_auc_score(y_all, score_all))
+    best_c = max(models, key=lambda c: val_aucs[c])
+    fit = ProbeFit(
+        best_c=best_c,
+        seed=seed,
+        scaler=scaler,
+        model=models[best_c],
+        val_auc_by_c=val_aucs,
+    )
+    return fit, scores_by_c[best_c]
 
 
 def score_sessions(fit: ProbeFit, data: SessionData, sids: list[str]) -> dict[str, tuple[np.ndarray, np.ndarray]]:

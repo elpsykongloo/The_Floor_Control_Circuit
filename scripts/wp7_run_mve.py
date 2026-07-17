@@ -9,8 +9,10 @@ mimi_latent 导出；hazard 基线由标签表直接构建。
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,7 +22,13 @@ import pandas as pd
 from _bootstrap import REPO_ROOT, REPORTS_DIR
 
 from floor_circuit.config import data_root, load_config
-from floor_circuit.mve.dataset import build_session_data, eligible_rows
+from floor_circuit.mve.dataset import (
+    TrainingSamplePlan,
+    build_training_sample_plan,
+    eligible_rows,
+    load_session_feature,
+    load_training_sample,
+)
 from floor_circuit.mve.preflight import (
     RunSpec,
     preflight_mve_inputs,
@@ -28,16 +36,53 @@ from floor_circuit.mve.preflight import (
     validate_baseline_alignment,
 )
 from floor_circuit.mve.run import (
+    ProbeCell,
     average_over_seeds,
     evaluate_target,
     overall_g1,
-    probe_grid,
     render_report,
 )
 from floor_circuit.probes.baselines import acoustic_frames, fit_hazard, hazard_features
-from floor_circuit.probes.gru import make_windows, train_eval_gru
-from floor_circuit.probes.linear import fit_probe, score_sessions
-from floor_circuit.probes.stats import PerSession
+from floor_circuit.probes.gru import CONTEXT_STEPS, make_windows, train_eval_gru
+from floor_circuit.probes.linear import fit_probe_streaming
+from floor_circuit.probes.stats import PerSession, pooled_metrics
+
+ACOUSTIC_FEATURE_DIM = 8
+ACOUSTIC_TRAIN_MAX_BYTES = 4 * 1024**3
+ACOUSTIC_EVAL_MAX_BYTES = 2 * 1024**3
+
+
+def _runner_code_version() -> str:
+    """按缓存计划同一算法绑定当前 Moshi runner 的提交与内容。"""
+
+    sources = (
+        ("shared", REPO_ROOT / "runners" / "_shared" / "moshi_family.py"),
+        ("entry", REPO_ROOT / "runners" / "moshi" / "run.py"),
+    )
+    content = hashlib.sha256()
+    for label, path in sources:
+        content.update(label.encode("ascii") + b"\0")
+        content.update(path.read_bytes())
+        content.update(b"\0")
+    try:
+        source_commit = subprocess.check_output(
+            [
+                "git",
+                "-C",
+                str(REPO_ROOT),
+                "log",
+                "-1",
+                "--format=%H",
+                "--",
+                *(str(path.relative_to(REPO_ROOT)) for _, path in sources),
+            ],
+            text=True,
+            encoding="utf-8",
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("无法读取 runner 最近提交，拒绝生成 G1 裁决") from exc
+    return f"{source_commit[:7]}+runner.{content.hexdigest()}"
 
 
 def _split_sessions(mve_cfg: dict) -> tuple[list[str], list[str]]:
@@ -119,6 +164,65 @@ def prepare_labels_flat(sessions: list[str]) -> dict[str, str]:
     return sync_labels_atomic(src_dir, _labels_root(), sessions)
 
 
+def linear_feature_cells(
+    sessions_eval: list[str],
+    target: str,
+    delta_ms: int | None,
+    layer: int,
+    feature: str,
+    seeds: list[int],
+    c_grid: list[float],
+    runs_root: Path,
+    run_specs: dict[tuple[str, int], RunSpec],
+    plans: dict[int, TrainingSamplePlan],
+) -> list[ProbeCell]:
+    """单层、单特征串行拟合；训练先抽样，验证逐会话读取。"""
+
+    cells: list[ProbeCell] = []
+    for seed in seeds:
+        plan = plans[seed]
+        X_train, y_train = load_training_sample(
+            runs_root,
+            plan,
+            layer,
+            feature=feature,
+        )
+
+        def provide_eval(sid: str) -> tuple[np.ndarray, np.ndarray]:
+            return load_session_feature(
+                runs_root,
+                _labels_root(),
+                sid,
+                run_specs,
+                layer,
+                target,
+                delta_ms,
+                feature=feature,
+            )
+
+        fit, per_session = fit_probe_streaming(
+            X_train,
+            y_train,
+            sessions_eval,
+            provide_eval,
+            c_grid,
+            seed,
+        )
+        metrics = pooled_metrics(per_session)
+        metrics["best_c"] = fit.best_c
+        cells.append(
+            ProbeCell(
+                layer=layer,
+                target=target,
+                seed=seed,
+                metrics=metrics,
+                per_session=per_session,
+            )
+        )
+        del X_train, y_train, fit
+    return cells
+
+
 def hazard_baseline(
     sessions_train: list[str],
     sessions_eval: list[str],
@@ -149,6 +253,32 @@ def hazard_baseline(
     return {sid: (feats[sid][1], clf.predict_proba(feats[sid][0])[:, 1]) for sid in sessions_eval}
 
 
+def _acoustic_windows_peak_bytes(
+    session_ids: list[str],
+    target: str,
+    delta_ms: int | None,
+    run_specs: dict[tuple[str, int], RunSpec],
+) -> int:
+    """估计窗口列表加拼接矩阵同时存在时的保守峰值。"""
+
+    n_rows = 0
+    for sid in session_ids:
+        labels = pd.read_parquet(_labels_root() / f"{sid}.parquet")
+        for channel in (0, 1):
+            spec = run_specs[(sid, channel)]
+            n_rows += len(
+                eligible_rows(
+                    labels,
+                    target,
+                    delta_ms,
+                    channel,
+                    max_steps=spec.n_steps,
+                )
+            )
+    one_copy = n_rows * CONTEXT_STEPS * ACOUSTIC_FEATURE_DIM * np.dtype(np.float32).itemsize
+    return 2 * one_copy
+
+
 def acoustic_gru_baseline(
     sessions_train: list[str],
     sessions_eval: list[str],
@@ -158,6 +288,28 @@ def acoustic_gru_baseline(
     run_specs: dict[tuple[str, int], RunSpec],
 ) -> PerSession:
     """对方+自身双通道声学特征拼接 → 2 s 窗 GRU。特征缓存到 <data_root>/mve/acoustic/。"""
+    train_peak = _acoustic_windows_peak_bytes(
+        sessions_train,
+        target,
+        delta_ms,
+        run_specs,
+    )
+    eval_peak = _acoustic_windows_peak_bytes(
+        sessions_eval,
+        target,
+        delta_ms,
+        run_specs,
+    )
+    if train_peak > ACOUSTIC_TRAIN_MAX_BYTES:
+        raise MemoryError(
+            f"{target} 声学 GRU 训练窗口预计峰值 {train_peak / 1024**3:.2f} GiB，"
+            f"超过上限 {ACOUSTIC_TRAIN_MAX_BYTES / 1024**3:.2f} GiB"
+        )
+    if eval_peak > ACOUSTIC_EVAL_MAX_BYTES:
+        raise MemoryError(
+            f"{target} 声学 GRU 评估窗口预计峰值 {eval_peak / 1024**3:.2f} GiB，"
+            f"超过上限 {ACOUSTIC_EVAL_MAX_BYTES / 1024**3:.2f} GiB"
+        )
     cache = data_root() / "mve" / "acoustic"
     cache.mkdir(parents=True, exist_ok=True)
 
@@ -222,31 +374,27 @@ def acoustic_gru_baseline(
 
 
 def mimi_baseline(
-    sessions_train: list[str],
     sessions_eval: list[str],
     target: str,
-    delta_ms,
+    delta_ms: int | None,
     mve_cfg: dict,
     runs_root: Path,
+    run_specs: dict[tuple[str, int], RunSpec],
+    training_plan: TrainingSamplePlan,
 ) -> PerSession:
-    data = build_session_data(
-        runs_root,
-        _labels_root(),
-        sessions_train + sessions_eval,
-        layer=-1,
+    cells = linear_feature_cells(
+        sessions_eval=sessions_eval,
         target=target,
         delta_ms=delta_ms,
+        layer=-1,
         feature="mimi",
+        seeds=[training_plan.seed],
+        c_grid=list(mve_cfg["probe_c_grid"]),
+        runs_root=runs_root,
+        run_specs=run_specs,
+        plans={training_plan.seed: training_plan},
     )
-    fit = fit_probe(
-        data,
-        sessions_train,
-        sessions_eval,
-        list(mve_cfg["probe_c_grid"]),
-        seed=0,
-        neg_ratio=int(mve_cfg["neg_downsample_ratio"]),
-    )
-    return score_sessions(fit, data, sessions_eval)
+    return cells[0].per_session
 
 
 def main() -> None:
@@ -273,11 +421,16 @@ def main() -> None:
     run_specs, preflight = preflight_mve_inputs(
         runs_root,
         _labels_root(),
+        data_root() / "candor_extracted",
         sessions,
         [int(layer) for layer in mve_cfg["layers"]],
         expected_n_steps,
         clock_hz,
         int(mve_cfg["t1_delta_ms"]),
+        _runner_code_version(),
+        float(mve_cfg["max_minutes_per_session"]) * 60.0,
+        float(mve_cfg["mimi_chunk_seconds"]),
+        int(mve_cfg["forward_chunk_steps"]),
     )
     preflight["label_sha256"] = label_hashes
     _write_report_json_atomic("mve_preflight.json", preflight)
@@ -287,23 +440,48 @@ def main() -> None:
     raw_dir.mkdir(parents=True, exist_ok=True)
     for target in mve_cfg["targets"]:
         delta = int(mve_cfg["t1_delta_ms"]) if target == "T1" else None
-        data_by_layer = {
-            layer: build_session_data(runs_root, _labels_root(), train + evals, layer, target, delta)
-            for layer in mve_cfg["layers"]
+        probe_seeds = [int(seed) for seed in mve_cfg["seeds"]]
+        plan_seeds = sorted(set(probe_seeds) | {0})
+        plans = {
+            seed: build_training_sample_plan(
+                _labels_root(),
+                train,
+                run_specs,
+                target,
+                delta,
+                int(mve_cfg["neg_downsample_ratio"]),
+                seed,
+            )
+            for seed in plan_seeds
         }
-        cells = probe_grid(
-            data_by_layer,
-            train,
-            evals,
-            list(mve_cfg["seeds"]),
-            list(mve_cfg["probe_c_grid"]),
-            int(mve_cfg["neg_downsample_ratio"]),
-            target,
-        )
-        summary = average_over_seeds(cells)
+        summary: dict[int, dict] = {}
+        for layer_value in mve_cfg["layers"]:
+            layer = int(layer_value)
+            cells = linear_feature_cells(
+                sessions_eval=evals,
+                target=target,
+                delta_ms=delta,
+                layer=layer,
+                feature="acts",
+                seeds=probe_seeds,
+                c_grid=list(mve_cfg["probe_c_grid"]),
+                runs_root=runs_root,
+                run_specs=run_specs,
+                plans=plans,
+            )
+            summary[layer] = average_over_seeds(cells)[layer]
+            del cells
         baselines: dict[str, PerSession] = {
             "hazard": hazard_baseline(train, evals, target, delta, run_specs),
-            "mimi": mimi_baseline(train, evals, target, delta, mve_cfg, runs_root),
+            "mimi": mimi_baseline(
+                evals,
+                target,
+                delta,
+                mve_cfg,
+                runs_root,
+                run_specs,
+                plans[0],
+            ),
             "acoustic_gru": acoustic_gru_baseline(
                 train,
                 evals,

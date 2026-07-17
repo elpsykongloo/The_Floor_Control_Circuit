@@ -7,6 +7,8 @@ from __future__ import annotations
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 
+from floor_circuit.schemas import State
+
 ACOUSTIC_FEATURES = ("rms", "f0", "spectral_flux", "zcr")
 
 
@@ -51,22 +53,81 @@ def _f0_track(wav: np.ndarray, sr: int, hop: int) -> np.ndarray:
 
 def hazard_features(states: np.ndarray, step_s: float) -> np.ndarray:
     """离散时间 hazard 协变量 [T, 8]：
-    当前态时长、自上次状态切换时长、自上次任一方发声段结束时长（近似）、
-    以及当前态 one-hot（5 类，UNRESOLVED 并入 GAP 桶之外的第 5 位）。"""
+    自上次任一 ONSET、任一 OFFSET、说话人切换的时长，当前态时长，以及当前态四类 one-hot。
+
+    T5 的 YIELD/HOLD/UNRESOLVED 都表示当前双通道同时活跃；为避免把未来重叠结局泄漏给
+    hazard 基线，三者统一并入 OVERLAP。说话人切换指当前独占说话人相对最近一次独占
+    说话人发生变化，中间经过 GAP 或 OVERLAP 仍可触发。
+    """
+
+    states = np.asarray(states, dtype=np.int64)
+    if states.ndim != 1:
+        raise ValueError("states 必须是一维数组")
+    if step_s <= 0:
+        raise ValueError("step_s 必须大于 0")
+    valid = {state.value for state in State}
+    unknown = sorted(set(np.unique(states).tolist()) - valid)
+    if unknown:
+        raise ValueError(f"states 含未知状态：{unknown}")
+
     n = len(states)
-    cur_dur = np.zeros(n, dtype=np.float32)
-    since_change = np.zeros(n, dtype=np.float32)
+    if n == 0:
+        return np.empty((0, 8), dtype=np.float32)
+    overlap_states = {
+        State.OVERLAP_YIELD.value,
+        State.OVERLAP_HOLD.value,
+        State.OVERLAP_UNRESOLVED.value,
+    }
+    agent_active = np.isin(states, [State.SPEAK.value, *overlap_states])
+    other_active = np.isin(states, [State.LISTEN.value, *overlap_states])
+    previous_agent = np.r_[False, agent_active[:-1]]
+    previous_other = np.r_[False, other_active[:-1]]
+    onset = (agent_active & ~previous_agent) | (other_active & ~previous_other)
+    offset = (~agent_active & previous_agent) | (~other_active & previous_other)
+
+    speaker_switch = np.zeros(n, dtype=bool)
+    last_exclusive: int | None = None
+    for index, (agent, other) in enumerate(zip(agent_active, other_active, strict=True)):
+        current_exclusive = 0 if agent and not other else 1 if other and not agent else None
+        if current_exclusive is None:
+            continue
+        if last_exclusive is not None and current_exclusive != last_exclusive:
+            speaker_switch[index] = True
+        last_exclusive = current_exclusive
+
+    canonical = np.full(n, 3, dtype=np.int8)  # GAP
+    canonical[(agent_active) & (~other_active)] = 0  # SPEAK
+    canonical[(~agent_active) & (other_active)] = 1  # LISTEN
+    canonical[agent_active & other_active] = 2  # OVERLAP
+
+    current_duration = np.zeros(n, dtype=np.float32)
     last_change = 0
     for i in range(1, n):
-        if states[i] != states[i - 1]:
+        if canonical[i] != canonical[i - 1]:
             last_change = i
-        cur_dur[i] = (i - last_change) * step_s
-        since_change[i] = cur_dur[i]
-    onehot = np.zeros((n, 5), dtype=np.float32)
-    clipped = np.clip(states, 0, 4)
-    onehot[np.arange(n), clipped] = 1.0
-    t_abs = (np.arange(n, dtype=np.float32) * step_s)[:, None]
-    return np.concatenate([cur_dur[:, None], since_change[:, None], np.log1p(t_abs), onehot], axis=1)
+        current_duration[i] = (i - last_change) * step_s
+
+    def elapsed_since(events: np.ndarray) -> np.ndarray:
+        elapsed = np.zeros(n, dtype=np.float32)
+        last_event = 0
+        for i in range(1, n):
+            if events[i]:
+                last_event = i
+            elapsed[i] = (i - last_event) * step_s
+        return elapsed
+
+    onehot = np.zeros((n, 4), dtype=np.float32)
+    onehot[np.arange(n), canonical] = 1.0
+    return np.concatenate(
+        [
+            elapsed_since(onset)[:, None],
+            elapsed_since(offset)[:, None],
+            elapsed_since(speaker_switch)[:, None],
+            current_duration[:, None],
+            onehot,
+        ],
+        axis=1,
+    )
 
 
 def fit_hazard(

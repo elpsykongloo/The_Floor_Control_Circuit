@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import time
 from dataclasses import dataclass
@@ -16,7 +17,7 @@ import numpy as np
 import pandas as pd
 import zarr
 
-from floor_circuit.cachelib.manifest import load_manifest
+from floor_circuit.cachelib.manifest import load_manifest, sha256_file
 from floor_circuit.mve.dataset import eligible_rows, run_dir_for
 from floor_circuit.probes.stats import PerSession
 
@@ -98,22 +99,39 @@ def sync_labels_atomic(
     """
 
     source_dir, dest_dir = Path(source_dir), Path(dest_dir)
-    missing = [
-        str(source_dir / f"{sid}.labels.parquet")
-        for sid in session_ids
-        if not (source_dir / f"{sid}.labels.parquet").is_file()
-    ]
+    missing = []
+    for sid in session_ids:
+        for path in (
+            source_dir / f"{sid}.labels.parquet",
+            source_dir / f"{sid}.complete.json",
+        ):
+            if not path.is_file():
+                missing.append(str(path))
     if missing:
         sample = "；".join(missing[:5])
-        raise MvePreflightError(f"缺少 {len(missing)} 份 WP1 标签。样例：{sample}")
+        raise MvePreflightError(f"缺少 {len(missing)} 份 WP1 标签或完成标记。样例：{sample}")
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     hashes: dict[str, str] = {}
     for sid in session_ids:
         source = source_dir / f"{sid}.labels.parquet"
+        marker_path = source_dir / f"{sid}.complete.json"
         dest = dest_dir / f"{sid}.parquet"
         payload = source.read_bytes()
         digest = _sha256_bytes(payload)
+        try:
+            marker = json.loads(marker_path.read_text(encoding="utf-8"))
+            declared = marker["outputs"]["labels"]
+        except (OSError, KeyError, json.JSONDecodeError) as exc:
+            raise MvePreflightError(f"WP1 完成标记无法读取：{sid}（{exc!r}）") from exc
+        if (
+            marker.get("schema_version") != 1
+            or marker.get("session") != sid
+            or declared.get("name") != source.name
+            or declared.get("size") != len(payload)
+            or declared.get("sha256") != digest
+        ):
+            raise MvePreflightError(f"WP1 完成标记与标签内容不一致：{sid}")
         _write_bytes_atomic(dest, payload)
         if _sha256_bytes(dest.read_bytes()) != digest:
             raise MvePreflightError(f"标签原子刷新后哈希不一致：{sid}")
@@ -176,6 +194,11 @@ def _validate_run(
     layers: list[int],
     expected_n_steps: int,
     expected_clock_hz: float,
+    expected_code_version: str,
+    expected_max_seconds: float,
+    expected_mimi_chunk_seconds: float,
+    expected_forward_chunk_steps: int,
+    current_audio_hashes: dict[str, str] | None,
 ) -> tuple[RunSpec | None, list[str]]:
     run_dir = run_dir_for(runs_root, sid, channel)
     prefix = f"{sid}/agent{channel}"
@@ -198,11 +221,48 @@ def _validate_run(
         issues.append(f"{prefix}: n_steps={manifest.n_steps}，期望 {expected_n_steps}")
     if manifest.clock_hz is None or not np.isclose(manifest.clock_hz, expected_clock_hz):
         issues.append(f"{prefix}: clock_hz={manifest.clock_hz}，期望 {expected_clock_hz}")
+    if manifest.code_version != expected_code_version:
+        issues.append(
+            f"{prefix}: code_version={manifest.code_version!r}，期望 {expected_code_version!r}"
+        )
     if len(manifest.source_audio) != 2 or any(len(str(digest)) != 64 for digest in manifest.source_audio.values()):
         issues.append(f"{prefix}: source_audio 应含两条 SHA-256")
+    source_by_name = {Path(path).name: str(digest) for path, digest in manifest.source_audio.items()}
+    if current_audio_hashes is None:
+        issues.append(f"{prefix}: 当前源音频哈希不可用")
+    elif source_by_name != current_audio_hashes:
+        issues.append(f"{prefix}: manifest 源音频哈希与当前 CANDOR WAV 不一致")
     if not manifest.mimi_latent:
         issues.append(f"{prefix}: manifest 未声明 mimi_latent")
     execution = manifest.extra.get("execution", {})
+
+    def numeric_matches(value, expected: float) -> bool:
+        try:
+            return bool(np.isclose(float(value), expected))
+        except (TypeError, ValueError):
+            return False
+
+    if execution.get("forward_mode") != "streaming_teacher_forced_backbone":
+        issues.append(f"{prefix}: forward_mode 不是有状态 teacher-forced backbone")
+    if not numeric_matches(execution.get("max_seconds"), expected_max_seconds):
+        issues.append(f"{prefix}: max_seconds={execution.get('max_seconds')!r}，期望 {expected_max_seconds}")
+    if not numeric_matches(execution.get("mimi_chunk_seconds"), expected_mimi_chunk_seconds):
+        issues.append(
+            f"{prefix}: mimi_chunk_seconds={execution.get('mimi_chunk_seconds')!r}，"
+            f"期望 {expected_mimi_chunk_seconds}"
+        )
+    if execution.get("mimi_chunk_frames") != 1:
+        issues.append(f"{prefix}: Mimi 流式块必须恰好为 1 帧")
+    if execution.get("forward_chunk_steps") != expected_forward_chunk_steps:
+        issues.append(
+            f"{prefix}: forward_chunk_steps={execution.get('forward_chunk_steps')!r}，"
+            f"期望 {expected_forward_chunk_steps}"
+        )
+    for field in ("transformer_state_preserved", "mimi_state_preserved", "depformer_skipped"):
+        if execution.get(field) is not True:
+            issues.append(f"{prefix}: execution.{field} 必须为 true")
+    if manifest.extra.get("delay_application") != "global_once_before_streaming_forward":
+        issues.append(f"{prefix}: delay_application 不是全时间轴只施加一次")
     if execution.get("latent_kind") != "pre_quantization_continuous":
         issues.append(f"{prefix}: Mimi latent 不是量化前连续表征")
 
@@ -248,20 +308,35 @@ def _validate_run(
 def preflight_mve_inputs(
     runs_root: str | Path,
     labels_root: str | Path,
+    audio_root: str | Path,
     session_ids: list[str],
     layers: list[int],
     expected_n_steps: int,
     expected_clock_hz: float,
     t1_delta_ms: int,
+    expected_code_version: str,
+    expected_max_seconds: float,
+    expected_mimi_chunk_seconds: float,
+    expected_forward_chunk_steps: int,
 ) -> tuple[dict[tuple[str, int], RunSpec], dict]:
     """硬校验正式 G1 所需的 400 个 run、五类数组与 200 份标签。"""
 
-    runs_root, labels_root = Path(runs_root), Path(labels_root)
+    runs_root, labels_root, audio_root = Path(runs_root), Path(labels_root), Path(audio_root)
     if len(session_ids) != len(set(session_ids)):
         raise MvePreflightError("MVE 会话列表含重复项")
 
     issues: list[str] = []
     specs: dict[tuple[str, int], RunSpec] = {}
+    audio_hashes: dict[str, dict[str, str] | None] = {}
+    for sid in session_ids:
+        current: dict[str, str] = {}
+        for channel in (0, 1):
+            path = audio_root / sid / f"audio_ch{channel}.wav"
+            if not path.is_file():
+                issues.append(f"{sid}: 缺少当前源音频 {path}")
+                continue
+            current[path.name] = sha256_file(path)
+        audio_hashes[sid] = current if len(current) == 2 else None
     for sid in session_ids:
         for channel in (0, 1):
             spec, run_issues = _validate_run(
@@ -271,6 +346,11 @@ def preflight_mve_inputs(
                 layers,
                 expected_n_steps,
                 expected_clock_hz,
+                expected_code_version,
+                expected_max_seconds,
+                expected_mimi_chunk_seconds,
+                expected_forward_chunk_steps,
+                audio_hashes[sid],
             )
             issues.extend(run_issues)
             if spec is not None:
@@ -305,6 +385,11 @@ def preflight_mve_inputs(
         "required_arrays_per_run": [f"acts_L{layer}" for layer in layers] + ["mimi_latent"],
         "expected_n_steps": expected_n_steps,
         "expected_clock_hz": expected_clock_hz,
+        "expected_code_version": expected_code_version,
+        "expected_max_seconds": expected_max_seconds,
+        "expected_mimi_chunk_seconds": expected_mimi_chunk_seconds,
+        "expected_forward_chunk_steps": expected_forward_chunk_steps,
+        "source_audio_hashes_verified": len(session_ids) * 2,
         "latent_kind": "pre_quantization_continuous",
         "n_labels": len(session_ids),
     }

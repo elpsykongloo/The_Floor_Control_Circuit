@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -12,7 +14,7 @@ import pytest
 import soundfile as sf
 import zarr
 
-from floor_circuit.cachelib.manifest import RunManifest, save_manifest
+from floor_circuit.cachelib.manifest import RunManifest, save_manifest, sha256_file
 from floor_circuit.mve.dataset import eligible_rows, run_dir_for
 from floor_circuit.mve.preflight import (
     MvePreflightError,
@@ -68,7 +70,14 @@ def _labels(n_steps: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _write_run(root: Path, sid: str, channel: int, n_steps: int, layers: list[int]) -> None:
+def _write_run(
+    root: Path,
+    audio_root: Path,
+    sid: str,
+    channel: int,
+    n_steps: int,
+    layers: list[int],
+) -> None:
     run_dir = run_dir_for(root, sid, channel)
     run_dir.mkdir(parents=True)
     group = zarr.open_group(str(run_dir), mode="w")
@@ -97,9 +106,30 @@ def _write_run(root: Path, sid: str, channel: int, n_steps: int, layers: list[in
             hidden_dim=8,
             clock_hz=12.5,
             n_steps=n_steps,
-            source_audio={"a.wav": "a" * 64, "b.wav": "b" * 64},
+            source_audio={
+                str(audio_root / sid / "audio_ch0.wav"): sha256_file(
+                    audio_root / sid / "audio_ch0.wav"
+                ),
+                str(audio_root / sid / "audio_ch1.wav"): sha256_file(
+                    audio_root / sid / "audio_ch1.wav"
+                ),
+            },
             mimi_latent=True,
-            extra={"execution": {"latent_kind": "pre_quantization_continuous"}},
+            code_version="test-runner",
+            extra={
+                "delay_application": "global_once_before_streaming_forward",
+                "execution": {
+                    "forward_mode": "streaming_teacher_forced_backbone",
+                    "max_seconds": n_steps / 12.5,
+                    "mimi_chunk_seconds": 0.08,
+                    "mimi_chunk_frames": 1,
+                    "forward_chunk_steps": 128,
+                    "transformer_state_preserved": True,
+                    "mimi_state_preserved": True,
+                    "depformer_skipped": True,
+                    "latent_kind": "pre_quantization_continuous",
+                },
+            },
         ),
     )
 
@@ -107,13 +137,22 @@ def _write_run(root: Path, sid: str, channel: int, n_steps: int, layers: list[in
 def _world(tmp_path: Path, sessions: list[str], n_steps: int = 6):
     runs = tmp_path / "runs"
     labels = tmp_path / "labels"
+    audio = tmp_path / "audio"
     labels.mkdir()
     layers = [4, 12, 20, 28]
     for sid in sessions:
+        session_audio = audio / sid
+        session_audio.mkdir(parents=True)
         for channel in (0, 1):
-            _write_run(runs, sid, channel, n_steps, layers)
+            sf.write(
+                session_audio / f"audio_ch{channel}.wav",
+                np.zeros(160, dtype=np.float32),
+                16_000,
+            )
+        for channel in (0, 1):
+            _write_run(runs, audio, sid, channel, n_steps, layers)
         _labels(n_steps).to_parquet(labels / f"{sid}.parquet")
-    return runs, labels, layers
+    return runs, labels, audio, layers
 
 
 def test_sync_labels_atomic_refreshes_stale_copy(tmp_path):
@@ -121,7 +160,25 @@ def test_sync_labels_atomic_refreshes_stale_copy(tmp_path):
     source.mkdir()
     dest.mkdir()
     fresh = _labels(4)
-    fresh.to_parquet(source / "s1.labels.parquet")
+    source_path = source / "s1.labels.parquet"
+    fresh.to_parquet(source_path)
+    payload = source_path.read_bytes()
+    (source / "s1.complete.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "session": "s1",
+                "outputs": {
+                    "labels": {
+                        "name": source_path.name,
+                        "size": len(payload),
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     (dest / "s1.parquet").write_bytes("陈旧内容".encode())
 
     hashes = sync_labels_atomic(source, dest, ["s1"])
@@ -131,18 +188,32 @@ def test_sync_labels_atomic_refreshes_stale_copy(tmp_path):
     assert not list(dest.glob(".s1.parquet.*.tmp"))
 
 
+def test_sync_labels_rejects_missing_completion_marker(tmp_path):
+    source, dest = tmp_path / "source", tmp_path / "dest"
+    source.mkdir()
+    _labels(4).to_parquet(source / "s1.labels.parquet")
+
+    with pytest.raises(MvePreflightError, match="标签或完成标记"):
+        sync_labels_atomic(source, dest, ["s1"])
+
+
 def test_preflight_validates_runs_arrays_latent_and_labels(tmp_path):
     sessions = ["s1", "s2"]
-    runs, labels, layers = _world(tmp_path, sessions)
+    runs, labels, audio, layers = _world(tmp_path, sessions)
 
     specs, report = preflight_mve_inputs(
         runs,
         labels,
+        audio,
         sessions,
         layers,
         expected_n_steps=6,
         expected_clock_hz=12.5,
         t1_delta_ms=240,
+        expected_code_version="test-runner",
+        expected_max_seconds=6 / 12.5,
+        expected_mimi_chunk_seconds=0.08,
+        expected_forward_chunk_steps=128,
     )
 
     assert len(specs) == 4
@@ -151,7 +222,7 @@ def test_preflight_validates_runs_arrays_latent_and_labels(tmp_path):
 
 
 def test_preflight_rejects_quantized_latent_and_missing_layer(tmp_path):
-    runs, labels, layers = _world(tmp_path, ["s1"])
+    runs, labels, audio, layers = _world(tmp_path, ["s1"])
     run_dir = run_dir_for(runs, "s1", 1)
     manifest = RunManifest.model_validate_json((run_dir / "manifest.json").read_text(encoding="utf-8"))
     manifest.extra["execution"]["latent_kind"] = "quantized"
@@ -160,11 +231,63 @@ def test_preflight_rejects_quantized_latent_and_missing_layer(tmp_path):
     del group["acts_L28"]
 
     with pytest.raises(MvePreflightError) as caught:
-        preflight_mve_inputs(runs, labels, ["s1"], layers, 6, 12.5, 240)
+        preflight_mve_inputs(
+            runs,
+            labels,
+            audio,
+            ["s1"],
+            layers,
+            6,
+            12.5,
+            240,
+            "test-runner",
+            6 / 12.5,
+            0.08,
+            128,
+        )
 
     message = str(caught.value)
     assert "缺少数组 acts_L28" in message
     assert "不是量化前连续表征" in message
+
+
+def test_preflight_rejects_stale_runner_execution_and_source_audio(tmp_path):
+    runs, labels, audio, layers = _world(tmp_path, ["s1"])
+    run_dir = run_dir_for(runs, "s1", 0)
+    manifest = RunManifest.model_validate_json(
+        (run_dir / "manifest.json").read_text(encoding="utf-8")
+    )
+    manifest.code_version = "stale-runner"
+    manifest.extra["execution"]["mimi_chunk_seconds"] = 0.16
+    manifest.extra["execution"]["mimi_state_preserved"] = False
+    save_manifest(run_dir, manifest)
+    sf.write(
+        audio / "s1" / "audio_ch0.wav",
+        np.ones(160, dtype=np.float32),
+        16_000,
+    )
+
+    with pytest.raises(MvePreflightError) as caught:
+        preflight_mve_inputs(
+            runs,
+            labels,
+            audio,
+            ["s1"],
+            layers,
+            6,
+            12.5,
+            240,
+            "test-runner",
+            6 / 12.5,
+            0.08,
+            128,
+        )
+
+    message = str(caught.value)
+    assert "code_version" in message
+    assert "mimi_chunk_seconds" in message
+    assert "mimi_state_preserved" in message
+    assert "当前 CANDOR WAV 不一致" in message
 
 
 def test_eligible_rows_caps_and_orders_by_manifest_steps():

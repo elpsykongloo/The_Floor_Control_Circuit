@@ -388,6 +388,14 @@ def test_runner_and_plan_share_dirty_safe_content_version(monkeypatch):
     assert len(content_hash) == 64
 
 
+def test_g1_preflight_uses_same_runner_code_version_as_cache_plan(monkeypatch):
+    plan_module = _load_repo_script("wp7_cache_mve", monkeypatch)
+    g1_module = _load_repo_script("wp7_run_mve", monkeypatch)
+    entry = REPO_ROOT / "runners" / "moshi" / "run.py"
+
+    assert g1_module._runner_code_version() == plan_module._runner_code_version(entry)
+
+
 def _command(tmp_path: Path, run: str, audio_agent: Path, audio_other: Path) -> list[str]:
     return [
         "python",
@@ -558,21 +566,20 @@ def test_mimi_baseline_uses_custom_runs_root(tmp_path, monkeypatch):
     module = _load_repo_script("wp7_run_mve", monkeypatch)
     seen = {}
 
-    def fake_build(runs_root, *_args, **kwargs):
-        seen["runs_root"] = runs_root
+    def fake_cells(**kwargs):
+        seen["runs_root"] = kwargs["runs_root"]
         seen["feature"] = kwargs["feature"]
-        return {"s": (np.zeros((1, 1)), np.zeros(1))}
+        return [SimpleNamespace(per_session={})]
 
-    monkeypatch.setattr(module, "build_session_data", fake_build)
-    monkeypatch.setattr(module, "fit_probe", lambda *_args, **_kwargs: object())
-    monkeypatch.setattr(module, "score_sessions", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(module, "linear_feature_cells", fake_cells)
     custom_root = tmp_path / "custom_zarr"
     module.mimi_baseline(
-        ["train"],
         ["eval"],
         "T1",
         240,
         {"probe_c_grid": [1.0], "neg_downsample_ratio": 5},
         custom_root,
+        {},
+        SimpleNamespace(seed=0),
     )
     assert seen == {"runs_root": custom_root, "feature": "mimi"}
