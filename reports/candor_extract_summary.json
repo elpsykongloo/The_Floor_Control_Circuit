@@ -1,0 +1,13 @@
+{
+ "generated_at": "2026-07-17T11:50:05.664256+00:00",
+ "n_sessions_requested": 1,
+ "converted": [
+  {
+   "session": "67836c1d-1334-41a0-a33a-4f788e8b6fb3",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\67836c1d-1334-41a0-a33a-4f788e8b6fb3\\processed\\67836c1d-1334-41a0-a33a-4f788e8b6fb3.mp3",
+   "channels": 2
+  }
+ ],
+ "n_converted_ok": 1
+}

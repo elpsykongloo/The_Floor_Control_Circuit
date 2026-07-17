@@ -40,9 +40,7 @@ def make_dualturn_dir(tmp_path, sessions=("sw_0001", "sw_0002"), n_frames=50):
         }
         for ch in (0, 1):
             row[f"codes_ch{ch}"] = rng.integers(0, 2048, n_frames * 8, dtype=np.int16).tolist()
-            row[f"mimi_feat_ch{ch}"] = np.asarray(
-                rng.normal(0, 1, n_frames * 512), dtype=np.float16
-            ).tolist()
+            row[f"mimi_feat_ch{ch}"] = np.asarray(rng.normal(0, 1, n_frames * 512), dtype=np.float16).tolist()
             for name in ("vad", "eot", "hold", "bot", "bc"):
                 track = np.zeros(n_frames, dtype=np.int8)
                 if name == "vad":
@@ -52,7 +50,7 @@ def make_dualturn_dir(tmp_path, sessions=("sw_0001", "sw_0002"), n_frames=50):
                 elif name == "bot":
                     track[5] = 1
                 row[f"{name}_ch{ch}"] = track.tolist()
-            row[f"fvad_ch{ch}"] = np.linspace(0, 1, n_frames, dtype=np.float32).tolist()
+            row[f"fvad_ch{ch}"] = np.linspace(0, 1, n_frames * 4, dtype=np.float32).tolist()
         rows.append(row)
     pd.DataFrame(rows).to_parquet(data_dir / "test-00000.parquet")
     (tmp_path / "splits.json").write_text(
@@ -79,7 +77,7 @@ class TestDualturnLoader:
         assert s.codes[0].shape == (50, 8) and s.codes[0].dtype == np.int16
         assert s.mimi_feat[1].shape == (50, 512) and s.mimi_feat[1].dtype == np.float16
         assert s.tracks[0]["eot"][19] == 1 and s.tracks[0]["bot"][5] == 1
-        assert s.fvad[0].shape == (50,)
+        assert s.fvad[0].shape == (50, 4)
 
     def test_filter_and_limit(self, tmp_path):
         root = make_dualturn_dir(tmp_path)
@@ -92,6 +90,21 @@ class TestDualturnLoader:
         assert split_sessions(root, "test") == ["sw_0001", "sw_0002"]
         with pytest.raises(KeyError):
             split_sessions(root, "train")
+
+    def test_split_sessions_session_to_split_mapping(self, tmp_path):
+        root = make_dualturn_dir(tmp_path)
+        (root / "splits.json").write_text(
+            json.dumps(
+                {
+                    "split_counts": {"train": 1, "test": 1},
+                    "splits": {"sw_0001": "train", "sw_0002": "test"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert split_sessions(root, "test") == ["sw_0002"]
+        with pytest.raises(KeyError, match=r"\['test', 'train'\]"):
+            split_sessions(root, "val")
 
     def test_load_frame_labels(self, tmp_path):
         root = make_dualturn_dir(tmp_path)

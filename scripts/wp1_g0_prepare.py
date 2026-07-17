@@ -23,7 +23,7 @@ import numpy as np
 from _bootstrap import REPORTS_DIR, write_report_json
 
 from floor_circuit.config import data_root, load_paths
-from floor_circuit.data.dualturn import iter_sessions, load_splits
+from floor_circuit.data.dualturn import iter_sessions, load_splits, split_sessions
 
 
 def _fail(summary: dict, message: str) -> None:
@@ -58,20 +58,12 @@ def main() -> None:
     if not args.all_sessions:
         try:
             payload = load_splits(root)
+            wanted = set(split_sessions(root, args.split))
         except Exception as e:
-            _fail(summary, f"splits.json 读取失败（{e!r}）；确需全量导出请显式加 --all-sessions")
-        splits = payload.get("splits", payload) if isinstance(payload, dict) else {}
-        if args.split not in splits:
-            _fail(summary, f"划分 '{args.split}' 不存在，可选：{sorted(splits) if splits else '（splits 结构异常）'}")
-        items = splits[args.split]
-        wanted = set()
-        for it in items:
-            if isinstance(it, str):
-                wanted.add(it)
-            elif isinstance(it, dict):
-                sid = it.get("session_id") or it.get("session") or it.get("id")
-                if sid:
-                    wanted.add(str(sid))
+            _fail(
+                summary,
+                f"splits.json 读取或划分解析失败（{e!r}）；确需全量导出请显式加 --all-sessions",
+            )
         if not wanted:
             _fail(summary, f"划分 '{args.split}' 解析到 0 个会话：splits 元素结构异常，请回传 splits.json 顶层样例")
         print(f"划分 {args.split}：{len(wanted)} 会话")
@@ -107,9 +99,7 @@ def main() -> None:
         print(f"{sess.session_id}: {sess.num_frames} 帧 / {sess.duration_s:.1f}s")
     if isinstance(payload, dict):
         summary["splits_meta"] = {
-            k: v
-            for k, v in payload.items()
-            if k in ("total_sessions", "split_counts", "sessions_without_audio")
+            k: v for k, v in payload.items() if k in ("total_sessions", "split_counts", "sessions_without_audio")
         }
     write_report_json("wp1_g0_prepare_summary.json", summary)
     print(f"完成 {summary['n_ok']} 会话 → {out_root}；下一步在 Moshi venv 跑 decode_mimi.py")

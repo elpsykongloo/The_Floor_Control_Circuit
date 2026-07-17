@@ -6,7 +6,7 @@
   codes_ch{0,1}      list<int16>    → reshape (num_frames, 8)   离散 Mimi 码（可解码回音频/teacher-force）
   mimi_feat_ch{0,1}  list<float16>  → reshape (num_frames, 512) 连续 Mimi 潜表征（编码器基线）
   vad/eot/hold/bot/bc_ch{0,1}  list<int8> → (num_frames,)       金标二值轨（G0 靶）
-  fvad_ch{0,1}       list<float>    → (num_frames,)             软 VAD
+  fvad_ch{0,1}       list<float>    → (num_frames, 4)           四个未来窗口的软 VAD
 
 展平顺序假定为帧主序（frame-major）；解码后音频须人工听 5 秒确认（wp1_g0_prepare 的听感核对项）。
 G0 音源 = Mimi 解码音频（runners/moshi/decode_mimi.py，在 Moshi venv 内运行）。
@@ -27,6 +27,7 @@ import numpy as np
 FRAME_HZ = 12.5
 N_CODEBOOKS = 8
 FEAT_DIM = 512
+FVAD_DIM = 4
 TRACK_NAMES = ("vad", "eot", "hold", "bot", "bc")
 
 
@@ -39,7 +40,7 @@ class DualturnSession:
     codes: dict[int, np.ndarray]  # ch -> (F, 8) int16
     mimi_feat: dict[int, np.ndarray]  # ch -> (F, 512) float16
     tracks: dict[int, dict[str, np.ndarray]]  # ch -> {vad/eot/hold/bot/bc: (F,) int8}
-    fvad: dict[int, np.ndarray]  # ch -> (F,) float32
+    fvad: dict[int, np.ndarray]  # ch -> (F, 4) float32
 
 
 def load_splits(dualturn_dir: str | Path) -> dict:
@@ -48,9 +49,23 @@ def load_splits(dualturn_dir: str | Path) -> dict:
 
 
 def split_sessions(dualturn_dir: str | Path, split: str) -> list[str]:
-    """splits.json 的 splits 节：{split 名: 会话列表}。容错列表内为 dict 的情形。"""
+    """读取指定划分的会话。
+
+    兼容两种已见结构：
+    - ``{划分名: [会话列表]}``
+    - ``{会话名: 划分名}``（DualTurn 本机真实发布物）
+    """
     payload = load_splits(dualturn_dir)
     splits = payload.get("splits", payload)
+    if not isinstance(splits, dict):
+        raise TypeError(f"splits.json 的 splits 应为对象，实际为 {type(splits).__name__}")
+
+    if splits and all(isinstance(value, str) for value in splits.values()):
+        available = sorted({str(value) for value in splits.values()})
+        if split not in available:
+            raise KeyError(f"splits.json 无划分 '{split}'，可选：{available}")
+        return [str(session_id) for session_id, name in splits.items() if name == split]
+
     if split not in splits:
         raise KeyError(f"splits.json 无划分 '{split}'，可选：{list(splits)}")
     items = splits[split]
@@ -82,10 +97,8 @@ def _row_to_session(row: dict) -> DualturnSession:
     for ch in (0, 1):
         codes[ch] = _reshape(row[f"codes_ch{ch}"], n, N_CODEBOOKS, np.int16)
         feat[ch] = _reshape(row[f"mimi_feat_ch{ch}"], n, FEAT_DIM, np.float16)
-        tracks[ch] = {
-            name: _reshape(row[f"{name}_ch{ch}"], n, 1, np.int8) for name in TRACK_NAMES
-        }
-        fvad[ch] = _reshape(row[f"fvad_ch{ch}"], n, 1, np.float32)
+        tracks[ch] = {name: _reshape(row[f"{name}_ch{ch}"], n, 1, np.int8) for name in TRACK_NAMES}
+        fvad[ch] = _reshape(row[f"fvad_ch{ch}"], n, FVAD_DIM, np.float32)
     return DualturnSession(
         session_id=str(row["session_id"]),
         dataset=str(row.get("dataset", "")),
@@ -138,11 +151,7 @@ def read_safetensors_header(path: str | Path) -> dict:
     with Path(path).open("rb") as f:
         (n,) = struct.unpack("<Q", f.read(8))
         header = json.loads(f.read(n).decode("utf-8"))
-    return {
-        k: {"dtype": v.get("dtype"), "shape": v.get("shape")}
-        for k, v in header.items()
-        if k != "__metadata__"
-    }
+    return {k: {"dtype": v.get("dtype"), "shape": v.get("shape")} for k, v in header.items() if k != "__metadata__"}
 
 
 def _peek_npz(path: Path) -> dict:
@@ -203,9 +212,7 @@ def inspect_dir(dualturn_dir: str | Path, max_peek_per_type: int = 3) -> dict:
         peeked[suffix] += 1
     try:
         splits = load_splits(root)
-        report["splits_json"] = {
-            k: (len(v) if isinstance(v, list) else type(v).__name__) for k, v in splits.items()
-        }
+        report["splits_json"] = {k: (len(v) if isinstance(v, list) else type(v).__name__) for k, v in splits.items()}
     except FileNotFoundError:
         report["splits_json"] = "splits.json 未在根目录找到"
     return report

@@ -1,0 +1,9 @@
+{
+ "generated_at": "2026-07-17T11:59:41.961485+00:00",
+ "n_pairs": 20,
+ "pass_rate": 0.3,
+ "fail_duration": 14,
+ "fail_loudness": 1,
+ "fail_sr": 0,
+ "fail_clip": 0
+}

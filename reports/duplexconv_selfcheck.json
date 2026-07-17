@@ -1,9 +1,54 @@
 {
- "generated_at": "2026-07-17T09:49:27.309431+00:00",
+ "generated_at": "2026-07-17T11:42:50.340873+00:00",
  "n_files_found": 0,
  "files_ok": 0,
  "errors": [],
  "label_counts": {},
+ "inventory": {
+  "n_files_total": 46,
+  "by_suffix": {
+   ".tar": 43,
+   "": 1,
+   ".md": 1,
+   ".gz": 1
+  },
+  "sample_paths": [
+   ".gitattributes",
+   "Edu\\audios\\Edu_0001.tar",
+   "Edu\\audios\\Edu_0002.tar",
+   "Edu\\audios\\Edu_0003.tar",
+   "Edu\\audios\\Edu_0004.tar",
+   "Edu\\audios\\Edu_0005.tar",
+   "Edu\\audios\\Edu_0006.tar",
+   "Edu\\audios\\Edu_0007.tar",
+   "Edu\\audios\\Edu_0008.tar",
+   "Edu\\audios\\Edu_0009.tar",
+   "Edu\\audios\\Edu_0010.tar",
+   "Edu\\audios\\Edu_0011.tar"
+  ],
+  "largest": [
+   {
+    "path": "Edu\\audios\\Edu_0008.tar",
+    "mb": 8555.4
+   },
+   {
+    "path": "Edu\\audios\\Edu_0034.tar",
+    "mb": 8369.9
+   },
+   {
+    "path": "Edu\\audios\\Edu_0003.tar",
+    "mb": 8295.0
+   },
+   {
+    "path": "Edu\\audios\\Edu_0038.tar",
+    "mb": 8289.6
+   },
+   {
+    "path": "Edu\\audios\\Edu_0027.tar",
+    "mb": 8255.4
+   }
+  ]
+ },
  "n_rows": 0,
  "label_coverage": 0.0,
  "text_coverage": 0.0,

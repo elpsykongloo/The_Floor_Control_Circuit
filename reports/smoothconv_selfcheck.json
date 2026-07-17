@@ -1,9 +1,45 @@
 {
- "generated_at": "2026-07-17T09:49:22.362757+00:00",
+ "generated_at": "2026-07-17T11:42:43.579811+00:00",
  "n_files_found": 20,
  "files_ok": 20,
  "errors": [],
  "label_counts": {},
+ "sample_item": {
+  "id": "dc366aaa-f08d-4b49-9d52-392e5724270b",
+  "channelIndex": 0,
+  "start": 0.9589373586299054,
+  "end": 3.7833216120441735,
+  "attributes.speaker": "A1",
+  "attributes.turn": "complete",
+  "attributes.other_turn": [],
+  "attributes.gender": "female",
+  "attributes.age": "adult",
+  "attributes.emotion": "neutral",
+  "attributes.speech event": [
+   "nonespeech event"
+  ],
+  "attributes.这段数据是在什么环境": "unknown",
+  "text": "好上一课我们应该是讲到了这个电压了的"
+ },
+ "key_union": {
+  "id": 940,
+  "channelIndex": 940,
+  "start": 940,
+  "end": 940,
+  "attributes.speaker": 940,
+  "attributes.gender": 940,
+  "attributes.age": 940,
+  "attributes.emotion": 940,
+  "attributes.speech event": 940,
+  "attributes.这段数据是在什么环境": 940,
+  "text": 934,
+  "attributes.turn": 825,
+  "attributes.other_turn": 430,
+  "attributes.隐私安全标识": 1
+ },
+ "label_value_hits": {
+  "attributes.turn": 825
+ },
  "n_rows": 940,
  "label_coverage": 0.0,
  "text_coverage": 0.9914893617021276,

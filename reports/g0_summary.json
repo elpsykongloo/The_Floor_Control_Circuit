@@ -1,0 +1,123 @@
+{
+ "generated_at": "2026-07-17T11:49:44.845184+00:00",
+ "per_class": {
+  "eot": {
+   "precision": 0.38235294117647056,
+   "recall": 0.42932628797886396,
+   "f1": 0.4044803982576229,
+   "n_pred": 850,
+   "n_gold": 757
+  },
+  "hold": {
+   "precision": 0.7114682249817385,
+   "recall": 0.5910194174757282,
+   "f1": 0.6456745111037455,
+   "n_pred": 1369,
+   "n_gold": 1648
+  },
+  "bot": {
+   "precision": 0.128992628992629,
+   "recall": 0.5357142857142857,
+   "f1": 0.20792079207920797,
+   "n_pred": 1628,
+   "n_gold": 392
+  },
+  "bc": {
+   "precision": 0.1673728813559322,
+   "recall": 0.08381962864721486,
+   "f1": 0.11170024743725698,
+   "n_pred": 944,
+   "n_gold": 1885
+  }
+ },
+ "macro_f1": 0.34244398721945835,
+ "n_sessions": 20,
+ "n_errors": 0,
+ "n_incomplete_skipped": 0,
+ "per_session": [
+  {
+   "session": "sw04637",
+   "macro_f1_mean": 0.2675600889603468
+  },
+  {
+   "session": "sw04638",
+   "macro_f1_mean": 0.20714872303855353
+  },
+  {
+   "session": "sw04640",
+   "macro_f1_mean": 0.3817332707134585
+  },
+  {
+   "session": "sw04641",
+   "macro_f1_mean": 0.36847358581842315
+  },
+  {
+   "session": "sw04642",
+   "macro_f1_mean": 0.21930936263499035
+  },
+  {
+   "session": "sw04643",
+   "macro_f1_mean": 0.5190231805854892
+  },
+  {
+   "session": "sw04644",
+   "macro_f1_mean": 0.4155000633588791
+  },
+  {
+   "session": "sw04646",
+   "macro_f1_mean": 0.36698531727565964
+  },
+  {
+   "session": "sw04649",
+   "macro_f1_mean": 0.26475607725607725
+  },
+  {
+   "session": "sw04650",
+   "macro_f1_mean": 0.3498748476223944
+  },
+  {
+   "session": "sw04655",
+   "macro_f1_mean": 0.3704132490316701
+  },
+  {
+   "session": "sw04659",
+   "macro_f1_mean": 0.26567457012328166
+  },
+  {
+   "session": "sw04660",
+   "macro_f1_mean": 0.3064602527350988
+  },
+  {
+   "session": "sw04661",
+   "macro_f1_mean": 0.3519759436164698
+  },
+  {
+   "session": "sw04664",
+   "macro_f1_mean": 0.2393318905203455
+  },
+  {
+   "session": "sw04666",
+   "macro_f1_mean": 0.4417652069128982
+  },
+  {
+   "session": "sw04667",
+   "macro_f1_mean": 0.4382388061704755
+  },
+  {
+   "session": "sw04669",
+   "macro_f1_mean": 0.3160780558415548
+  },
+  {
+   "session": "sw04674",
+   "macro_f1_mean": 0.3703910426593493
+  },
+  {
+   "session": "sw04675",
+   "macro_f1_mean": 0.3695898716626907
+  }
+ ],
+ "errors": [],
+ "split": "test",
+ "threshold": 0.85,
+ "g0_pass": false
+}

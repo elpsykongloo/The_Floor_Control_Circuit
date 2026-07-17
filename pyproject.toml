@@ -25,6 +25,7 @@ dependencies = [
     "silero-vad==5.1.2",
     "soundfile>=0.12.1",
     "statsmodels>=0.14",
+    "tabulate>=0.9",
     "tqdm>=4.66",
     "typer>=0.12",
     "zarr>=2.18",
