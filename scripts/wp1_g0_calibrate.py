@@ -1,18 +1,18 @@
-"""WP1：G0 校准（三层重构版，2026-07-17，依据用户 G0 复核报告）。
+"""WP1：G0 校准（三层协议，2026-07-17 语义定稿版）。
 
-层 1 · 协议正确性（只需金标，无音频依赖）：
-  uv run python scripts/wp1_g0_calibrate.py --protocol-check [--grid] [--limit N]
-  官方金标 VAD → 本地官方算法复现 vs 官方金标标签，目标逐帧全等（mismatch=0）。
-  --grid 在 64 组边界参数组合上搜索，找到全等组合后回填 configs/events.yaml g0.official。
+层 1 · 协议正确性（只需金标，无音频依赖；库版官方算法 vs 金标逐帧全等）：
+  uv run python scripts/wp1_g0_calibrate.py --protocol-check [--split test] [--limit N]
+  语义权威 = 官方 commit 2d0db21 的逐句移植（scripts/wp1_g0_reference_recompute.py 已在
+  138/138 会话全等）；库版（events/g0_official.py）与其为两份独立实现，本检验即持续对拍。
 
-层 2+3 · VAD 一致性 + 端到端（需解码音频；--protocol-check 通过后再跑）：
-  uv run python scripts/wp1_g0_calibrate.py [--split test] [--limit N]
+层 2+3 · VAD 一致性 + 端到端（需解码音频；层 1 全等后再跑）：
+  uv run python scripts/wp1_g0_calibrate.py [--split val] [--limit N]
   层 2：Silero(Mimi 解码音频) 12.5 Hz 帧化 vs 官方金标 VAD，逐通道 P/R/F1；
   层 3：Silero VAD → 官方算法 → vs 金标四类（±tolerance 稀疏匹配），报 macro-F1。
 
-历史注记：首轮 0.3424 的"事件本体映射"路径已废弃为 Gate 用途（协议错配），代码保留在
-events/g0.py 供事件管线自身分析。门槛 0.85 的适用性修订见 PREREG.md 变更记录（提案待批准）；
-在批准前本脚本的 gate 结论一律标记 gate_frozen=false（诊断性）。
+集合纪律（PREREG 已批准的修改版判据）：层 3 门槛用官方 **val（295 会话）**估计；
+test 前 20 会话已消耗为探索集；其余 118 个 test 会话为一次性确认集，门槛冻结前不得触碰。
+门槛冻结前 gate_frozen=false（诊断性）。
 """
 
 from __future__ import annotations
@@ -26,10 +26,9 @@ from _bootstrap import REPORTS_DIR, write_report_json
 from floor_circuit.config import data_root, load_config
 from floor_circuit.events.g0 import G0_CLASSES, accumulate_counts, finalize_counts, score_binary_tracks
 from floor_circuit.events.g0_official import (
-    OfficialParams,
+    SOURCE_COMMIT,
+    compute_official_labels,
     exact_mismatches,
-    official_tracks,
-    param_grid,
     segments_to_frame_track,
     track_prf,
 )
@@ -37,11 +36,6 @@ from floor_circuit.events.vad import SileroVad
 
 REQUIRED_GOLD = ("gold_ch0.npz", "gold_ch1.npz")
 REQUIRED_AUDIO = ("audio_ch0.wav", "audio_ch1.wav")
-
-
-def _official_params_from_config(cfg: dict) -> OfficialParams:
-    section = (cfg.get("g0") or {}).get("official") or {}
-    return OfficialParams(**section) if section else OfficialParams()
 
 
 def _session_dirs(root: Path, need_audio: bool, split: str | None, limit: int | None) -> list[Path]:
@@ -69,45 +63,45 @@ def _load_gold(sdir: Path, ch: int) -> dict[str, np.ndarray]:
     return {k: z[k] for k in (*G0_CLASSES, "vad")}
 
 
-def protocol_check(root: Path, limit: int | None, grid: bool) -> dict:
-    """层 1：官方金标 VAD → 本地官方算法 vs 金标标签，逐帧全等检验（可网格搜索）。"""
-    dirs = _session_dirs(root, need_audio=False, split=None, limit=limit)
+def _predict_pair(vad0: np.ndarray, vad1: np.ndarray) -> dict[int, dict[str, np.ndarray]]:
+    """双通道 VAD → 每通道四类轨（库版官方算法，一次算完两通道）。"""
+    full = compute_official_labels(vad0, vad1)
+    return {ch: {cls: full[f"{cls}_ch{ch}"] for cls in G0_CLASSES} for ch in (0, 1)}
+
+
+def protocol_check(root: Path, limit: int | None, split: str | None) -> dict:
+    """层 1：官方金标 VAD → 库版官方算法 vs 金标标签，逐帧全等检验。"""
+    dirs = _session_dirs(root, need_audio=False, split=split, limit=limit)
     if not dirs:
         raise SystemExit(f"{root} 下没有含金标的会话（先跑 wp1_g0_prepare）")
-    golds = []
+    mism = dict.fromkeys(G0_CLASSES, 0)
+    total_frames = 0
+    bad_sessions = []
     for sdir in dirs:
         pair = {ch: _load_gold(sdir, ch) for ch in (0, 1)}
-        golds.append((sdir.name, pair))
-    candidates = param_grid() if grid else [_official_params_from_config(load_config("events"))]
-    results = []
-    for p in candidates:
-        mism = dict.fromkeys(G0_CLASSES, 0)
-        total_frames = 0
-        for _sid, pair in golds:
-            for ch in (0, 1):
-                pred = official_tracks(pair[ch]["vad"], pair[1 - ch]["vad"], p)
-                for cls, cnt in exact_mismatches(pred, pair[ch]).items():
-                    mism[cls] += cnt
-                total_frames += len(pair[ch]["vad"])
-        results.append(
-            {"params": p.as_dict(), "mismatch": mism, "total_mismatch": sum(mism.values()), "n_frames": total_frames}
-        )
-    results.sort(key=lambda r: r["total_mismatch"])
-    best = results[0]
+        pred = _predict_pair(pair[0]["vad"], pair[1]["vad"])
+        session_mism = 0
+        for ch in (0, 1):
+            for cls, cnt in exact_mismatches(pred[ch], pair[ch]).items():
+                mism[cls] += cnt
+                session_mism += cnt
+            total_frames += len(pair[ch]["vad"])
+        if session_mism:
+            bad_sessions.append({"session": sdir.name, "mismatch": session_mism})
     report = {
-        "n_sessions": len(golds),
-        "grid": grid,
-        "exact_equal": best["total_mismatch"] == 0,
-        "best": best,
-        "top5": results[:5],
+        "n_sessions": len(dirs),
+        "source_commit": SOURCE_COMMIT,
+        "mismatch": mism,
+        "total_mismatch": sum(mism.values()),
+        "n_channel_frames": total_frames,
+        "exact_equal": sum(mism.values()) == 0,
+        "mismatched_sessions": bad_sessions[:20],
     }
     write_report_json("g0_protocol_check.json", report)
     if report["exact_equal"]:
-        print("协议全等 ✅ —— 冻结参数（回填 configs/events.yaml g0.official）：")
-        print("  official:", {k: v for k, v in best["params"].items()})
+        print(f"层 1 协议全等 ✅（{len(dirs)} 会话，{total_frames} 通道帧，官方 commit {SOURCE_COMMIT[:8]}）")
     else:
-        print(f"最优组合仍有 {best['total_mismatch']} 帧不等：{best['mismatch']}")
-        print("请回传 reports/g0_protocol_check.json（若你的复算脚本已达全等，请把它入库，远端据此对齐语义）")
+        print(f"层 1 仍有 {report['total_mismatch']} 帧不等：{mism}——库版与参考脚本出现分歧，需回传排查")
     return report
 
 
@@ -115,7 +109,6 @@ def calibrate(root: Path, limit: int | None, split: str | None) -> dict:
     cfg = load_config("events")
     hz = float(cfg["g0"]["frame_hz"])
     tol = int(cfg["g0"]["tolerance_frames"])
-    params = _official_params_from_config(cfg)
     vad = SileroVad(cfg)
     from floor_circuit.stimuli.qc import load_wav
 
@@ -144,10 +137,12 @@ def calibrate(root: Path, limit: int | None, split: str | None) -> dict:
                 segs = vad.segments(w, sr)
                 pred_vad[ch] = segments_to_frame_track(segs, n_frames[ch], hz, rule="majority")
             session_macro = []
+            # 层 1（顺带累计）：金标 VAD → 官方算法 vs 金标标签（逐帧严格）
+            l1_pred = _predict_pair(gold[0]["vad"], gold[1]["vad"])
+            # 层 3：端到端（Silero VAD → 官方算法）
+            e2e_pred = _predict_pair(pred_vad[0], pred_vad[1])
             for ch in (0, 1):
-                # 层 1（顺带累计）：金标 VAD → 官方算法 vs 金标标签
-                l1 = official_tracks(gold[ch]["vad"], gold[1 - ch]["vad"], params)
-                layer1 = accumulate_counts(layer1, l1, gold[ch], 0, sparse=())  # 逐帧严格
+                layer1 = accumulate_counts(layer1, l1_pred[ch], gold[ch], 0, sparse=())
                 # 层 2：VAD 一致性
                 prf = track_prf(pred_vad[ch], gold[ch]["vad"])
                 key = f"ch{ch}"
@@ -156,10 +151,8 @@ def calibrate(root: Path, limit: int | None, split: str | None) -> dict:
                 vad_stats[key]["tp"] += round(prf["precision"] * prf["n_pred"])
                 vad_stats[key]["n_pred"] += prf["n_pred"]
                 vad_stats[key]["n_gold"] += prf["n_gold"]
-                # 层 3：端到端（Silero VAD → 官方算法）
-                pred = official_tracks(pred_vad[ch], pred_vad[1 - ch], params)
-                totals = accumulate_counts(totals, pred, gold[ch], tol)
-                session_macro.append(score_binary_tracks(pred, gold[ch], tol)["macro_f1"])
+                totals = accumulate_counts(totals, e2e_pred[ch], gold[ch], tol)
+                session_macro.append(score_binary_tracks(e2e_pred[ch], gold[ch], tol)["macro_f1"])
             per_session.append({"session": sdir.name, "macro_f1_mean": float(np.mean(session_macro))})
             print(f"{sdir.name}: 端到端 macro-F1 ≈ {np.mean(session_macro):.3f}")
         except Exception as e:
@@ -189,9 +182,9 @@ def calibrate(root: Path, limit: int | None, split: str | None) -> dict:
         threshold=float(cfg["g0"]["f1_threshold"]),
         layer1_protocol={"macro_f1": layer1_report["macro_f1"], "per_class": layer1_report["per_class"]},
         layer2_vad=vad_report,
-        official_params=params.as_dict(),
+        source_commit=SOURCE_COMMIT,
         gate_frozen=False,
-        gate_note="门槛 0.85 对 Mimi 解码域的适用性修订见 PREREG 变更记录（提案待批准）；本结果为诊断性",
+        gate_note="层 3 门槛按 PREREG 已批准判据在官方 val（295 会话）上估计后冻结；冻结前本结果为诊断性",
     )
     report["g0_pass"] = bool(report["macro_f1"] >= report["threshold"])
     return report
@@ -228,14 +221,13 @@ def write_markdown(report: dict) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--protocol-check", action="store_true", help="层 1：金标 VAD → 官方算法全等检验")
-    ap.add_argument("--grid", action="store_true", help="配合 --protocol-check：64 组边界参数网格搜索")
     ap.add_argument("--root", default=None)
     ap.add_argument("--limit", type=int, default=None)
-    ap.add_argument("--split", default=None, help="按 meta.json 划分溯源过滤（如 test）")
+    ap.add_argument("--split", default=None, help="按 meta.json 划分溯源过滤（如 val/test）")
     args = ap.parse_args()
     root = Path(args.root) if args.root else data_root() / "dualturn_prep"
     if args.protocol_check:
-        protocol_check(root, args.limit, args.grid)
+        protocol_check(root, args.limit, args.split)
         return
     report = calibrate(root, args.limit, args.split)
     write_report_json("g0_summary.json", report)

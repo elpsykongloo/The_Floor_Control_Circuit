@@ -162,11 +162,50 @@ def _dir_inventory(dir_path: Path, sample_n: int = 12) -> dict:
         "by_suffix": dict(suffixes.most_common(20)),
         "sample_paths": samples,
         "largest": [{"path": str(p.relative_to(dir_path)), "mb": round(p.stat().st_size / 1e6, 1)} for p in big],
+        # 非 tar 成员单列（tar 太多时 sample_paths 会被占满，标注文件容易被淹没）
+        "non_tar_files": [
+            str(p.relative_to(dir_path)) for p in sorted(files, key=str) if p.suffix.lower() != ".tar"
+        ][:20],
     }
-    tars = sorted(p for p in files if p.suffix.lower() in (".tar", ".gz", ".tgz"))
+    tars = sorted(p for p in files if p.suffix.lower() in (".tar", ".tgz"))
     if tars:
         report["tar_peek"] = _tar_peek(tars[0])
+    gzs = sorted(p for p in files if p.suffix.lower() == ".gz")
+    if gzs:
+        report["gz_peek"] = _gz_peek(gzs[0])
+    mds = sorted(p for p in files if p.suffix.lower() == ".md")
+    if mds:
+        report["md_head"] = {
+            "file": str(mds[0].relative_to(dir_path)),
+            "head": mds[0].read_text(encoding="utf-8", errors="replace")[:2000],
+        }
     return report
+
+
+def _gz_peek(gz_path: Path) -> dict:
+    """.gz 双模窥探：先按 tar.gz 试（成员清单），失败按 gzip 文本读首几行（jsonl 等）。"""
+    peek: dict = {"file": gz_path.name}
+    try:
+        tar_result = _tar_peek(gz_path)
+        if "error" not in tar_result:
+            peek["as_tar"] = tar_result
+            return peek
+    except Exception:
+        pass
+    import gzip
+
+    try:
+        with gzip.open(gz_path, "rt", encoding="utf-8", errors="replace") as f:
+            lines = []
+            for _ in range(3):
+                line = f.readline()
+                if not line:
+                    break
+                lines.append(line[:500])
+        peek["as_text_head"] = lines
+    except Exception as e:
+        peek["error"] = repr(e)
+    return peek
 
 
 def _tar_peek(tar_path: Path, max_members: int = 30) -> dict:

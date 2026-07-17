@@ -19,7 +19,11 @@ qc:
   human_spotcheck_pct: 5.0 # 人工抽听比例
 
 s1:
-  pairs_per_lang: 300 # 完整前缀 vs 不完整前缀
+  # 拆臂（PREREG 变更记录 #2，修改版已批准，2026-07-17）：
+  #   S1-A 确证臂 = 跨条目配对 complete_i vs incomplete_j（总时长与语音活动时长均 ±5%），
+  #                 wp6_build_stimuli.py pair-a 在全量合成后生成 s1a_pairs_<lang>.parquet；
+  #   S1-B 探索臂 = 同条目真实前缀对（方向性时长比/韵律/人工抽听，仅探索性）。
+  pairs_per_lang: 300 # 完整前缀 vs 不完整前缀（S1-B 基础池，S1-A 从中配对）
   f0_flatten: true # 各配 F0 拉平版（praat-parselmouth）
   zh_real_source: smoothconv # ZH 另裁 SmoothConv 真实 complete/incomplete 段（双轨互证）
 

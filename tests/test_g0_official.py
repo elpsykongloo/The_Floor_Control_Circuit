@@ -1,4 +1,11 @@
-"""官方 DualTurn 标签算法复现的单测：手工构造 VAD → 手算预期标签（非同源，独立验证）。"""
+"""官方 DualTurn 标签算法（定稿语义）单测：手工构造 VAD → 按官方规则手算预期。
+
+语义要点（与早期错误复现的差异，均有对应用例）：
+- 每个未触及录音末尾的非-BC 段必落 EOT 或 HOLD（无人恢复 → HOLD）；
+- 触及录音末尾的段不标 EOT/HOLD；
+- BC 前静音在录音首段记 0（首段不判 BC）；
+- BOT 的最近发言者比较用原始二值轨（本人的 BC 活跃也算）。
+"""
 
 from __future__ import annotations
 
@@ -6,17 +13,16 @@ import numpy as np
 
 from floor_circuit.events.g0 import _match_sparse
 from floor_circuit.events.g0_official import (
-    OfficialParams,
+    compute_official_labels,
     exact_mismatches,
+    get_speech_segments,
     official_tracks,
-    param_grid,
     segments_to_frame_track,
     track_prf,
-    vad_segments,
 )
 from floor_circuit.schemas import Seg
 
-P = OfficialParams()  # lookahead 50、有效段 ≥13、bc ≤12 且前后 ≥13 静音
+N = 200
 
 
 def make_vad(n: int, segs: list[tuple[int, int]]) -> np.ndarray:
@@ -26,101 +32,113 @@ def make_vad(n: int, segs: list[tuple[int, int]]) -> np.ndarray:
     return v
 
 
-class TestVadSegments:
+class TestSegments:
     def test_basic(self):
-        assert vad_segments(make_vad(10, [(2, 5), (7, 9)])) == [(2, 5), (7, 9)]
-        assert vad_segments(np.zeros(5, dtype=np.int8)) == []
-        assert vad_segments(np.ones(4, dtype=np.int8)) == [(0, 4)]
+        assert get_speech_segments(make_vad(10, [(2, 5), (7, 9)])) == [(2, 5), (7, 9)]
+        assert get_speech_segments(np.zeros(5, dtype=np.int8)) == []
+        assert get_speech_segments(np.ones(4, dtype=np.int8)) == [(0, 4)]
+
+    def test_soft_vad_threshold(self):
+        v = np.array([0.6, 0.4, 0.7, 0.7], dtype=np.float32)
+        assert get_speech_segments(v) == [(0, 1), (2, 4)]
 
 
-class TestOfficialTracks:
-    def test_eot_other_takes_floor(self):
-        # 本人 [10,40)，对方在 45 起说 20 帧（有效）；本人 4 s 内未恢复 → EOT@39
-        n = 200
-        self_v = make_vad(n, [(10, 40)])
-        other_v = make_vad(n, [(45, 65)])
-        tr = official_tracks(self_v, other_v, P)
-        assert tr["eot"][39] == 1
+class TestOfficialSemantics:
+    def test_eot_when_other_takes_floor(self):
+        self_v = make_vad(N, [(10, 40)])
+        other_v = make_vad(N, [(45, 65)])  # 20 帧 ≥ 12 → 有效接管
+        tr = official_tracks(self_v, other_v)
+        assert tr["eot"][39] == 1 and tr["eot"].sum() == 1
         assert tr["hold"].sum() == 0
-        # 对方段 ≥1 s 且此前 4 s 内本人是最近发言者 → 对方通道 BOT@45
-        tr_o = official_tracks(other_v, self_v, P)
-        assert tr_o["bot"][45] == 1
+        # 对方通道：其段末 4 s 内无人恢复 → HOLD（官方互补语义）；且其起点为 BOT
+        full = compute_official_labels(self_v, other_v)
+        assert full["hold_ch1"][64] == 1
+        assert full["bot_ch1"][45] == 1
+        assert full["bot_ch0"].sum() == 0  # ch0 起点前无人说话
 
-    def test_hold_self_resumes(self):
-        # 本人 [10,40) 停顿后 [50,80) 恢复；对方全程安静 → HOLD@39，且第二段无 BOT（对方非最近发言者）
-        n = 200
-        self_v = make_vad(n, [(10, 40), (50, 80)])
-        other_v = np.zeros(n, dtype=np.int8)
-        tr = official_tracks(self_v, other_v, P)
-        assert tr["hold"][39] == 1
-        assert tr["eot"].sum() == 0
-        assert tr["bot"].sum() == 0
+    def test_hold_when_nobody_resumes(self):
+        # 关键差异用例：4 s 内无人恢复 → HOLD（早期实现漏标）
+        tr = official_tracks(make_vad(N, [(10, 40)]), np.zeros(N, dtype=np.int8))
+        assert tr["hold"][39] == 1 and tr["eot"].sum() == 0
 
-    def test_no_label_when_nobody_resumes(self):
-        # 本人 [10,40)，此后 4 s 内无人说话 → 段末无 eot/hold
-        n = 200
-        tr = official_tracks(make_vad(n, [(10, 40)]), np.zeros(n, dtype=np.int8), P)
+    def test_hold_when_self_resumes(self):
+        tr = official_tracks(make_vad(N, [(10, 40), (50, 80)]), np.zeros(N, dtype=np.int8))
+        assert tr["hold"][39] == 1 and tr["hold"][79] == 1
+        assert tr["eot"].sum() == 0 and tr["bot"].sum() == 0
+
+    def test_segment_touching_end_unlabeled(self):
+        # 触及录音末尾的段不落 EOT/HOLD（早期实现的"末帧钳位"方向是错的）
+        tr = official_tracks(make_vad(N, [(150, N)]), np.zeros(N, dtype=np.int8))
         assert tr["eot"].sum() == 0 and tr["hold"].sum() == 0
 
-    def test_bc_isolated_short(self):
-        # 对方长段 [10,60)；本人 [30,38)（8 帧 ≤12，前后静音充足）→ BC 覆盖 [30,38)
-        n = 200
-        self_v = make_vad(n, [(30, 38)])
-        other_v = make_vad(n, [(10, 60)])
-        tr = official_tracks(self_v, other_v, P)
+    def test_bc_isolated_short_with_other_floor(self):
+        self_v = make_vad(N, [(30, 38)])  # 8 帧 ≤ 12，前后静音充足
+        other_v = make_vad(N, [(10, 60)])  # 附近对方有效话轮
+        tr = official_tracks(self_v, other_v)
         assert tr["bc"][30:38].all() and tr["bc"].sum() == 8
-        # BC 段不产生 eot/hold/bot
         assert tr["eot"].sum() == 0 and tr["hold"].sum() == 0 and tr["bot"].sum() == 0
 
-    def test_short_seg_near_own_speech_not_bc(self):
-        # 短段距本人上一段仅 5 帧（< bc_gap 13）→ 非 BC
-        n = 200
-        self_v = make_vad(n, [(10, 30), (35, 40)])
-        other_v = make_vad(n, [(50, 70)])
-        tr = official_tracks(self_v, other_v, P)
+    def test_recording_initial_segment_never_bc(self):
+        # 录音首段 silence_before 记 0 → 不判 BC；随后按互补语义落 EOT/HOLD
+        self_v = make_vad(N, [(0, 8)])
+        other_v = make_vad(N, [(20, 40)])  # 20 帧有效，8 帧末端后 12 帧起
+        tr = official_tracks(self_v, other_v)
+        assert tr["bc"].sum() == 0
+        assert tr["eot"][7] == 1  # 对方在 gap 窗内先恢复且段长达标
+
+    def test_bc_needs_silence_after(self):
+        # 短段后 5 帧本人又说话（< 12 帧静音）→ 非 BC
+        self_v = make_vad(N, [(30, 38), (43, 70)])
+        other_v = make_vad(N, [(10, 60)])
+        tr = official_tracks(self_v, other_v)
         assert tr["bc"].sum() == 0
 
-    def test_overlap_other_ongoing_counts_as_eot(self):
-        # 对方有效段 [30,60) 覆盖本人段末 40 → other_ongoing_counts=True 时立即接管 → EOT@39
-        n = 200
-        self_v = make_vad(n, [(10, 40)])
-        other_v = make_vad(n, [(30, 60)])
-        tr = official_tracks(self_v, other_v, P)
+    def test_overlap_other_ongoing_counts(self):
+        # 段末时对方已在说话（重叠）：first_other=0 → 立即接管 → EOT
+        self_v = make_vad(N, [(10, 40)])
+        other_v = make_vad(N, [(30, 60)])
+        tr = official_tracks(self_v, other_v)
         assert tr["eot"][39] == 1
 
-    def test_bot_requires_min_duration(self):
-        # 对方先说；本人 10 帧短段（<13）不算 BOT；后续 20 帧段算 BOT
-        n = 300
-        self_v = make_vad(n, [(80, 90), (120, 140)])
-        other_v = make_vad(n, [(10, 60)])
-        tr = official_tracks(self_v, other_v, P)
-        assert tr["bot"][80] == 0
-        # 120 处：过去 4 s（70-120）内最近发言者是本人自己的 80-90 段？80-90 仅 10 帧非有效段
-        # → 最近**有效**发言者仍是对方（10-60 在 lookback 之外，70-120 窗内对方无活跃）→ 无 BOT
-        assert tr["bot"][120] == 0
-        # 把对方段挪近：对方 [100,115) 有效（15 帧）→ 本人 [120,140) 应为 BOT
-        other_v2 = make_vad(n, [(100, 115)])
-        tr2 = official_tracks(self_v, other_v2, P)
-        assert tr2["bot"][120] == 1
+    def test_bot_uses_raw_track_including_own_bc(self):
+        # 本人的 BC 活跃出现在候选 BOT 段的 lookback 窗内且晚于对方 → 阻断 BOT（原始轨语义）
+        self_v = make_vad(N, [(70, 78), (100, 120)])  # 70-78 为 BC（孤立短段）
+        other_v = make_vad(N, [(10, 60)])
+        full = compute_official_labels(self_v, other_v)
+        assert full["bc_ch0"][70:78].all()  # 确认 70-78 判为 BC
+        assert full["bot_ch0"][100] == 0  # last_self(77) > last_other(59) → 无 BOT
+        # 移除本人 BC 后同一段应为 BOT
+        full2 = compute_official_labels(make_vad(N, [(100, 120)]), other_v)
+        assert full2["bot_ch0"][100] == 1
 
-    def test_exact_mismatch_and_grid(self):
-        n = 200
-        self_v = make_vad(n, [(10, 40)])
-        other_v = make_vad(n, [(45, 65)])
-        tr = official_tracks(self_v, other_v, P)
+    def test_short_segment_no_bot(self):
+        self_v = make_vad(N, [(80, 90)])  # 10 帧 < 12
+        other_v = make_vad(N, [(10, 60)])
+        tr = official_tracks(self_v, other_v)
+        assert tr["bot"].sum() == 0
+
+    def test_length_mismatch_raises(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="长度不同"):
+            compute_official_labels(np.zeros(10, dtype=np.int8), np.zeros(9, dtype=np.int8))
+        with pytest.raises(ValueError, match="轨长不等"):
+            exact_mismatches(
+                {c: np.zeros(5, dtype=np.int8) for c in ("eot", "hold", "bot", "bc")},
+                {c: np.zeros(6, dtype=np.int8) for c in ("eot", "hold", "bot", "bc")},
+            )
+
+    def test_exact_mismatch_zero_on_self(self):
+        tr = official_tracks(make_vad(N, [(10, 40)]), make_vad(N, [(45, 65)]))
         assert exact_mismatches(tr, {k: v.copy() for k, v in tr.items()}) == {
             "eot": 0, "hold": 0, "bot": 0, "bc": 0,
         }
-        grid = param_grid()
-        assert len(grid) == 64 and len({tuple(sorted(p.as_dict().items())) for p in grid}) == 64
 
 
 class TestFrameTrackAndPrf:
     def test_majority_downsample(self):
-        # 段 [0.0, 0.12)：帧 0 覆盖 0.08/0.08=100%、帧 1 覆盖 0.04/0.08=50% → majority 两帧皆 1
         track = segments_to_frame_track([Seg(0.0, 0.12)], 10, 12.5, rule="majority")
         assert track[0] == 1 and track[1] == 1 and track[2] == 0
-        # 段 [0.0, 0.10)：帧 1 覆盖 0.02（25%）→ majority 不亮，any 亮
         t2 = segments_to_frame_track([Seg(0.0, 0.10)], 10, 12.5, rule="majority")
         assert t2[1] == 0
         t3 = segments_to_frame_track([Seg(0.0, 0.10)], 10, 12.5, rule="any")
@@ -135,7 +153,6 @@ class TestFrameTrackAndPrf:
 
 class TestMaxMatching:
     def test_counterexample_from_review(self):
-        # 旧贪心命中 1，最大匹配应为 2（pred [0,3]、gold [2,4]、tol 2）
         assert _match_sparse(np.array([0, 3]), np.array([2, 4]), 2) == 2
 
     def test_basic_cases(self):

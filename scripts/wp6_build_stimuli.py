@@ -141,14 +141,48 @@ def stage_qc() -> None:
     print(f"QC 完成：最小对 {sum_min}；变换对 {sum_tr}")
 
 
+def stage_pair_a() -> None:
+    """S1-A 确证臂配对（PREREG #2 修改版）：跨条目 complete_i vs incomplete_j，
+    总时长与 VAD 语音活动时长均 ≤ ±duration_tol_pct。产出 s1a_pairs_<lang>.parquet。"""
+    from floor_circuit.config import load_config as _load
+    from floor_circuit.events.vad import SileroVad
+    from floor_circuit.stimuli.pairing import StimulusClip, greedy_duration_pairing
+
+    cfg = load_config("stimuli")
+    tol = float(cfg["qc"]["duration_tol_pct"])
+    vad = SileroVad(_load("events"))
+    out_root = data_root() / "stimuli"
+    summary: dict = {}
+    for lang in LANGS:
+        m1 = pd.read_parquet(out_root / f"s1_{lang}_manifest.parquet")
+        completes, incompletes = [], []
+        for r in m1.itertuples(index=False):
+            for kind, bucket in (("complete", completes), ("incomplete", incompletes)):
+                p = Path(getattr(r, f"wav_{kind}"))
+                if not p.exists():
+                    continue
+                wav, sr = load_wav(p)
+                speech_s = sum(seg.dur for seg in vad.segments(wav, sr))
+                bucket.append(StimulusClip(id=r.id, duration_s=len(wav) / sr, speech_s=speech_s))
+        pairs, stats = greedy_duration_pairing(completes, incompletes, tol)
+        pd.DataFrame(pairs).to_parquet(out_root / f"s1a_pairs_{lang}.parquet")
+        summary[lang] = stats
+        print(f"{lang}: S1-A 配成 {stats['n_pairs']} 对（语音活动过滤剔除 {stats['n_speech_dropped']}）")
+    write_report_json("s1a_pairing_summary.json", summary)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("stage", choices=["texts", "synth", "post", "qc"])
+    ap.add_argument("stage", choices=["texts", "synth", "post", "qc", "pair-a"])
     ap.add_argument("--limit", type=int, default=None, help="synth 试产条数（V6 用 10）")
     args = ap.parse_args()
-    {"texts": stage_texts, "synth": lambda: stage_synth(args.limit), "post": stage_post, "qc": stage_qc}[
-        args.stage
-    ]()
+    {
+        "texts": stage_texts,
+        "synth": lambda: stage_synth(args.limit),
+        "post": stage_post,
+        "qc": stage_qc,
+        "pair-a": stage_pair_a,
+    }[args.stage]()
 
 
 if __name__ == "__main__":

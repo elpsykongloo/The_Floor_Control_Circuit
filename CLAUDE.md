@@ -25,7 +25,7 @@
 
 - 本机仓库路径：`C:\artificial_intelligence\repos\The_Floor_Control_Circuit`；Python 3.12 + uv（`.venv`，`link-mode = copy`）。共享信号工具从仓库根目录用 `uv run` 调用：silero-vad 5.1.2、praat-parselmouth、pyloudnorm、环境内 ffmpeg 7.1（imageio-ffmpeg，系统 PATH 无独立 ffmpeg）。torch / torchaudio / onnxruntime 已随 silero-vad 进入 uv 锁文件，轻量基线模型（如声学 GRU）可直接在本仓库环境训练。
 - 五个受试模型各有独立 `.venv`（路径见 文档/01 §3），互不混装；跨环境协作只走"CLI 契约 + 磁盘 schema"（见 文档/02 附录 C），不做跨环境 import。
-- Windows 四个高频坑（①–③ 见 文档/00 §11；④ 为 2026-07-17 实测新增）：① HF 缓存符号链接 → 设 `HF_HUB_DISABLE_SYMLINKS=1` 并开 LongPathsEnabled；② DataLoader 多进程 → 脚本必须有 `if __name__ == "__main__":` 守卫；③ 音频 IO 统一用环境内 ffmpeg，避免 sox 链路；④ pytest 遇 `PermissionError: ...\Temp\pytest-of-<用户>` → 旧临时目录 ACL 损坏，用 `uv run pytest --basetemp=D:\data_storage\The_Floor_Control_Circuit\tmp\pytest`（或删除该旧目录）。
+- Windows 四个高频坑（①–③ 见 文档/00 §11；④ 为 2026-07-17 实测新增）：① HF 缓存符号链接 → 设 `HF_HUB_DISABLE_SYMLINKS=1` 并开 LongPathsEnabled；② DataLoader 多进程 → 脚本必须有 `if __name__ == "__main__":` 守卫；③ 音频 IO 统一用环境内 ffmpeg，避免 sox 链路；④ pytest 遇 `PermissionError: ...\Temp\pytest-of-<用户>` → 旧临时目录 ACL 损坏，用 `uv run pytest --basetemp=D:\data_storage\The_Floor_Control_Circuit\tmp\pytest`（或删除该旧目录）；⑤ transformers `trust_remote_code` 模型目录名含 `.`（如 `MiniCPM-o-4.5`）→ 动态模块名被点号切分报 `ModuleNotFoundError: transformers_modules.MiniCPM-o-4`，`runners/minicpm_o/run.py` 已内置自动创建无点 junction 别名规避。
 - 本机有双卡（24 GB+），长音频 KV cache 可跨卡；GPU 任务（TTS 合成 vs 激活缓存前向）应分卡或错峰。
 
 ## 4. 文档地图

@@ -17,6 +17,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -24,6 +26,35 @@ import numpy as np
 
 INPUT_SAMPLE_RATE = 16000
 CHUNK_MS = 1000  # V1 已核实：模型一秒输入时钟
+
+
+def _sanitize_model_root(root: str) -> str:
+    """规避 transformers 动态模块坑（2026-07-17 本机实测）：目录名含 '.' 时，
+    trust_remote_code 的动态模块名被点号切分（MiniCPM-o-4.5 →
+    ModuleNotFoundError: No module named 'transformers_modules.MiniCPM-o-4'）。
+    自动在同级创建无点号目录别名（Windows junction / POSIX symlink）并改用之。"""
+    p = Path(root).resolve()
+    if "." not in p.name:
+        return str(p)
+    alias = p.parent / (p.name.replace(".", "_") + "_nodot")
+    if not alias.exists():
+        try:
+            if os.name == "nt":
+                subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(alias), str(p)],
+                    check=True, capture_output=True, text=True,
+                )
+            else:
+                alias.symlink_to(p, target_is_directory=True)
+        except Exception as e:
+            raise SystemExit(
+                f"模型目录名含 '.'（{p.name}）会触发 transformers 动态模块导入错误，"
+                f"且自动创建别名失败（{e!r}）。请手动执行：\n"
+                f'  cmd /c mklink /J "{alias}" "{p}"\n'
+                f'然后用 --model-root "{alias}" 重试'
+            ) from e
+        print(f"[minicpm-runner] 目录名含点号，已创建无点别名并改用：{alias}")
+    return str(alias)
 
 
 def load_audio_16k(path: str) -> np.ndarray:
@@ -37,8 +68,9 @@ def collect_stream(args) -> Iterator[dict]:
     import torch
     from transformers import AutoModel
 
+    model_root = _sanitize_model_root(args.model_root)
     model = AutoModel.from_pretrained(
-        str(args.model_root),
+        model_root,
         trust_remote_code=True,
         attn_implementation=args.attn_implementation,
         torch_dtype=torch.bfloat16,
