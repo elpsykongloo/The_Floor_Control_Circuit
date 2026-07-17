@@ -29,13 +29,19 @@ CANDOR（EN 主战场）· SmoothConv（ZH 专家金标）· DuplexConv（ZH 规
 
 ```
 文档/                 研究计划与执行文档（00 原始计划 / 01 本地路径 / 02 W1+W2 执行计划）
+src/floor_circuit/   共享库：events（事件本体+G0）/ data（四语料解析+划分冻结）
+                     / probes（线性探针+三基线+cluster bootstrap）/ stimuli（S1–S5）
+                     / cachelib（npy→zarr 缓存）/ mve（MVE 编排与 G1 裁决）
+runners/             每模型薄适配层，在各自模型 .venv 内运行（moshi/personaplex 为
+                     R1 复放缓存实现；minicpm_o/freeze_omni 为 readout 骨架；dgslm 为 V4 检查）
+scripts/             顶层入口（uv run python scripts/...），每个脚本向 reports/ 落小结
+configs/             冻结参数 YAML（events/grids/stimuli/paths）+ splits/（生成即冻结）
+tests/               pytest 单测（合成数据驱动，不依赖模型与语料）
+reports/             本机运行小结与校准/MVE 报告（入 Git，作为两端协作的反馈回路）
+PREREG.md            预注册（判据、划分、参数指纹、变更记录）
 CLAUDE.md            AI 会话持久记忆与工作约定（权威）
 AGENTS.md            智能体核心规则（精简版）
-pyproject.toml       uv 项目配置（Python 3.12，共享信号处理工具链）
-uv.lock              锁文件
 ```
-
-代码目录（`src/floor_circuit/`、`runners/`、`configs/`、`scripts/`、`tests/`、`reports/`、`PREREG.md`）随 W1 脚手架落地，布局定义见 文档/02 §2。
 
 ## 环境与运行
 

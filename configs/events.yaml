@@ -1,0 +1,44 @@
+# 事件本体冻结参数（来源：文档/00_原始计划.md §2；任何变更须先登记 PREREG.md 变更记录）
+grid_dt_s: 0.01 # 事件检测内部时间栅格（工程参数，非科学参数）
+
+vad:
+  backend: silero-v5
+  sample_rate: 16000
+  threshold: 0.5
+  min_speech_ms: 120
+  min_silence_ms: 180
+
+ipu:
+  merge_gap_s: 0.18 # 同通道内部间隙 < 180 ms 合并
+
+turn_en:
+  merge_gap_s: 1.0 # 同说话人相邻 IPU 间隙 < 1.0 s 且期间对方无非-backchannel IPU 则合并
+  bc_max_s: 1.0 # 对方 ≤ 1.0 s 且命中 backchannel 判据的 IPU 不切断 turn
+
+backchannel_lexicon:
+  en: ["yeah", "uh-huh", "mm", "mhm", "right", "okay", "oh", "wow", "sure", "i see"]
+  zh: ["嗯", "嗯嗯", "对", "对对", "是", "是的", "好", "哦", "啊", "行"]
+
+events:
+  onset_pre_silence_s: 0.4 # ONSET：此前同通道静默 ≥ 400 ms
+  offset_post_silence_s: 0.4 # OFFSET：此后同通道静默 ≥ 400 ms
+  yield_max_s: 1.0 # YIELD：对方重叠 onset 后 ≤ 1.0 s 内 OFFSET
+  hold_min_s: 1.5 # HOLD：同上情形但继续 ≥ 1.5 s
+  bc_max_s: 1.0 # BC：对方 IPU ≤ 1.0 s 且本通道 VA 未中断
+  pause_min_s: 0.3 # PAUSE：turn 内静默下界
+  pause_max_s: 2.0 # PAUSE：turn 内静默上界
+  turnend_no_continue_s: 1.5 # TURNEND(EN)：IPU 末且 ≥ 1.5 s 无续说
+  turnend_other_onset_s: 1.0 # TURNEND(EN)：或对方 ≤ 1.0 s 内 onset
+  t2_offset_window_s: 0.4 # T2 标签 = agent 于 400 ms 内 OFFSET
+
+g0:
+  # 我方事件 → DualTurn-SWB 12.5 Hz 帧级四类映射；tolerance_frames 为稀疏类评分容差。
+  # 映射与官方标签语义在 V2 检查后最终冻结（见 reports/v1_v6/）。
+  frame_hz: 12.5
+  mapping:
+    eot: TURNEND
+    bot: ONSET
+    bc: BC
+    default: hold
+  tolerance_frames: 2
+  f1_threshold: 0.85

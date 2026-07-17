@@ -1,0 +1,49 @@
+# 刺激库 S1–S5 冻结规格（文档/00 §5）
+delivery_sample_rate: 24000
+master_seed: 20260717
+
+voices: # V6 定选后回填（EN/ZH 各固定一音色）
+  en: null
+  zh: null
+
+qc:
+  duration_tol_pct: 5.0 # 最小对时长配平 ±5%
+  loudness_tol_lu: 0.5 # 响度配平 ±0.5 LU（pyloudnorm）
+  target_lufs: -20.0 # 统一响度基准（工程参数）
+  max_clip_ratio: 0.001 # 削波样本占比上限（工程参数）
+  human_spotcheck_pct: 5.0 # 人工抽听比例
+
+s1:
+  pairs_per_lang: 300 # 完整前缀 vs 不完整前缀
+  f0_flatten: true # 各配 F0 拉平版（praat-parselmouth）
+  zh_real_source: smoothconv # ZH 另裁 SmoothConv 真实 complete/incomplete 段（双轨互证）
+
+s2:
+  trials_per_type: 200
+  onset_range_pct: [20, 80] # 注入点在宿主语句 20–80% 处均匀采样
+  types: [instruct, babble, reversed, backchannel, crosslingual]
+  interrupt_text:
+    en: "wait, stop, that's wrong"
+    zh: "等等，停一下，不对"
+  backchannel_text:
+    en: "yeah"
+    zh: "嗯嗯"
+  babble_source: musan # 能量/时长匹配 babble（MUSAN 或音素乱序重合成）
+
+s3:
+  n_per_lang: 200
+  pause_min_ms: 300
+  pause_max_ms: 1200
+  en_source: candor_pause # EN 自 CANDOR PAUSE 事件
+  zh_source: smoothconv_incomplete # ZH 自 incomplete 段末
+
+s4:
+  n_per_lang: 200
+  en_source: heuristic_question # EN 启发式完整问句
+  zh_source: smoothconv_complete # ZH complete 金标
+
+s5:
+  base: s2_instruct
+  pitch_semitones: [-4, 4]
+  tempo_pct: [-20, 20]
+  snr_db: [20, 10, 5]

@@ -47,13 +47,20 @@ package = false
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
-line-length = 100
+# 本仓库中文文档字符串较长，行宽取 120（2026-07-17 起）
+line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+# 本仓库约定中文注释与文档字符串，全角标点不是笔误
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["floor_circuit"]
 
 [tool.mypy]
 python_version = "3.12"

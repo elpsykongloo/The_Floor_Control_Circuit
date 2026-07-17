@@ -1,0 +1,38 @@
+# 决策时钟与前瞻量网格（文档/00 §2.4）+ MVE 冻结配置（§6-E0 第 5 步、§7-G1）
+clocks:
+  moshi: { type: fixed_hz, hz: 12.5, step_ms: 80 }
+  personaplex: { type: fixed_hz, hz: 12.5, step_ms: 80 }
+  dgslm: { type: fixed_hz, hz: null, step_ms: null, note: "V4 确认离散单元帧率后回填" }
+  freeze_omni:
+    type: chunk
+    chunk_ms: 160
+    note: "V3 已核实：160 ms 音频块逐块出状态头 logits；状态头参数形状 [4, 3584]，官方判决用前三维"
+  minicpm_o:
+    type: dual
+    decision_hz: 1.0
+    note: "V1 已核实：1 Hz 指模型一秒输入时钟；每步仅传 audio_waveform，读出 is_listen 决策"
+
+delta_grid:
+  moshi_ms: [0, 80, 160, 240, 400, 800]
+  personaplex_ms: [0, 80, 160, 240, 400, 800]
+  dgslm_ms: [0, 100, 200, 400, 800] # 换算为最近步；V4 后按实际帧率回填
+  freeze_omni_chunks: [0, 1, 2, 3]
+  minicpm_o_decision_s: [0, 1, 2]
+  minicpm_o_backbone_ms: [0, 250, 500, 1000]
+
+mve:
+  model: moshi
+  weights: moshiko-pytorch-bf16
+  mode: R1
+  layers: [4, 12, 20, 28]
+  targets: [T1, T4]
+  t1_delta_ms: 240 # = Moshi 时钟 3 步，满足 H1 的 ≥3 时钟步前瞻要求
+  n_sessions_train: 160 # 自 CANDOR 探针训练划分（60% 侧）
+  n_sessions_eval: 40 # 自 CANDOR 验证划分（15% 侧）；25% 因果评估侧绝不触碰
+  max_minutes_per_session: 10
+  seeds: [0, 1, 2]
+  neg_downsample_ratio: 5 # 负类:正类 = 5:1（文档/00 §8）
+  probe_c_grid: [0.01, 0.1, 1.0]
+  bootstrap_n: 1000 # 会话级 cluster bootstrap
+  g1_full_threshold: 0.05 # ≥ +0.05 → 全量 E1
+  g1_backup_threshold: 0.02 # +0.02~0.05 → 备胎 MVE；全部 < +0.02 → N1
