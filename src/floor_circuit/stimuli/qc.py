@@ -32,22 +32,33 @@ def qc_single(path: str | Path, qc_cfg: dict, expect_sr: int) -> dict:
     }
 
 
-def qc_pair(path_a: str | Path, path_b: str | Path, qc_cfg: dict, expect_sr: int) -> dict:
-    """最小对（如 S1 完整/不完整、S2a/S2b 能量匹配对）的配平检查。"""
+def qc_pair(
+    path_a: str | Path, path_b: str | Path, qc_cfg: dict, expect_sr: int, check_duration: bool = True
+) -> dict:
+    """配平检查。
+
+    check_duration=True：同文本变换版本对（原版 vs F0 拉平/倒放等），时长须 ±duration_tol_pct；
+    check_duration=False：S1 完整/不完整最小对——二者为前缀关系，逐对时长配平在结构上不可能
+    （2026-07-17 首轮质检 30% 通过率的根因），只查响度配平并记录 duration_ratio 供分析
+    （判据操作化澄清见 PREREG.md 变更记录）。
+    """
     a, b = qc_single(path_a, qc_cfg, expect_sr), qc_single(path_b, qc_cfg, expect_sr)
     dur_ref = max(a["duration_s"], b["duration_s"], 1e-9)
     dur_diff_pct = abs(a["duration_s"] - b["duration_s"]) / dur_ref * 100.0
     lufs_diff = abs(a["lufs"] - b["lufs"])
-    return {
+    row = {
         "a": a["path"],
         "b": b["path"],
         "sr_ok": a["sr_ok"] and b["sr_ok"],
         "clip_ok": a["clip_ok"] and b["clip_ok"],
         "duration_diff_pct": dur_diff_pct,
-        "duration_ok": dur_diff_pct <= float(qc_cfg["duration_tol_pct"]),
+        "duration_ratio": b["duration_s"] / dur_ref,
         "lufs_diff": lufs_diff,
         "loudness_ok": lufs_diff <= float(qc_cfg["loudness_tol_lu"]),
+        "duration_checked": check_duration,
     }
+    row["duration_ok"] = (dur_diff_pct <= float(qc_cfg["duration_tol_pct"])) if check_duration else True
+    return row
 
 
 def qc_report(pair_rows: list[dict]) -> tuple[pd.DataFrame, dict]:

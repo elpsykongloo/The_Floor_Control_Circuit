@@ -59,6 +59,16 @@ def _iter_items(payload: Any) -> list[dict]:
     raise ValueError("无法在 JSON 中定位分段列表（segments/utterances/...）")
 
 
+def _pick_nested(it: dict, keys: tuple[str, ...]) -> Any:
+    """先查顶层别名，再查 attributes 子对象（SmoothConv 真实标签路径 = attributes.turn，
+    2026-07-17 自检 label_value_hits 定位）。"""
+    v = _pick(it, keys)
+    if v is not None:
+        return v
+    attrs = it.get("attributes")
+    return _pick(attrs, keys) if isinstance(attrs, dict) else None
+
+
 def parse_file(path: str | Path) -> pd.DataFrame:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     items = _iter_items(payload)
@@ -74,10 +84,13 @@ def parse_file(path: str | Path) -> pd.DataFrame:
                 "start_s": start,
                 "end_s": end,
                 "text_raw": str(_pick(it, _TEXT_KEYS) or ""),
-                "turn_label": _norm_label(_pick(it, _TURN_KEYS)),
+                "turn_label": _norm_label(_pick_nested(it, _TURN_KEYS)),
+                "other_turn_label": _norm_label(_pick_nested(it, ("other_turn", "otherTurn"))),
             }
         )
-    df = pd.DataFrame(rows, columns=["channel", "start_s", "end_s", "text_raw", "turn_label"])
+    df = pd.DataFrame(
+        rows, columns=["channel", "start_s", "end_s", "text_raw", "turn_label", "other_turn_label"]
+    )
     if len(df) and df["end_s"].max() > 1000.0:  # 毫秒判定（均长 144.6 s 的语料不应超 1000 s）
         df["start_s"] = df["start_s"] / 1000.0
         df["end_s"] = df["end_s"] / 1000.0
@@ -136,19 +149,56 @@ def _flat_items(d: dict, prefix: str = "") -> list[tuple[str, Any]]:
 
 
 def _dir_inventory(dir_path: Path, sample_n: int = 12) -> dict:
-    """目录里没有 *.json 时的清点回退（DuplexConv 情形）：找出标注实际形态。"""
+    """目录里没有 *.json 时的清点回退（DuplexConv 情形）：找出标注实际形态。
+    发现 .tar/.tar.gz 时额外流式窥探首个包：成员名样例 + 首个 JSON 成员的键结构。"""
     from collections import Counter
 
     files = [p for p in dir_path.rglob("*") if p.is_file()]
     suffixes = Counter(p.suffix.lower() for p in files)
     samples = [str(p.relative_to(dir_path)) for p in sorted(files, key=str)[:sample_n]]
     big = sorted(files, key=lambda p: p.stat().st_size, reverse=True)[:5]
-    return {
+    report = {
         "n_files_total": len(files),
         "by_suffix": dict(suffixes.most_common(20)),
         "sample_paths": samples,
         "largest": [{"path": str(p.relative_to(dir_path)), "mb": round(p.stat().st_size / 1e6, 1)} for p in big],
     }
+    tars = sorted(p for p in files if p.suffix.lower() in (".tar", ".gz", ".tgz"))
+    if tars:
+        report["tar_peek"] = _tar_peek(tars[0])
+    return report
+
+
+def _tar_peek(tar_path: Path, max_members: int = 30) -> dict:
+    """流式窥探 tar（不解包落盘）：成员名分布 + 首个 JSON 成员的解析样例。"""
+    import tarfile
+
+    peek: dict = {"tar": tar_path.name, "members": [], "json_sample": None}
+    try:
+        with tarfile.open(tar_path, "r:*") as tf:
+            json_done = False
+            for i, member in enumerate(tf):
+                if i < max_members:
+                    peek["members"].append({"name": member.name, "size": member.size})
+                if not json_done and member.isfile() and member.name.lower().endswith(".json"):
+                    fh = tf.extractfile(member)
+                    if fh is not None:
+                        try:
+                            obj = json.loads(fh.read(1 << 20).decode("utf-8"))
+                            items = _iter_items(obj)
+                            peek["json_sample"] = {
+                                "member": member.name,
+                                "n_items": len(items),
+                                "first_item_keys": [k for k, _ in _flat_items(items[0])][:30] if items else None,
+                            }
+                        except Exception as e:
+                            peek["json_sample"] = {"member": member.name, "error": repr(e)}
+                    json_done = True
+                if i >= max_members and json_done:
+                    break
+    except Exception as e:
+        peek["error"] = repr(e)
+    return peek
 
 
 def self_check(dir_path: str | Path, n_files: int = 20) -> dict:

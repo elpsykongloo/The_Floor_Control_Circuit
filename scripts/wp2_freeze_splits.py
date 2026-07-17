@@ -17,33 +17,47 @@ from floor_circuit.config import data_root, load_paths
 from floor_circuit.data.splits import CANDOR_RATIOS, SMOOTHCONV_RATIOS, freeze_split, write_split
 
 
+def _freeze_one(dataset: str, sessions: list[str], ratios: dict, seed: int, out_dir: Path) -> dict:
+    if not sessions:
+        raise SystemExit(f"{dataset}: 会话列表为空，拒绝冻结空划分（先解决数据形态，如 DuplexConv 的 tar 包）")
+    splits = freeze_split(sessions, ratios, seed)
+    payload = write_split(out_dir / f"{dataset}.json", dataset, splits, seed, ratios)
+    return {"counts": payload["counts"], "sha256": payload["sha256"]}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=20260717)
+    ap.add_argument(
+        "--dataset",
+        choices=["candor", "smoothconv", "duplexconv", "all"],
+        default="all",
+        help="分数据集冻结（DuplexConv 待 tar 形态确认后单独冻结）",
+    )
     args = ap.parse_args()
     out_dir = REPO_ROOT / "configs" / "splits"
     summary: dict = {"seed": args.seed, "datasets": {}}
 
-    index = pd.read_parquet(data_root() / "raw_index" / "candor_index.parquet")
-    candor_sessions = sorted(index["session_id"].unique().tolist())
-    splits = freeze_split(candor_sessions, CANDOR_RATIOS, args.seed)
-    payload = write_split(out_dir / "candor.json", "candor", splits, args.seed, CANDOR_RATIOS)
-    summary["datasets"]["candor"] = {"counts": payload["counts"], "sha256": payload["sha256"]}
+    if args.dataset in ("candor", "all"):
+        index = pd.read_parquet(data_root() / "raw_index" / "candor_index.parquet")
+        candor_sessions = sorted(index["session_id"].unique().tolist())
+        summary["datasets"]["candor"] = _freeze_one("candor", candor_sessions, CANDOR_RATIOS, args.seed, out_dir)
 
-    sc_dir = Path(load_paths()["datasets"]["smoothconv"])
-    sc_sessions = sorted(p.stem for p in sc_dir.rglob("*.json"))
-    splits = freeze_split(sc_sessions, SMOOTHCONV_RATIOS, args.seed)
-    payload = write_split(out_dir / "smoothconv.json", "smoothconv", splits, args.seed, SMOOTHCONV_RATIOS)
-    summary["datasets"]["smoothconv"] = {"counts": payload["counts"], "sha256": payload["sha256"]}
+    if args.dataset in ("smoothconv", "all"):
+        sc_dir = Path(load_paths()["datasets"]["smoothconv"])
+        sc_sessions = sorted(p.stem for p in sc_dir.rglob("*.json"))
+        summary["datasets"]["smoothconv"] = _freeze_one(
+            "smoothconv", sc_sessions, SMOOTHCONV_RATIOS, args.seed, out_dir
+        )
 
-    dc_dir = Path(load_paths()["datasets"]["duplexconv"])
-    dc_sessions = sorted(p.stem for p in dc_dir.rglob("*.json"))
-    payload = write_split(
-        out_dir / "duplexconv.json", "duplexconv", {"train": dc_sessions}, args.seed, {"train": 1.0}
-    )
-    summary["datasets"]["duplexconv"] = {"counts": payload["counts"], "sha256": payload["sha256"]}
+    if args.dataset in ("duplexconv", "all"):
+        dc_dir = Path(load_paths()["datasets"]["duplexconv"])
+        dc_sessions = sorted(p.stem for p in dc_dir.rglob("*.json"))
+        summary["datasets"]["duplexconv"] = _freeze_one(
+            "duplexconv", dc_sessions, {"train": 1.0}, args.seed, out_dir
+        )
 
-    summary["note"] = "DualTurn 沿官方 splits.json，不在此生成；splits 哈希需登记入 PREREG.md"
+    summary["note"] = "DualTurn 沿官方 splits.json，不在此生成；冻结后跑 prereg_fingerprint.py 回填哈希"
     write_report_json("splits_summary.json", summary)
     print("划分已冻结：", {k: v["counts"] for k, v in summary["datasets"].items()})
 

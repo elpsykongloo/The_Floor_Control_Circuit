@@ -89,30 +89,56 @@ def stage_post() -> None:
 
 
 def stage_qc() -> None:
+    """双轨质检（2026-07-17 协议修正）：
+    ① 最小对（complete vs incomplete）：响度配平 ±0.5 LU（前缀关系，不查逐对时长，记录时长比）；
+    ② 变换对（原版 vs F0 拉平，同文本）：时长 ±5% + 响度配平。"""
     cfg = load_config("stimuli")
+    sr = int(cfg["delivery_sample_rate"])
     out_root = data_root() / "stimuli"
-    rows = []
+    minimal_rows, transform_rows = [], []
     for lang in LANGS:
         m1 = pd.read_parquet(out_root / f"s1_{lang}_manifest.parquet")
         for r in m1.itertuples(index=False):
             a, b = Path(r.wav_complete), Path(r.wav_incomplete)
             if a.exists() and b.exists():
-                rows.append(
-                    {"id": r.id, "lang": lang, **qc_pair(a, b, cfg["qc"], int(cfg["delivery_sample_rate"]))}
+                minimal_rows.append(
+                    {"id": r.id, "lang": lang, **qc_pair(a, b, cfg["qc"], sr, check_duration=False)}
                 )
-    df, summary = qc_report(rows)
-    write_report_json("stimuli_qc_summary.json", summary)
+            for kind in ("complete", "incomplete"):
+                orig = Path(getattr(r, f"wav_{kind}"))
+                flat = Path(getattr(r, f"wav_{kind}_f0flat"))
+                if orig.exists() and flat.exists():
+                    transform_rows.append(
+                        {"id": f"{r.id}_{kind}_f0flat", "lang": lang,
+                         **qc_pair(orig, flat, cfg["qc"], sr, check_duration=True)}
+                    )
+    df_min, sum_min = qc_report(minimal_rows)
+    df_tr, sum_tr = qc_report(transform_rows)
+    write_report_json("stimuli_qc_summary.json", {"minimal_pairs": sum_min, "transform_pairs": sum_tr})
     md = REPORTS_DIR / "stimuli_qc.md"
-    fails = df[~df["pass"]] if len(df) else df
-    md.write_text(
-        "# 刺激质检报告（S1 配平）\n\n"
-        f"- 对数：{summary.get('n_pairs', 0)}，通过率：{summary.get('pass_rate', 0.0):.2%}\n"
-        f"- 未过项：时长 {summary.get('fail_duration', 0)}，响度 {summary.get('fail_loudness', 0)}，"
-        f"采样率 {summary.get('fail_sr', 0)}，削波 {summary.get('fail_clip', 0)}\n\n"
-        + (fails.to_markdown(index=False) if len(fails) else "全部通过。"),
-        encoding="utf-8",
-    )
-    print(f"QC 完成：{summary}")
+    parts = [
+        "# 刺激质检报告（S1，双轨协议）",
+        "",
+        f"## 最小对（complete vs incomplete，响度配平）：{sum_min.get('n_pairs', 0)} 对，"
+        f"通过率 {sum_min.get('pass_rate', 0.0):.2%}",
+        f"- 未过：响度 {sum_min.get('fail_loudness', 0)}，采样率 {sum_min.get('fail_sr', 0)}，"
+        f"削波 {sum_min.get('fail_clip', 0)}（时长为前缀关系，不判死，见 duration_ratio）",
+        "",
+        f"## 变换对（原版 vs F0 拉平，时长 ±5% + 响度）：{sum_tr.get('n_pairs', 0)} 对，"
+        f"通过率 {sum_tr.get('pass_rate', 0.0):.2%}",
+        f"- 未过：时长 {sum_tr.get('fail_duration', 0)}，响度 {sum_tr.get('fail_loudness', 0)}",
+        "",
+    ]
+    fails_min = df_min[~df_min["pass"]] if len(df_min) else df_min
+    fails_tr = df_tr[~df_tr["pass"]] if len(df_tr) else df_tr
+    if len(fails_min):
+        parts += ["### 最小对未过明细", "", fails_min.to_markdown(index=False), ""]
+    if len(fails_tr):
+        parts += ["### 变换对未过明细", "", fails_tr.to_markdown(index=False), ""]
+    if not len(fails_min) and not len(fails_tr):
+        parts.append("全部通过。")
+    md.write_text("\n".join(parts), encoding="utf-8")
+    print(f"QC 完成：最小对 {sum_min}；变换对 {sum_tr}")
 
 
 def main() -> None:

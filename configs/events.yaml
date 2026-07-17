@@ -32,13 +32,28 @@ events:
   t2_offset_window_s: 0.4 # T2 标签 = agent 于 400 ms 内 OFFSET
 
 g0:
-  # 我方事件 → DualTurn-SWB 12.5 Hz 帧级四类映射；tolerance_frames 为稀疏类评分容差。
-  # 映射与官方标签语义在 V2 检查后最终冻结（见 reports/v1_v6/）。
+  # G0 三层协议（2026-07-17 重构，依据首轮校准复核）：
+  # 层1 协议正确性 = 金标 VAD → official 算法 vs 金标标签逐帧全等；
+  # 层2 VAD 一致性 = Silero@Mimi 解码 vs 官方 VAD；层3 端到端。
   frame_hz: 12.5
+  tolerance_frames: 2
+  f1_threshold: 0.85 # 对 Mimi 解码域的适用性修订提案见 PREREG.md 变更记录
+  # DualTurn 官方标签算法的边界参数（wp1_g0_calibrate --protocol-check --grid 全等后冻结；
+  # 当前值为待验证假设）。语义见 src/floor_circuit/events/g0_official.py。
+  official:
+    lookahead_f: 50
+    lookback_f: 50
+    min_valid_f: 13
+    bot_min_f: 13
+    bc_max_f: 12
+    bc_gap_f: 13
+    bc_context_f: 50
+    self_resume_valid_only: false
+    other_ongoing_counts: true
+    eot_at_last_speech: true
+  # （历史）事件本体 → 四类的旧映射：与官方协议不一致，已不用于 Gate，仅供事件管线自身分析
   mapping:
     eot: TURNEND
     bot: ONSET
     bc: BC
     default: hold
-  tolerance_frames: 2
-  f1_threshold: 0.85

@@ -53,20 +53,20 @@ def events_to_frames(
 
 
 def _match_sparse(pred_idx: np.ndarray, gold_idx: np.ndarray, tol: int) -> int:
-    """±tol 帧内一对一贪心匹配，返回命中数。"""
-    used = np.zeros(len(pred_idx), dtype=bool)
-    hits = 0
-    for g in gold_idx:
-        best, best_d = -1, tol + 1
-        for j, p in enumerate(pred_idx):
-            if used[j]:
-                continue
-            d = abs(int(p) - int(g))
-            if d <= tol and d < best_d:
-                best, best_d = j, d
-        if best >= 0:
-            used[best] = True
+    """±tol 帧内一对一**最大**匹配数。
+
+    双方排序后金标依次取"最早的可行预测"——一维区间二部图上该贪心即最优
+    （2026-07-17 修复：旧的按距离贪心不保证最大匹配，如 pred [0,3]、gold [2,4]、tol 2）。
+    """
+    pred = sorted(int(p) for p in pred_idx)
+    gold = sorted(int(g) for g in gold_idx)
+    i = hits = 0
+    for g in gold:
+        while i < len(pred) and pred[i] < g - tol:
+            i += 1
+        if i < len(pred) and pred[i] <= g + tol:
             hits += 1
+            i += 1
     return hits
 
 

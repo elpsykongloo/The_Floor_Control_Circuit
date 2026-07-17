@@ -10,8 +10,10 @@ voices: # V6 定选后回填（EN/ZH 各固定一音色）
   zh: vivian
 
 qc:
-  duration_tol_pct: 5.0 # 最小对时长配平 ±5%
-  loudness_tol_lu: 0.5 # 响度配平 ±0.5 LU（pyloudnorm）
+  # 2026-07-17 操作化澄清（PREREG 变更记录待批准）：时长配平 ±5% 适用于**同文本变换版本对**
+  # （原版 vs F0 拉平/倒放等）；complete/incomplete 为前缀关系，逐对只查响度并记录时长比。
+  duration_tol_pct: 5.0 # 变换版本对时长配平 ±5%
+  loudness_tol_lu: 0.5 # 响度配平 ±0.5 LU（pyloudnorm，两轨都查）
   target_lufs: -20.0 # 统一响度基准（工程参数）
   max_clip_ratio: 0.001 # 削波样本占比上限（工程参数）
   human_spotcheck_pct: 5.0 # 人工抽听比例
