@@ -1,0 +1,42 @@
+{
+ "generated_at": "2026-07-17T09:49:32.194978+00:00",
+ "pass": true,
+ "per_class": {
+  "eot": {
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "n_pred": 2,
+   "n_gold": 2
+  },
+  "hold": {
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "n_pred": 370,
+   "n_gold": 370
+  },
+  "bot": {
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "n_pred": 3,
+   "n_gold": 3
+  },
+  "bc": {
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "n_pred": 0,
+   "n_gold": 0
+  }
+ },
+ "macro_f1": 1.0,
+ "self_test_events": [
+  "BC",
+  "HOLD",
+  "OFFSET",
+  "ONSET",
+  "TURNEND"
+ ]
+}

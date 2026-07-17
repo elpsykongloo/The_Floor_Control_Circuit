@@ -1,0 +1,32 @@
+{
+ "generated_at": "2026-07-17T09:49:16.338636+00:00",
+ "n_zips": 34,
+ "n_members": 21528,
+ "n_sessions": 1656,
+ "kinds": {
+  "metadata": 6624,
+  "transcript": 4968,
+  "video": 4968,
+  "transcript_backbiter": 1656,
+  "audio": 1656,
+  "other": 1656
+ },
+ "sessions_with_audio": 1656,
+ "sessions_with_video": 1656,
+ "sessions_with_backbiter": 1656,
+ "example_members": [
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/metadata.json",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/audio_video_features.csv",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/survey.csv",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/transcription/transcript_audiophile.csv",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/transcription/transcript_backbiter.csv",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/transcription/transcript_cliffhanger.csv",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/transcription/transcribe_output.json",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/processed/5cc604bd3bbb120018a3c0e2.mp4",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/processed/5e0acbffdc79bd35336ed6e0.mp4",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/processed/67836c1d-1334-41a0-a33a-4f788e8b6fb3.mp3",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/processed/67836c1d-1334-41a0-a33a-4f788e8b6fb3.mp4",
+  "67836c1d-1334-41a0-a33a-4f788e8b6fb3/processed/thumbnail.png"
+ ],
+ "total_gb": 340.62
+}

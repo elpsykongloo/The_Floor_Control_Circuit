@@ -1,0 +1,60 @@
+{
+ "generated_at": "2026-07-17T09:49:09.226775+00:00",
+ "root": "D:\\dataset\\audio\\Full_Duplex\\anyreach-ai__dualturn-switchboard-turn-taking",
+ "n_files": 64,
+ "by_suffix": {
+  ".parquet": 61,
+  "": 1,
+  ".md": 1,
+  ".json": 1
+ },
+ "peeks": {
+  ".parquet": [
+   {
+    "file": "data\\test-00000.parquet",
+    "info": {
+     "schema": "session_id: string\ndataset: string\nduration_s: float\nnum_frames: int32\ncodes_ch0: list<element: int16>\n  child 0, element: int16\ncodes_ch1: list<element: int16>\n  child 0, element: int16\nmimi_feat_ch0: list<element: halffloat>\n  child 0, element: halffloat\nmimi_feat_ch1: list<element: halffloat>\n  child 0, element: halffloat\nvad_ch0: list<element: int8>\n  child 0, element: int8\nvad_ch1: list<element: int8>\n  child 0, element: int8\neot_ch0: list<element: int8>\n  child 0, element: int8\neot_ch1: list<element: int8>\n  child 0, element: int8\nhold_ch0: list<element: int8>\n  child 0, element: int8\nhold_ch1: list<element: int8>\n  child 0, element: int8\nbot_ch0: list<element: int8>\n  child 0, element: int8\nbot_ch1: list<element: int8>\n  child 0, element: int8\nbc_ch0: list<element: int8>\n  child 0, element: int8\nbc_ch1: list<element: int8>\n  child 0, element: int8\nfvad_ch0: list<element: float>\n  child 0, element: float\nfvad_ch1: list<element: float>\n  child 0, element: float"
+    }
+   },
+   {
+    "file": "data\\test-00001.parquet",
+    "info": {
+     "schema": "session_id: string\ndataset: string\nduration_s: float\nnum_frames: int32\ncodes_ch0: list<element: int16>\n  child 0, element: int16\ncodes_ch1: list<element: int16>\n  child 0, element: int16\nmimi_feat_ch0: list<element: halffloat>\n  child 0, element: halffloat\nmimi_feat_ch1: list<element: halffloat>\n  child 0, element: halffloat\nvad_ch0: list<element: int8>\n  child 0, element: int8\nvad_ch1: list<element: int8>\n  child 0, element: int8\neot_ch0: list<element: int8>\n  child 0, element: int8\neot_ch1: list<element: int8>\n  child 0, element: int8\nhold_ch0: list<element: int8>\n  child 0, element: int8\nhold_ch1: list<element: int8>\n  child 0, element: int8\nbot_ch0: list<element: int8>\n  child 0, element: int8\nbot_ch1: list<element: int8>\n  child 0, element: int8\nbc_ch0: list<element: int8>\n  child 0, element: int8\nbc_ch1: list<element: int8>\n  child 0, element: int8\nfvad_ch0: list<element: float>\n  child 0, element: float\nfvad_ch1: list<element: float>\n  child 0, element: float"
+    }
+   },
+   {
+    "file": "data\\test-00002.parquet",
+    "info": {
+     "schema": "session_id: string\ndataset: string\nduration_s: float\nnum_frames: int32\ncodes_ch0: list<element: int16>\n  child 0, element: int16\ncodes_ch1: list<element: int16>\n  child 0, element: int16\nmimi_feat_ch0: list<element: halffloat>\n  child 0, element: halffloat\nmimi_feat_ch1: list<element: halffloat>\n  child 0, element: halffloat\nvad_ch0: list<element: int8>\n  child 0, element: int8\nvad_ch1: list<element: int8>\n  child 0, element: int8\neot_ch0: list<element: int8>\n  child 0, element: int8\neot_ch1: list<element: int8>\n  child 0, element: int8\nhold_ch0: list<element: int8>\n  child 0, element: int8\nhold_ch1: list<element: int8>\n  child 0, element: int8\nbot_ch0: list<element: int8>\n  child 0, element: int8\nbot_ch1: list<element: int8>\n  child 0, element: int8\nbc_ch0: list<element: int8>\n  child 0, element: int8\nbc_ch1: list<element: int8>\n  child 0, element: int8\nfvad_ch0: list<element: float>\n  child 0, element: float\nfvad_ch1: list<element: float>\n  child 0, element: float"
+    }
+   }
+  ],
+  ".json": [
+   {
+    "file": "splits.json",
+    "info": {
+     "keys": [
+      "description",
+      "total_sessions",
+      "split_counts",
+      "sessions_without_audio",
+      "splits"
+     ]
+    }
+   }
+  ]
+ },
+ "top_level": [
+  ".gitattributes",
+  "README.md",
+  "data",
+  "splits.json"
+ ],
+ "splits_json": {
+  "description": "str",
+  "total_sessions": "int",
+  "split_counts": "dict",
+  "sessions_without_audio": 3,
+  "splits": "dict"
+ }
+}
