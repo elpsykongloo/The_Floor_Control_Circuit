@@ -1,0 +1,61 @@
+[project]
+name = "the-floor-control-circuit"
+version = "0.1.0"
+description = "全双工语音模型话语权决策的定位、因果验证与推理时操控研究"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "ffmpeg-python>=0.2.0",
+    "h5py>=3.11",
+    "imageio-ffmpeg>=0.5.1",
+    "joblib>=1.4",
+    "librosa>=0.10.2",
+    "matplotlib>=3.9",
+    "numpy>=1.26",
+    "orjson>=3.10",
+    "pandas>=2.2",
+    "praat-parselmouth>=0.4.5",
+    "pyarrow>=16",
+    "pydantic>=2.8",
+    "pyloudnorm>=0.1.1",
+    "pyyaml>=6.0",
+    "rich>=13.7",
+    "scikit-learn>=1.5",
+    "scipy>=1.13",
+    "seaborn>=0.13",
+    "silero-vad==5.1.2",
+    "soundfile>=0.12.1",
+    "statsmodels>=0.14",
+    "tqdm>=4.66",
+    "typer>=0.12",
+    "zarr>=2.18",
+]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.108",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+]
+
+[tool.uv]
+link-mode = "copy"
+package = false
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true

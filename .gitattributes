@@ -1,0 +1,28 @@
+* text=auto
+
+# 跨平台源码与配置统一使用 LF
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.python-version text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.ps1 text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+uv.lock text eol=lf
+
+# Windows 命令脚本保留 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 常见二进制文件
+*.flac binary
+*.gif binary
+*.jpg binary
+*.jpeg binary
+*.mp3 binary
+*.mp4 binary
+*.png binary
+*.wav binary
