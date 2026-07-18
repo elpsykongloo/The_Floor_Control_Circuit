@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-07-17T12:45:27.697942+00:00",
+ "generated_at": "2026-07-17T13:26:27.041943+00:00",
  "n_files_found": 0,
  "files_ok": 0,
  "errors": [],
@@ -47,6 +47,11 @@
     "path": "Edu\\audios\\Edu_0027.tar",
     "mb": 8255.4
    }
+  ],
+  "non_tar_files": [
+   ".gitattributes",
+   "Edu\\jsons.tar.gz",
+   "README.md"
   ],
   "tar_peek": {
    "tar": "Edu_0001.tar",
@@ -173,6 +178,142 @@
     }
    ],
    "json_sample": null
+  },
+  "gz_peek": {
+   "file": "jsons.tar.gz",
+   "as_tar": {
+    "tar": "jsons.tar.gz",
+    "members": [
+     {
+      "name": "Edu--000001.json",
+      "size": 5019
+     },
+     {
+      "name": "Edu--000002.json",
+      "size": 12318
+     },
+     {
+      "name": "Edu--000003.json",
+      "size": 23197
+     },
+     {
+      "name": "Edu--000004.json",
+      "size": 66130
+     },
+     {
+      "name": "Edu--000005.json",
+      "size": 2159
+     },
+     {
+      "name": "Edu--000006.json",
+      "size": 33449
+     },
+     {
+      "name": "Edu--000007.json",
+      "size": 18721
+     },
+     {
+      "name": "Edu--000008.json",
+      "size": 37023
+     },
+     {
+      "name": "Edu--000009.json",
+      "size": 3412
+     },
+     {
+      "name": "Edu--000010.json",
+      "size": 4190
+     },
+     {
+      "name": "Edu--000011.json",
+      "size": 29169
+     },
+     {
+      "name": "Edu--000012.json",
+      "size": 29091
+     },
+     {
+      "name": "Edu--000013.json",
+      "size": 8889
+     },
+     {
+      "name": "Edu--000014.json",
+      "size": 18630
+     },
+     {
+      "name": "Edu--000015.json",
+      "size": 14014
+     },
+     {
+      "name": "Edu--000016.json",
+      "size": 36700
+     },
+     {
+      "name": "Edu--000017.json",
+      "size": 5749
+     },
+     {
+      "name": "Edu--000018.json",
+      "size": 12767
+     },
+     {
+      "name": "Edu--000021.json",
+      "size": 13797
+     },
+     {
+      "name": "Edu--000022.json",
+      "size": 13297
+     },
+     {
+      "name": "Edu--000025.json",
+      "size": 5304
+     },
+     {
+      "name": "Edu--000026.json",
+      "size": 26726
+     },
+     {
+      "name": "Edu--000027.json",
+      "size": 7394
+     },
+     {
+      "name": "Edu--000028.json",
+      "size": 9077
+     },
+     {
+      "name": "Edu--000029.json",
+      "size": 9889
+     },
+     {
+      "name": "Edu--000030.json",
+      "size": 6371
+     },
+     {
+      "name": "Edu--000031.json",
+      "size": 5149
+     },
+     {
+      "name": "Edu--000032.json",
+      "size": 41935
+     },
+     {
+      "name": "Edu--000033.json",
+      "size": 12806
+     },
+     {
+      "name": "Edu--000035.json",
+      "size": 13543
+     }
+    ],
+    "json_sample": {
+     "member": "Edu--000001.json",
+     "error": "ValueError('无法在 JSON 中定位分段列表（segments/utterances/...）')"
+    }
+   }
+  },
+  "md_head": {
+   "file": "README.md",
+   "head": "---\nlanguage: zh\nlicense: cc-by-nc-4.0\ntags:\n- speech\n- conversational-speech\n- chinese\npretty_name: DuplexConv\n---\n\n<p align=\"center\">\n  <img src=\"https://raw.githubusercontent.com/qualialabsAI/SmoothConv-DuplexConv/main/figs/logo_1.png\" alt=\"SmoothConv & DuplexConv\" width=\"640\">\n</p>\n\n# DuplexConv\n\n**DuplexConv** is a large-scale Chinese multi-channel conversational speech dataset with **LLM-assisted annotations**, developed by [ASLP@NPU](https://www.npu-aslp.org) and QualiaLabs as part of the SmoothConv–DuplexConv corpus family.\n\n<p align=\"center\">\n  <a href=\"https://qualialabsai.github.io/SmoothConv-DuplexConv\"><img src=\"https://img.shields.io/badge/Demo-Page-2563eb\" alt=\"Demo Page\"></a>\n  <a href=\"https://huggingface.co/datasets/qualialabsAI/SmoothConv\"><img src=\"https://img.shields.io/badge/SmoothConv-Companion%20Dataset-2563eb\" alt=\"SmoothConv\"></a>\n  <a href=\"https://github.com/qualialabsAI/SmoothConv-DuplexConv\"><img src=\"https://img.shields.io/badge/GitHub-Repo-green\" alt=\"GitHub\"></a>\n</p>\n\n**Companion dataset:** [**SmoothConv**](https://huggingface.co/datasets/qualialabsAI/SmoothConv) on HuggingFace (100 hours, expert human annotation). DuplexConv and SmoothConv share the same conversational domains and a unified data design. SmoothConv focuses on high-quality human annotations for benchmarking and supervised learning; DuplexConv emphasizes scale for Speech LLM pre-training and data-driven modeling.\n\n## Dataset Overview\n\nDuplexConv comprises **2,000 hours** of naturally occurring **multi-party Chinese conversations** recorded in **multi-channel** environments across **Tutoring** and **Social Chat** scenarios. The dataset captures realistic full-duplex conversational behaviors, including overlapping speech, backchannels, interruptions, pauses, and dynamic turn transitions.\n\nAn **LLM-assisted annotation pipeline** generates transcripts, speaker-aware conversational structures, turn-level interaction information, and scene-level contextual labels. Together "
   }
  },
  "n_rows": 0,

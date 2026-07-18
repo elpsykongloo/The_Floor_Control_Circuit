@@ -1,0 +1,183 @@
+{
+ "schema_version": 1,
+ "passed": true,
+ "scope": {
+  "seconds": 20.0,
+  "maximum_allowed_seconds": 30.0,
+  "sample_rate": 24000,
+  "mimi_chunk_seconds": 0.08,
+  "mimi_mode": "official_frame_streaming",
+  "forward_chunk_steps": 128,
+  "layers": [
+   4,
+   12,
+   20,
+   28
+  ],
+  "reference_path": "mimi_offline_and_lm_forward_text_without_depformer",
+  "candidate_path": "official_frame_streaming_mimi_and_stateful_transformer_backbone",
+  "semantic_authority": "official_mimi_frame_streaming"
+ },
+ "source_audio": {
+  "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\67836c1d-1334-41a0-a33a-4f788e8b6fb3\\audio_ch0.wav": "c54f4768d6794ce0649f4b248b2e2d7dc4d22da09c559b76bf4fb57869fb9db0",
+  "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\67836c1d-1334-41a0-a33a-4f788e8b6fb3\\audio_ch1.wav": "09fb230956271db39800db308e91c0318497d4a9ec6eb255a7a7a4f25e83d915"
+ },
+ "mimi": {
+  "agent_codes_exact": false,
+  "other_codes_exact": false,
+  "agent_codes": {
+   "shape": [
+    1,
+    8,
+    250
+   ],
+   "exact": false,
+   "n_values": 2000,
+   "n_mismatched_values": 43,
+   "mismatched_value_rate": 0.0215,
+   "n_mismatched_frames": 13
+  },
+  "other_codes": {
+   "shape": [
+    1,
+    8,
+    250
+   ],
+   "exact": false,
+   "n_values": 2000,
+   "n_mismatched_values": 42,
+   "mismatched_value_rate": 0.021,
+   "n_mismatched_frames": 15
+  },
+  "latent_source": "encode_to_latent(quantize=False)",
+  "latent": {
+   "shape": [
+    250,
+    512
+   ],
+   "max_abs_error": 0.018951416015625,
+   "rmse": 0.0004410755860269951,
+   "relative_rmse": 0.006256538083600775,
+   "cosine_similarity": 0.9999804276772772,
+   "frame_error": {
+    "threshold_rmse": 0.001,
+    "n_above_threshold": 2,
+    "first_above_threshold": 151,
+    "last_above_threshold": 152,
+    "worst_frame": 151,
+    "worst_frame_rmse": 0.005818391256994401
+   }
+  }
+ },
+ "transformer": {
+  "code_meta": {
+   "text_pad_id": 3,
+   "delays": [
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "delay_application": "global_once_before_streaming_forward",
+   "stream_order": "self_first",
+   "n_streams": 17,
+   "T": 250
+  },
+  "stream_stats": {
+   "hidden_dim": 4096,
+   "n_steps": 250,
+   "n_parts": 2,
+   "forward_chunk_steps": 128,
+   "transformer_context": 3000
+  },
+  "cosine_floor": 0.9999,
+  "offline_code_mismatch_ceiling": 0.05,
+  "layers": {
+   "4": {
+    "shape": [
+     250,
+     4096
+    ],
+    "max_abs_error": 0.06640625,
+    "rmse": 0.00031609520789489267,
+    "relative_rmse": 0.0014246735646836622,
+    "cosine_similarity": 0.9999989851792666,
+    "frame_error": {
+     "threshold_rmse": 0.001,
+     "n_above_threshold": 2,
+     "first_above_threshold": 0,
+     "last_above_threshold": 1,
+     "worst_frame": 1,
+     "worst_frame_rmse": 0.0016286863963659995
+    }
+   },
+   "12": {
+    "shape": [
+     250,
+     4096
+    ],
+    "max_abs_error": 0.03125,
+    "rmse": 0.0009283788525298628,
+    "relative_rmse": 0.0032020292910553035,
+    "cosine_similarity": 0.9999948735250845,
+    "frame_error": {
+     "threshold_rmse": 0.001,
+     "n_above_threshold": 21,
+     "first_above_threshold": 0,
+     "last_above_threshold": 226,
+     "worst_frame": 93,
+     "worst_frame_rmse": 0.005398522539109963
+    }
+   },
+   "20": {
+    "shape": [
+     250,
+     4096
+    ],
+    "max_abs_error": 0.0625,
+    "rmse": 0.0016014496306337115,
+    "relative_rmse": 0.005339071948101214,
+    "cosine_similarity": 0.9999857470693255,
+    "frame_error": {
+     "threshold_rmse": 0.001,
+     "n_above_threshold": 249,
+     "first_above_threshold": 0,
+     "last_above_threshold": 249,
+     "worst_frame": 215,
+     "worst_frame_rmse": 0.00921864047714928
+    }
+   },
+   "28": {
+    "shape": [
+     250,
+     4096
+    ],
+    "max_abs_error": 0.15625,
+    "rmse": 0.0032361227107275165,
+    "relative_rmse": 0.008701446772273842,
+    "cosine_similarity": 0.999962145003633,
+    "frame_error": {
+     "threshold_rmse": 0.001,
+     "n_above_threshold": 250,
+     "first_above_threshold": 0,
+     "last_above_threshold": 249,
+     "worst_frame": 215,
+     "worst_frame_rmse": 0.010397931719903528
+    }
+   }
+  }
+ }
+}

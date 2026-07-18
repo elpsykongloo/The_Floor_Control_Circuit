@@ -72,7 +72,7 @@
 | --- | --- | --- | --- |
 | G0·层1 | 2026-07-18 | 参考实现 138/138 会话逐帧全等（1,030,734 通道帧残差 0；与官方源码 2,000 组随机对拍一致）；库版在 test 探索集 20 会话及发布物可用的官方 val 295 会话上复核，四类逐帧残差均为 0 | reports/g0_reference_recompute.json；reports/g0_protocol_check.json；reports/g0_summary.json |
 | G0·层3 | 2026-07-18 | 发布物可用的官方 val 295 会话诊断 macro-F1 = 0.520921；层2双通道 VAD F1 = 0.917724 / 0.918477；门槛仍待按语料级 Gate 同口径冻结，未运行剩余 118 会话的层2/3确认 | reports/g0_summary.json；reports/g0_校准报告.md |
-| G1 | — | 待定 | reports/mve_报告.md |
+| G1 | 2026-07-18 | **N1**。T1 最优层 L4：探针 AUC 0.872663，最大基线（Mimi）AUC 0.884412，优势 −0.011750，95% CI [−0.015747, −0.007859]；T4 最优层 L12：探针 AUC 0.776354，最大基线（Mimi）AUC 0.808447，优势 −0.032093，95% CI [−0.042637, −0.021938]。两目标均低于 +0.02，按冻结判据取优势较大的 T1 为决定性目标，进入 N1 止损改组。34 项分数包经独立复算，正式摘要字段在 `1e-12` 容差内零差异 | reports/mve_summary.json；reports/mve_报告.md；reports/mve_independent_audit.json；reports/mve_独立验证报告.md；分数包 manifest SHA-256 `12bb51bd3985f9ad5f7acbda51acf86033b2c4c6c2e507fa520c0ed6cec9517a` |
 
 ## 6. 变更记录
 

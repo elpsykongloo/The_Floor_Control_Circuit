@@ -1,0 +1,161 @@
+{
+ "schema_version": 1,
+ "seconds": 20.0,
+ "audio": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\67836c1d-1334-41a0-a33a-4f788e8b6fb3\\audio_ch0.wav",
+ "rows": [
+  {
+   "chunk_seconds": 0.08,
+   "elapsed_seconds": 1.3006170000003294,
+   "realtime_factor": 0.06503085000001647,
+   "latent_source": "encode_to_latent(quantize=False)",
+   "codes": {
+    "exact": false,
+    "n_values": 2000,
+    "n_mismatched_values": 43,
+    "mismatched_value_rate": 0.0215000007301569,
+    "n_mismatched_frames": 13
+   },
+   "latent": {
+    "shape": [
+     250,
+     512
+    ],
+    "max_abs_error": 0.018951416015625,
+    "relative_rmse": 0.006256538083600775,
+    "cosine_similarity": 0.9999804276772772
+   }
+  },
+  {
+   "chunk_seconds": 0.16,
+   "elapsed_seconds": 0.44153770000002623,
+   "realtime_factor": 0.022076885000001312,
+   "latent_source": "encode_to_latent(quantize=False)",
+   "codes": {
+    "exact": false,
+    "n_values": 2000,
+    "n_mismatched_values": 85,
+    "mismatched_value_rate": 0.042500000447034836,
+    "n_mismatched_frames": 28
+   },
+   "latent": {
+    "shape": [
+     250,
+     512
+    ],
+    "max_abs_error": 0.026885986328125,
+    "relative_rmse": 0.015038900597915576,
+    "cosine_similarity": 0.9998869097437023
+   }
+  },
+  {
+   "chunk_seconds": 0.32,
+   "elapsed_seconds": 0.23604029999978593,
+   "realtime_factor": 0.011802014999989296,
+   "latent_source": "encode_to_latent(quantize=False)",
+   "codes": {
+    "exact": false,
+    "n_values": 2000,
+    "n_mismatched_values": 87,
+    "mismatched_value_rate": 0.04350000247359276,
+    "n_mismatched_frames": 30
+   },
+   "latent": {
+    "shape": [
+     250,
+     512
+    ],
+    "max_abs_error": 0.133819580078125,
+    "relative_rmse": 0.04705749231628449,
+    "cosine_similarity": 0.9988921905943048
+   }
+  },
+  {
+   "chunk_seconds": 0.64,
+   "elapsed_seconds": 0.18122270000003482,
+   "realtime_factor": 0.009061135000001741,
+   "latent_source": "encode_to_latent(quantize=False)",
+   "codes": {
+    "exact": false,
+    "n_values": 2000,
+    "n_mismatched_values": 115,
+    "mismatched_value_rate": 0.057500001043081284,
+    "n_mismatched_frames": 40
+   },
+   "latent": {
+    "shape": [
+     250,
+     512
+    ],
+    "max_abs_error": 0.129119873046875,
+    "relative_rmse": 0.05273456992976519,
+    "cosine_similarity": 0.9986090076401527
+   }
+  },
+  {
+   "chunk_seconds": 1.28,
+   "elapsed_seconds": 0.11386329999959344,
+   "realtime_factor": 0.005693164999979672,
+   "latent_source": "encode_to_latent(quantize=False)",
+   "codes": {
+    "exact": false,
+    "n_values": 2000,
+    "n_mismatched_values": 132,
+    "mismatched_value_rate": 0.06599999964237213,
+    "n_mismatched_frames": 56
+   },
+   "latent": {
+    "shape": [
+     250,
+     512
+    ],
+    "max_abs_error": 0.1660003662109375,
+    "relative_rmse": 0.09475338581743195,
+    "cosine_similarity": 0.9955051339463954
+   }
+  },
+  {
+   "chunk_seconds": 2.56,
+   "elapsed_seconds": 0.08383880000019417,
+   "realtime_factor": 0.004191940000009708,
+   "latent_source": "encode_to_latent(quantize=False)",
+   "codes": {
+    "exact": false,
+    "n_values": 2000,
+    "n_mismatched_values": 241,
+    "mismatched_value_rate": 0.12050000578165054,
+    "n_mismatched_frames": 75
+   },
+   "latent": {
+    "shape": [
+     250,
+     512
+    ],
+    "max_abs_error": 0.165496826171875,
+    "relative_rmse": 0.12169063307922677,
+    "cosine_similarity": 0.9925797209390291
+   }
+  },
+  {
+   "chunk_seconds": 4.0,
+   "elapsed_seconds": 0.06819850000010774,
+   "realtime_factor": 0.003409925000005387,
+   "latent_source": "encode_to_latent(quantize=False)",
+   "codes": {
+    "exact": false,
+    "n_values": 2000,
+    "n_mismatched_values": 364,
+    "mismatched_value_rate": 0.18200001120567322,
+    "n_mismatched_frames": 97
+   },
+   "latent": {
+    "shape": [
+     250,
+     512
+    ],
+    "max_abs_error": 0.140167236328125,
+    "relative_rmse": 0.12102514839123926,
+    "cosine_similarity": 0.9926513236405266
+   }
+  }
+ ]
+}

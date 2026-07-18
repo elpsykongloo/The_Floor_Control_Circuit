@@ -1,0 +1,1 @@
+[minicpm-runner] 目录名含点号，已创建无点别名并改用：C:\artificial_intelligence\models\Full-Duplex\MiniCPM-o-4_5_nodot

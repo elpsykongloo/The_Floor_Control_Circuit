@@ -1,0 +1,28 @@
+{
+ "generated_at": "2026-07-17T17:59:44.260277+00:00",
+ "n_sessions": 200,
+ "n_runs": 400,
+ "train": 160,
+ "eval": 40,
+ "code_version": "951e839+runner.ae1e6082430b997e1c23a943b43a96bad2b8f67bb0cd8d8da9c0c2e4726ad3eb",
+ "git_commit": "951e839c04519271988a3cc926b3035ad0ac5ee7",
+ "layers": [
+  4,
+  12,
+  20,
+  28
+ ],
+ "max_seconds": 600.0,
+ "mimi_chunk_seconds": 0.08,
+ "forward_chunk_steps": 128,
+ "input_validation": {
+  "n_audio_files": 400,
+  "n_output_dirs": 400,
+  "n_sessions": 200
+ },
+ "num_shards": 1,
+ "shard_id": 0,
+ "cuda_visible_devices": "0",
+ "emitted": 400,
+ "failures": []
+}
