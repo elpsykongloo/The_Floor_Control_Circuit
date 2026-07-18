@@ -416,6 +416,7 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
         raise IndependentAuditError("manifest contract 与冻结 G1 配置不一致")
     config_checks = {
         "targets": list(mve["targets"]) == expected_contract["targets"],
+        "t1_delta_ms": int(mve["t1_delta_ms"]) == 400,  # PREREG #8 δ 读法裁决
         "layers": [int(value) for value in mve["layers"]] == expected_contract["layers"],
         "seeds": [int(value) for value in mve["seeds"]] == expected_contract["seeds"],
         "bootstrap_n": int(mve["bootstrap_n"]) == FROZEN_G1_BOOTSTRAP_N,
@@ -769,6 +770,36 @@ def _verify_runner_manifests(manifest: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _verify_descriptive(summary: dict[str, Any]) -> dict[str, Any]:
+    """核验描述性附表：仅作形状与非裁决性检查（其输入不进入分数包，不做数值复算）。"""
+
+    descriptive = summary.get("descriptive")
+    if not isinstance(descriptive, dict):
+        raise IndependentAuditError("summary.descriptive 缺失")
+    note = descriptive.get("note")
+    if not isinstance(note, str) or "非 G1 判据" not in note:
+        raise IndependentAuditError("descriptive.note 必须声明其非判据地位")
+
+    def walk(value: Any, path: str) -> None:
+        if isinstance(value, dict):
+            if "verdict" in value:
+                raise IndependentAuditError(f"描述性附表不得含裁决字段：{path}.verdict")
+            for key, child in value.items():
+                walk(child, f"{path}.{key}")
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                walk(child, f"{path}[{index}]")
+
+    walk(descriptive, "descriptive")
+    entries = descriptive.get("T1")
+    if not isinstance(entries, dict):
+        raise IndependentAuditError("descriptive.T1 必须为对象")
+    for delta_key, entry in entries.items():
+        if not isinstance(entry, dict) or int(entry.get("delta_ms", -1)) != int(delta_key):
+            raise IndependentAuditError(f"descriptive.T1[{delta_key}] 的 delta_ms 不一致")
+    return {"n_entries": len(entries), "non_decisional": True}
+
+
 def _declared_selection(summary: dict[str, Any]) -> dict[str, int]:
     """核验 per_target.selection 声明的内部一致性并返回声明的最优层。
 
@@ -1097,7 +1128,14 @@ def audit_summary(
     summary_file = Path(summary_path).resolve()
     summary = _load_json_object(summary_file, "G1 summary")
     _validate_generated_at(summary)
-    expected_top_keys = {"generated_at", "overall", "per_target", "score_bundle", "protocol"}
+    expected_top_keys = {
+        "generated_at",
+        "overall",
+        "per_target",
+        "score_bundle",
+        "protocol",
+        "descriptive",
+    }
     if set(summary) != expected_top_keys:
         raise IndependentAuditError(f"summary 顶层字段集合不一致：{sorted(summary)}")
     resolved_manifest, manifest, manifest_sha256, expected_bundle = _resolve_manifest(
@@ -1132,6 +1170,7 @@ def audit_summary(
     )
     protocol_checks = _verify_protocol(summary, mve, split_path=Path(split_path))
     metadata_checks["protocol"] = protocol_checks
+    metadata_checks["descriptive"] = _verify_descriptive(summary)
     metadata_checks["runner_manifests"] = _verify_runner_manifests(manifest)
     declared_selection = _declared_selection(summary)
     recomputed, bootstrap_checks = recompute_summary(manifest, loaded, declared_selection)

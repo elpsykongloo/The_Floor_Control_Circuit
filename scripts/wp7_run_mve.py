@@ -256,8 +256,9 @@ def _mve_summary_payload(
     per_target: dict[str, dict],
     score_bundle: dict,
     protocol: dict,
+    descriptive: dict,
 ) -> dict:
-    """构造可审计的 G1 小结，并显式引用逐会话分数包与协议声明。"""
+    """构造可审计的 G1 小结，并显式引用逐会话分数包、协议声明与描述性附表。"""
 
     return {
         "overall": overall,
@@ -272,6 +273,7 @@ def _mve_summary_payload(
         },
         "score_bundle": score_bundle,
         "protocol": protocol,
+        "descriptive": descriptive,
     }
 
 
@@ -287,6 +289,7 @@ def _publish_g1_outputs(
     overall: dict,
     meta: dict,
     protocol: dict,
+    descriptive: dict,
     ablation_tag: str | None = None,
 ) -> dict:
     """发布最终分数清单与两份裁决报告；任一步失败都撤下全部完成标志。"""
@@ -302,7 +305,9 @@ def _publish_g1_outputs(
         )
         report_meta = {**meta, "score_bundle": score_bundle}
         report_text = render_report(per_target, overall, report_meta)
-        summary_payload = _mve_summary_payload(overall, per_target, score_bundle, protocol)
+        summary_payload = _mve_summary_payload(
+            overall, per_target, score_bundle, protocol, descriptive
+        )
         _write_text_atomic(REPORTS_DIR / report_name, report_text)
         _write_report_json_atomic(summary_name, summary_payload)
     except BaseException:
@@ -724,8 +729,13 @@ def main() -> None:
         layers=[int(layer) for layer in mve_cfg["layers"]],
         seeds=probe_seeds,
     )
-    for target in mve_cfg["targets"]:
-        delta = int(mve_cfg["t1_delta_ms"]) if target == "T1" else None
+
+    def _target_analysis(target: str, delta: int | None, writer: ScoreBundleWriter | None) -> dict:
+        """单目标全协议分析（嵌套选择 + 三基线 + bootstrap）。
+
+        writer 非空 = 正式路径（分数落冻结 34 项分数包）；writer=None = 描述性路径
+        （PREREG #8 附表：同协议计算，无分数包条目、无裁决效力）。
+        """
         plans = {
             seed: build_training_sample_plan(
                 _labels_root(),
@@ -773,15 +783,16 @@ def main() -> None:
                 inner_plans=inner_plans,
                 sessions_inner_val=inner_val,
             )
-            for cell in cells:
-                score_writer.add(
-                    target=target,
-                    kind="probe",
-                    per_session=cell.per_session,
-                    layer=layer,
-                    seed=cell.seed,
-                    best_c=float(cell.metrics["best_c"]),
-                )
+            if writer is not None:
+                for cell in cells:
+                    writer.add(
+                        target=target,
+                        kind="probe",
+                        per_session=cell.per_session,
+                        layer=layer,
+                        seed=cell.seed,
+                        best_c=float(cell.metrics["best_c"]),
+                    )
             summary[layer] = average_over_seeds(cells)[layer]
             del cells
         hazard_scores = hazard_baseline(train, evals, target, delta, run_specs)
@@ -810,29 +821,30 @@ def main() -> None:
             "mimi": mimi_scores,
             "acoustic_gru": acoustic_scores,
         }
-        for seed, scores in mimi_scores.items():
-            score_writer.add(
+        if writer is not None:
+            for seed, scores in mimi_scores.items():
+                writer.add(
+                    target=target,
+                    kind="mimi",
+                    per_session=scores,
+                    layer=None,
+                    seed=seed,
+                    best_c=mimi_best_c[seed],
+                )
+            writer.add(
                 target=target,
-                kind="mimi",
-                per_session=scores,
+                kind="hazard",
+                per_session=hazard_scores,
                 layer=None,
-                seed=seed,
-                best_c=mimi_best_c[seed],
+                seed=0,
             )
-        score_writer.add(
-            target=target,
-            kind="hazard",
-            per_session=hazard_scores,
-            layer=None,
-            seed=0,
-        )
-        score_writer.add(
-            target=target,
-            kind="acoustic_gru",
-            per_session=acoustic_scores,
-            layer=None,
-            seed=0,
-        )
+            writer.add(
+                target=target,
+                kind="acoustic_gru",
+                per_session=acoustic_scores,
+                layer=None,
+                seed=0,
+            )
         required_baselines = {"hazard", "mimi", "acoustic_gru"}
         # PREREG #7：最优层按 inner_val 选择 AUC 的种子均值选定，与 probe_val 无关；
         # 并列时取层号较小者（max 的首个命中，summary 按层升序构建）。
@@ -843,7 +855,7 @@ def main() -> None:
             required_baselines,
             target,
         )
-        per_target[target] = evaluate_target(
+        result = evaluate_target(
             summary,
             baselines,
             bootstrap_n,
@@ -852,7 +864,7 @@ def main() -> None:
             boot_seed=FROZEN_G1_BOOTSTRAP_SEED,
             best_layer=best_layer,
         )
-        per_target[target]["selection"] = {
+        result["selection"] = {
             "rule": "best_layer = argmax_layer mean_seed(inner_val AUC at best_c)，并列取较小层号",
             "best_layer": int(best_layer),
             "selection_auc_mean_by_layer": {
@@ -860,6 +872,33 @@ def main() -> None:
                 for layer in sorted(summary)
             },
         }
+        return result
+
+    for target in mve_cfg["targets"]:
+        delta = int(mve_cfg["t1_delta_ms"]) if target == "T1" else None
+        per_target[target] = _target_analysis(str(target), delta, score_writer)
+
+    # 描述性附表（PREREG #8 δ 读法裁决）：同协议计算，剥离裁决字段，无分数包条目
+    descriptive: dict = {
+        "note": "描述性附表（PREREG #8 δ 读法裁决）：非 G1 判据，无分数包条目，独立审计不复算",
+        "T1": {},
+    }
+    if not ablation_tag:
+        for delta_value in mve_cfg.get("t1_descriptive_deltas_ms", []):
+            delta = int(delta_value)
+            entry = _target_analysis("T1", delta, None)
+            entry.pop("verdict", None)
+            entry["delta_ms"] = delta
+            entry["net_lead_ms"] = [delta - 80, delta]
+            entry["layer_summary"] = {
+                int(layer): values for layer, values in entry["layer_summary"].items()
+            }
+            descriptive["T1"][str(delta)] = entry
+            print(
+                f"描述性 T1 δ{delta}：优势 {entry['advantage']['advantage_point']:+.4f}"
+                f"（净前瞻 [{delta - 80},{delta}) ms，非判据）"
+            )
+
     overall = overall_g1(per_target, float(mve_cfg["g1_full_threshold"]), float(mve_cfg["g1_backup_threshold"]))
     meta = {
         "layers": mve_cfg["layers"],
@@ -871,6 +910,8 @@ def main() -> None:
         "n_inner_val_sessions": len(inner_val),
         "text_mode": expected_text_mode,
         "ablation": ablation_tag,
+        "t1_delta_ms": int(mve_cfg["t1_delta_ms"]),
+        "descriptive": descriptive,
     }
     protocol = {
         "text_mode": expected_text_mode,
@@ -893,6 +934,7 @@ def main() -> None:
         overall=overall,
         meta=meta,
         protocol=protocol,
+        descriptive=descriptive,
         ablation_tag=ablation_tag,
     )
     prefix = "消融结论（非正式 G1）" if ablation_tag else "G1 裁决"

@@ -189,7 +189,8 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
         title,
         "",
         f"- 配置：层 {meta.get('layers')}，目标 {list(per_target)}，种子 {meta.get('seeds')}，"
-        f"bootstrap {meta.get('bootstrap_n')} 次（会话级）；文本流 text_mode={meta.get('text_mode')}",
+        f"bootstrap {meta.get('bootstrap_n')} 次（会话级）；文本流 text_mode={meta.get('text_mode')}；"
+        f"T1 判据点 δ={meta.get('t1_delta_ms')} ms（PREREG #8 净毫秒读法）",
         f"- 数据：训练 {meta.get('n_train_sessions')} 会话 / 评估 {meta.get('n_eval_sessions')} 会话；"
         f"内层选择划分 inner_train {meta.get('n_inner_train_sessions')} / inner_val {meta.get('n_inner_val_sessions')}",
         "- 时间对齐（PREREG #7）：标签步 s 的观测截止统一为 s·τ；acts 读行 s、"
@@ -251,6 +252,29 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
             f"{m['shuffled_auc_sd']:.4f}（{m['shuffled_n_seeds']} 个种子；期望 ≈ 0.5）",
             f"- **优势 = {adv['advantage_point']:+.4f}**（95% CI [{adv['ci_lo']:+.4f}, {adv['ci_hi']:+.4f}]）",
             f"- 该目标裁决：`{m['verdict']}`",
+            "",
+        ]
+    descriptive = meta.get("descriptive") or {}
+    descriptive_entries = descriptive.get("T1") or {}
+    if descriptive_entries:
+        lines += [
+            "## 描述性附表：T1 前瞻衰减（非判据，PREREG #8）",
+            "",
+            "| δ (ms) | 净前瞻 (ms) | 最优层 | 探针 AUC | 最大基线 AUC | 优势（95% CI） |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for delta_key in sorted(descriptive_entries, key=int):
+            entry = descriptive_entries[delta_key]
+            adv = entry["advantage"]
+            max_baseline = adv["probe_auc"] - adv["advantage_point"]
+            lines.append(
+                f"| {entry['delta_ms']} | [{entry['net_lead_ms'][0]}, {entry['net_lead_ms'][1]}) "
+                f"| L{entry['best_layer']} | {adv['probe_auc']:.4f} | {max_baseline:.4f} "
+                f"| {adv['advantage_point']:+.4f} [{adv['ci_lo']:+.4f}, {adv['ci_hi']:+.4f}] |"
+            )
+        lines += [
+            "",
+            f"> {descriptive.get('note', '')}",
             "",
         ]
     heading = "## G1 总裁决" if not meta.get("ablation") else "## 消融结论（不构成 G1 裁决）"

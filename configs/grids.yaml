@@ -26,7 +26,11 @@ mve:
   mode: R1
   layers: [4, 12, 20, 28]
   targets: [T1, T4]
-  t1_delta_ms: 240 # = Moshi 时钟 3 步，满足 H1 的 ≥3 时钟步前瞻要求
+  # PREREG #8 δ 读法裁决（2026-07-18，用户采纳净毫秒读法）：H1 前瞻按观测截止到事件的
+  # 净时间计；#8 锚定（观测截止 (s+1)·τ）下 δ=400 → 净前瞻 [320,400) ms ≥ 3 步。
+  # δ=240（净 [160,240) ms，晚期整合区间）降级为描述性附表，不入 G1 判据。
+  t1_delta_ms: 400
+  t1_descriptive_deltas_ms: [240] # 描述性附表：同协议全量计算，无分数包条目、无裁决
   n_sessions_train: 160 # 自 CANDOR 探针训练划分（60% 侧）
   n_sessions_eval: 40 # 自 CANDOR 验证划分（15% 侧）；25% 因果评估侧绝不触碰
   max_minutes_per_session: 10

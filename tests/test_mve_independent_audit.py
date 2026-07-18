@@ -171,6 +171,22 @@ def _official_summary() -> dict[str, Any]:
     return {
         "overall": overall_g1(per_target, full_thr=0.05, backup_thr=0.02),
         "per_target": per_target,
+        "descriptive": {
+            "note": "描述性附表（PREREG #8 δ 读法裁决）：非 G1 判据，无分数包条目，独立审计不复算",
+            "T1": {
+                "240": {
+                    "delta_ms": 240,
+                    "net_lead_ms": [160, 240],
+                    "best_layer": 20,
+                    "advantage": {
+                        "probe_auc": 0.70,
+                        "advantage_point": -0.01,
+                        "ci_lo": -0.02,
+                        "ci_hi": 0.0,
+                    },
+                }
+            },
+        },
         "protocol": {
             "text_mode": "greedy",
             "ablation": None,
@@ -247,7 +263,7 @@ def _write_frozen_inputs(root: Path) -> tuple[Path, dict[str, str]]:
             "target": ["T1"] * len(t1) + ["T4"] * len(t4),
             "agent_channel": [0] * len(t1) + [1] * len(t4),
             "step": [*range(1, len(t1) + 1), *range(1, len(t4) + 1)],
-            "delta_ms": [240] * len(t1) + [-1] * len(t4),
+            "delta_ms": [400] * len(t1) + [-1] * len(t4),  # PREREG #8：G1 判据点 δ=400
             "label": np.concatenate([t1, t4]),
         }
     )
