@@ -1,0 +1,70 @@
+{
+ "generated_at": "2026-07-18T13:26:35.519298+00:00",
+ "label": "greedy_vs_sampled",
+ "run_a": {
+  "path": "D:\\data_storage\\The_Floor_Control_Circuit\\tmp\\text_mode_ab_66ff137\\ab_greedy",
+  "text_mode": "greedy",
+  "code_version": "68294af+runner.33cd3f04532ac86817633f1ef530b5624b9e373e8b405e1438f69d7149037d05",
+  "text_tokens": {
+   "n_tokens": 750,
+   "n_unique": 5,
+   "pad_fraction": 0.9933333333333333
+  }
+ },
+ "run_b": {
+  "path": "D:\\data_storage\\The_Floor_Control_Circuit\\tmp\\text_mode_ab_66ff137\\ab_sampled",
+  "text_mode": "sampled",
+  "code_version": "68294af+runner.33cd3f04532ac86817633f1ef530b5624b9e373e8b405e1438f69d7149037d05",
+  "text_tokens": {
+   "n_tokens": 750,
+   "n_unique": 5,
+   "pad_fraction": 0.9933333333333333
+  }
+ },
+ "per_layer": {
+  "L4": {
+   "n_steps": 750,
+   "hidden_dim": 4096,
+   "cosine_mean": 0.9986326653515101,
+   "cosine_p05": 0.9995846228522933,
+   "cosine_min": 0.49689877171127383,
+   "rel_l2_mean": 0.015506896621215153,
+   "rel_l2_p95": 0.028822683856503453,
+   "rel_l2_max": 0.999797163883009,
+   "exact_equal": false
+  },
+  "L12": {
+   "n_steps": 750,
+   "hidden_dim": 4096,
+   "cosine_mean": 0.9979750017588108,
+   "cosine_p05": 0.9967522107818014,
+   "cosine_min": 0.6103816160190901,
+   "rel_l2_mean": 0.02931449248570185,
+   "rel_l2_p95": 0.08075883684661747,
+   "rel_l2_max": 0.8824870522245709,
+   "exact_equal": false
+  },
+  "L20": {
+   "n_steps": 750,
+   "hidden_dim": 4096,
+   "cosine_mean": 0.996603805189013,
+   "cosine_p05": 0.9907911381018247,
+   "cosine_min": 0.532060563292072,
+   "rel_l2_mean": 0.051220619071739054,
+   "rel_l2_p95": 0.13662118183775182,
+   "rel_l2_max": 1.011950983375777,
+   "exact_equal": false
+  },
+  "L28": {
+   "n_steps": 750,
+   "hidden_dim": 4096,
+   "cosine_mean": 0.9957235907526573,
+   "cosine_p05": 0.9883195642122671,
+   "cosine_min": 0.45955504884580595,
+   "rel_l2_mean": 0.04870850591157313,
+   "rel_l2_p95": 0.1580561413419316,
+   "rel_l2_max": 1.0510911807592984,
+   "exact_equal": false
+  }
+ }
+}
