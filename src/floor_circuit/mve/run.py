@@ -13,10 +13,13 @@ import numpy as np
 from floor_circuit.probes.linear import SessionData, fit_probe, score_sessions
 from floor_circuit.probes.stats import (
     PerSession,
-    cluster_bootstrap_auc,
+    ScoreCollection,
+    SeededPerSession,
+    cluster_bootstrap_seed_mean_auc,
     g1_verdict,
-    paired_advantage_bootstrap,
+    paired_seed_mean_advantage_bootstrap,
     pooled_metrics,
+    seed_mean_metrics,
     shuffle_labels_within_session,
 )
 
@@ -51,47 +54,91 @@ def probe_grid(
 
 
 def average_over_seeds(cells: list[ProbeCell]) -> dict[int, dict]:
-    """按层聚合：AUC 的种子均值±SD + 以中位种子的 per_session 作为该层代表（用于 bootstrap）。"""
+    """按层聚合种子指标，并保留每个种子的会话分数供统一统计。"""
+
     out: dict[int, dict] = {}
     layers = sorted({c.layer for c in cells})
     for layer in layers:
-        grp = [c for c in cells if c.layer == layer]
+        grp = sorted((c for c in cells if c.layer == layer), key=lambda cell: cell.seed)
+        if len({cell.seed for cell in grp}) != len(grp):
+            raise ValueError(f"L{layer} 含重复探针种子")
         aucs = np.array([c.metrics["auc"] for c in grp])
-        rep = grp[int(np.argsort(aucs)[len(aucs) // 2])]
+        auprcs = np.array([c.metrics["auprc"] for c in grp])
+        balanced_accs = np.array([c.metrics["balanced_acc"] for c in grp])
         out[layer] = {
+            "n_seeds": len(grp),
             "auc_mean": float(aucs.mean()),
             "auc_sd": float(aucs.std(ddof=1)) if len(aucs) > 1 else 0.0,
-            "auprc_mean": float(np.mean([c.metrics["auprc"] for c in grp])),
-            "balanced_acc_mean": float(np.mean([c.metrics["balanced_acc"] for c in grp])),
-            "rep_seed": rep.seed,
-            "rep_per_session": rep.per_session,
+            "auprc_mean": float(auprcs.mean()),
+            "auprc_sd": float(auprcs.std(ddof=1)) if len(auprcs) > 1 else 0.0,
+            "balanced_acc_mean": float(balanced_accs.mean()),
+            "balanced_acc_sd": (
+                float(balanced_accs.std(ddof=1)) if len(balanced_accs) > 1 else 0.0
+            ),
+            "auc_by_seed": {cell.seed: float(cell.metrics["auc"]) for cell in grp},
+            "best_c_by_seed": {
+                cell.seed: float(cell.metrics["best_c"])
+                for cell in grp
+            },
+            "per_seed": {cell.seed: cell.per_session for cell in grp},
         }
     return out
 
 
 def evaluate_target(
     layer_summary: dict[int, dict],
-    baselines: dict[str, PerSession],
+    baselines: dict[str, ScoreCollection],
     n_boot: int,
     full_thr: float,
     backup_thr: float,
     boot_seed: int = 0,
 ) -> dict:
     """选最优层 → 成对优势 bootstrap → 该目标的 G1 材料。"""
+
     best_layer = max(layer_summary, key=lambda ell: layer_summary[ell]["auc_mean"])
-    rep = layer_summary[best_layer]["rep_per_session"]
-    adv = paired_advantage_bootstrap(rep, baselines, n_boot=n_boot, seed=boot_seed)
-    shuffled = shuffle_labels_within_session(rep, seed=boot_seed)
+    probes: SeededPerSession = layer_summary[best_layer]["per_seed"]
+    adv = paired_seed_mean_advantage_bootstrap(
+        probes,
+        baselines,
+        n_boot=n_boot,
+        seed=boot_seed,
+    )
+    probe_ci = cluster_bootstrap_seed_mean_auc(
+        probes,
+        n_boot=n_boot,
+        seed=boot_seed,
+    )
+    expected_probe_auc = float(layer_summary[best_layer]["auc_mean"])
+    if not np.isclose(adv["probe_auc"], expected_probe_auc, rtol=0, atol=1e-12):
+        raise RuntimeError(
+            f"最优层点估计 {adv['probe_auc']} 与种子均值 {expected_probe_auc} 不一致"
+        )
+    if not np.isclose(probe_ci["point"], expected_probe_auc, rtol=0, atol=1e-12):
+        raise RuntimeError(
+            f"最优层 CI 点估计 {probe_ci['point']} 与种子均值 {expected_probe_auc} 不一致"
+        )
+    shuffled = {
+        seed: shuffle_labels_within_session(scores, seed=boot_seed)
+        for seed, scores in probes.items()
+    }
+    shuffled_metrics = seed_mean_metrics(shuffled)
     return {
         "best_layer": int(best_layer),
         "layer_summary": {
-            int(k): {kk: vv for kk, vv in v.items() if kk != "rep_per_session"}
+            int(k): {kk: vv for kk, vv in v.items() if kk != "per_seed"}
             for k, v in layer_summary.items()
         },
         "advantage": adv,
-        "baseline_metrics": {name: pooled_metrics(scores) for name, scores in baselines.items()},
-        "probe_ci": cluster_bootstrap_auc(rep, n_boot=n_boot, seed=boot_seed),
-        "shuffled_auc": pooled_metrics(shuffled)["auc"],
+        "baseline_metrics": {
+            name: seed_mean_metrics(scores)
+            for name, scores in baselines.items()
+        },
+        "probe_ci": probe_ci,
+        "shuffled_auc": shuffled_metrics["auc_mean"],
+        "shuffled_auc_sd": shuffled_metrics["auc_sd"],
+        "shuffled_n_seeds": shuffled_metrics["n_seeds"],
+        "ci_scope": "给定已在 probe_val 上选择的目标、层与各种子 C 后的会话级条件 CI",
+        "covers_model_selection_uncertainty": False,
         "verdict": g1_verdict(adv["advantage_point"], adv["ci_lo"], full_thr, backup_thr),
     }
 
@@ -125,32 +172,56 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
         f"- 配置：层 {meta.get('layers')}，目标 {list(per_target)}，种子 {meta.get('seeds')}，"
         f"bootstrap {meta.get('bootstrap_n')} 次（会话级）",
         f"- 数据：训练 {meta.get('n_train_sessions')} 会话 / 评估 {meta.get('n_eval_sessions')} 会话",
+        "- 置信区间口径：给定已在 probe_val 上选择的目标、层与各探针种子的 C 后，"
+        "按会话重采样得到条件 CI；该区间不覆盖模型选择不确定性。",
         "",
     ]
+    score_bundle = meta.get("score_bundle")
+    if score_bundle:
+        lines += [
+            "## 独立复算材料",
+            "",
+            f"- 分数包绝对路径：`{score_bundle['absolute_path']}`",
+            f"- 分数包相对路径：`{score_bundle['relative_path']}`",
+            f"- 最终 manifest SHA-256：`{score_bundle['manifest_sha256']}`",
+            "",
+        ]
     for target, m in per_target.items():
-        lines += [f"## 目标 {target}", "", "| 层 | AUC (mean±sd) | AUPRC | balanced acc |", "| --- | --- | --- | --- |"]
+        lines += [
+            f"## 目标 {target}",
+            "",
+            "| 层 | 种子数 | AUC（均值±SD） | AUPRC（均值±SD） | balanced acc（均值±SD） |",
+            "| --- | ---: | --- | --- | --- |",
+        ]
         for layer, s in sorted(m["layer_summary"].items()):
             lines.append(
-                f"| L{layer} | {s['auc_mean']:.4f} ± {s['auc_sd']:.4f} | "
-                f"{s['auprc_mean']:.4f} | {s['balanced_acc_mean']:.4f} |"
+                f"| L{layer} | {s['n_seeds']} | {s['auc_mean']:.4f} ± {s['auc_sd']:.4f} | "
+                f"{s['auprc_mean']:.4f} ± {s['auprc_sd']:.4f} | "
+                f"{s['balanced_acc_mean']:.4f} ± {s['balanced_acc_sd']:.4f} |"
             )
         adv = m["advantage"]
+        selected = m["layer_summary"][m["best_layer"]]
         lines += [
             "",
-            f"- 最优层：L{m['best_layer']}；探针 AUC {adv['probe_auc']:.4f}"
-            f"（95% CI [{m['probe_ci']['ci_lo']:.4f}, {m['probe_ci']['ci_hi']:.4f}]）",
+            f"- 最优层：L{m['best_layer']}；探针 AUC "
+            f"{adv['probe_auc']:.4f} ± {selected['auc_sd']:.4f}"
+            f"（{selected['n_seeds']} 个种子；95% CI "
+            f"[{m['probe_ci']['ci_lo']:.4f}, {m['probe_ci']['ci_hi']:.4f}]）",
             "",
-            "| 基线 | AUC | AUPRC | balanced acc |",
-            "| --- | --- | --- | --- |",
+            "| 基线 | 种子数 | AUC（均值±SD） | AUPRC（均值±SD） | balanced acc（均值±SD） |",
+            "| --- | ---: | --- | --- | --- |",
         ]
         for name, metrics in sorted(m["baseline_metrics"].items()):
             lines.append(
-                f"| {name} | {metrics['auc']:.4f} | {metrics['auprc']:.4f} | "
-                f"{metrics['balanced_acc']:.4f} |"
+                f"| {name} | {metrics['n_seeds']} | "
+                f"{metrics['auc_mean']:.4f} ± {metrics['auc_sd']:.4f} | "
+                f"{metrics['auprc_mean']:.4f} ± {metrics['auprc_sd']:.4f} | "
+                f"{metrics['balanced_acc_mean']:.4f} ± {metrics['balanced_acc_sd']:.4f} |"
             )
         lines += [
             "",
-            f"- shuffled-labels sanity AUC：{m['shuffled_auc']:.4f}（期望 ≈ 0.5）",
+            f"- shuffled-labels sanity AUC：{m['shuffled_auc']:.4f} ± "
+            f"{m['shuffled_auc_sd']:.4f}（{m['shuffled_n_seeds']} 个种子；期望 ≈ 0.5）",
             f"- **优势 = {adv['advantage_point']:+.4f}**（95% CI [{adv['ci_lo']:+.4f}, {adv['ci_hi']:+.4f}]）",
             f"- 该目标裁决：`{m['verdict']}`",
             "",

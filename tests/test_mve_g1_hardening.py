@@ -22,6 +22,7 @@ from floor_circuit.mve.preflight import (
     preflight_mve_inputs,
     sync_labels_atomic,
     validate_baseline_alignment,
+    validate_seeded_baseline_alignment,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -441,6 +442,32 @@ def test_baseline_alignment_rejects_different_label_rows():
     with pytest.raises(MvePreflightError, match="标签行与探针不一致"):
         validate_baseline_alignment(
             reference,
+            baselines,
+            {"hazard", "mimi", "acoustic_gru"},
+            "T1",
+        )
+
+
+def test_seeded_alignment_checks_every_probe_and_mimi_seed():
+    correct = {"s1": (np.array([0, 1]), np.array([0.2, 0.8]))}
+    wrong = {"s1": (np.array([1, 0]), np.array([0.6, 0.4]))}
+    probes = {
+        seed: {"s1": (values[0].copy(), values[1].copy())}
+        for seed, values in (
+            (0, correct["s1"]),
+            (1, correct["s1"]),
+            (2, correct["s1"]),
+        )
+    }
+    baselines = {
+        "hazard": correct,
+        "mimi": {0: correct, 1: wrong, 2: correct},
+        "acoustic_gru": correct,
+    }
+
+    with pytest.raises(MvePreflightError, match="mimi/seed1/s1"):
+        validate_seeded_baseline_alignment(
+            probes,
             baselines,
             {"hazard", "mimi", "acoustic_gru"},
             "T1",

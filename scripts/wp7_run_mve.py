@@ -22,6 +22,12 @@ import pandas as pd
 from _bootstrap import REPO_ROOT, REPORTS_DIR
 
 from floor_circuit.config import data_root, load_config
+from floor_circuit.mve.artifacts import (
+    ANALYSIS_SOURCE_PATHS,
+    FROZEN_G1_BOOTSTRAP_N,
+    FROZEN_G1_BOOTSTRAP_SEED,
+    ScoreBundleWriter,
+)
 from floor_circuit.mve.dataset import (
     TrainingSamplePlan,
     build_training_sample_plan,
@@ -33,7 +39,7 @@ from floor_circuit.mve.preflight import (
     RunSpec,
     preflight_mve_inputs,
     sync_labels_atomic,
-    validate_baseline_alignment,
+    validate_seeded_baseline_alignment,
 )
 from floor_circuit.mve.run import (
     ProbeCell,
@@ -45,7 +51,12 @@ from floor_circuit.mve.run import (
 from floor_circuit.probes.baselines import acoustic_frames, fit_hazard, hazard_features
 from floor_circuit.probes.gru import CONTEXT_STEPS, make_windows, train_eval_gru
 from floor_circuit.probes.linear import fit_probe_streaming
-from floor_circuit.probes.stats import PerSession, pooled_metrics
+from floor_circuit.probes.stats import (
+    PerSession,
+    ScoreCollection,
+    SeededPerSession,
+    pooled_metrics,
+)
 
 ACOUSTIC_FEATURE_DIM = 8
 ACOUSTIC_TRAIN_MAX_BYTES = 4 * 1024**3
@@ -83,6 +94,57 @@ def _runner_code_version() -> str:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError("无法读取 runner 最近提交，拒绝生成 G1 裁决") from exc
     return f"{source_commit[:7]}+runner.{content.hexdigest()}"
+
+
+def _analysis_code_provenance() -> dict:
+    """绑定本次 G1 统计、采样、数据读取与分数序列化的代码内容。"""
+
+    content = hashlib.sha256()
+    source_commits: dict[str, str | None] = {}
+    for relative in ANALYSIS_SOURCE_PATHS:
+        path = REPO_ROOT / relative
+        payload = path.read_bytes()
+        encoded_path = relative.encode("utf-8")
+        content.update(len(encoded_path).to_bytes(8, "big"))
+        content.update(encoded_path)
+        content.update(len(payload).to_bytes(8, "big"))
+        content.update(payload)
+        try:
+            commit = subprocess.check_output(
+                [
+                    "git",
+                    "-C",
+                    str(REPO_ROOT),
+                    "log",
+                    "-1",
+                    "--format=%H",
+                    "--",
+                    relative,
+                ],
+                text=True,
+                encoding="utf-8",
+                stderr=subprocess.DEVNULL,
+            ).strip()
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise RuntimeError(f"无法读取分析代码提交：{relative}") from exc
+        source_commits[relative] = commit or None
+    try:
+        repository_head = subprocess.check_output(
+            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+            text=True,
+            encoding="utf-8",
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("无法读取分析代码的仓库提交") from exc
+    content_sha256 = content.hexdigest()
+    return {
+        "version": f"{repository_head[:7]}+analysis.{content_sha256}",
+        "repository_head": repository_head,
+        "content_sha256": content_sha256,
+        "sources": list(ANALYSIS_SOURCE_PATHS),
+        "source_commits": source_commits,
+    }
 
 
 def _split_sessions(mve_cfg: dict) -> tuple[list[str], list[str]]:
@@ -156,6 +218,64 @@ def _write_report_json_atomic(name: str, payload: dict) -> Path:
     _write_text_atomic(path, json.dumps(body, ensure_ascii=False, indent=1, default=repr))
     print(f"[report] {path}")
     return path
+
+
+def _mve_summary_payload(
+    overall: dict,
+    per_target: dict[str, dict],
+    score_bundle: dict,
+) -> dict:
+    """构造可审计的 G1 小结，并显式引用逐会话分数包。"""
+
+    return {
+        "overall": overall,
+        "per_target": {
+            target: {
+                key: value
+                for key, value in result.items()
+                if key != "layer_summary"
+            }
+            | {"layer_summary": result["layer_summary"]}
+            for target, result in per_target.items()
+        },
+        "score_bundle": score_bundle,
+    }
+
+
+def _publish_g1_outputs(
+    *,
+    score_writer: ScoreBundleWriter,
+    runs_root: Path,
+    runner_code_version: str,
+    label_hashes: dict[str, str],
+    preflight_report_path: Path,
+    analysis_protocol: dict,
+    per_target: dict[str, dict],
+    overall: dict,
+    meta: dict,
+) -> dict:
+    """发布最终分数清单与两份裁决报告；任一步失败都撤下全部完成标志。"""
+
+    try:
+        score_bundle = score_writer.finalize(
+            runs_root=runs_root,
+            runner_code_version=runner_code_version,
+            label_hashes=label_hashes,
+            preflight_report_path=preflight_report_path,
+            analysis_protocol=analysis_protocol,
+        )
+        report_meta = {**meta, "score_bundle": score_bundle}
+        report_text = render_report(per_target, overall, report_meta)
+        summary_payload = _mve_summary_payload(overall, per_target, score_bundle)
+        _write_text_atomic(REPORTS_DIR / "mve_报告.md", report_text)
+        _write_report_json_atomic("mve_summary.json", summary_payload)
+    except BaseException:
+        try:
+            score_writer.remove_manifest()
+        finally:
+            _invalidate_g1_outputs()
+        raise
+    return score_bundle
 
 
 def prepare_labels_flat(sessions: list[str]) -> dict[str, str]:
@@ -389,21 +509,27 @@ def mimi_baseline(
     mve_cfg: dict,
     runs_root: Path,
     run_specs: dict[tuple[str, int], RunSpec],
-    training_plan: TrainingSamplePlan,
-) -> PerSession:
+    seeds: list[int],
+    training_plans: dict[int, TrainingSamplePlan],
+) -> tuple[SeededPerSession, dict[int, float]]:
     cells = linear_feature_cells(
         sessions_eval=sessions_eval,
         target=target,
         delta_ms=delta_ms,
         layer=-1,
         feature="mimi",
-        seeds=[training_plan.seed],
+        seeds=seeds,
         c_grid=list(mve_cfg["probe_c_grid"]),
         runs_root=runs_root,
         run_specs=run_specs,
-        plans={training_plan.seed: training_plan},
+        plans=training_plans,
     )
-    return cells[0].per_session
+    if sorted(cell.seed for cell in cells) != sorted(seeds):
+        raise RuntimeError("Mimi 基线没有返回完整的探针种子集合")
+    return (
+        {cell.seed: cell.per_session for cell in cells},
+        {cell.seed: float(cell.metrics["best_c"]) for cell in cells},
+    )
 
 
 def main() -> None:
@@ -421,12 +547,21 @@ def main() -> None:
 
     grids = load_config("grids")
     mve_cfg = grids["mve"]
+    bootstrap_n = int(mve_cfg["bootstrap_n"])
+    if bootstrap_n != FROZEN_G1_BOOTSTRAP_N:
+        raise RuntimeError("G1 bootstrap 次数与冻结协议不一致")
+    analysis_protocol = {
+        "bootstrap_n": bootstrap_n,
+        "bootstrap_seed": FROZEN_G1_BOOTSTRAP_SEED,
+        "code": _analysis_code_provenance(),
+    }
     train, evals = _split_sessions(mve_cfg)
     sessions = train + evals
     label_hashes = prepare_labels_flat(sessions)
     runs_root = Path(args.runs_root) if args.runs_root else data_root() / "activations" / "moshi" / "mve_r1_zarr"
     clock_hz = float(grids["clocks"]["moshi"]["hz"])
     expected_n_steps = round(float(mve_cfg["max_minutes_per_session"]) * 60.0 * clock_hz)
+    runner_code_version = _runner_code_version()
     run_specs, preflight = preflight_mve_inputs(
         runs_root,
         _labels_root(),
@@ -437,21 +572,28 @@ def main() -> None:
         expected_n_steps,
         clock_hz,
         int(mve_cfg["t1_delta_ms"]),
-        _runner_code_version(),
+        runner_code_version,
         float(mve_cfg["max_minutes_per_session"]) * 60.0,
         float(mve_cfg["mimi_chunk_seconds"]),
         int(mve_cfg["forward_chunk_steps"]),
     )
     preflight["label_sha256"] = label_hashes
-    _write_report_json_atomic("mve_preflight.json", preflight)
+    preflight_report_path = _write_report_json_atomic("mve_preflight.json", preflight)
 
     per_target: dict[str, dict] = {}
     raw_dir = data_root() / "mve"
     raw_dir.mkdir(parents=True, exist_ok=True)
+    probe_seeds = [int(seed) for seed in mve_cfg["seeds"]]
+    score_writer = ScoreBundleWriter.create(
+        raw_dir / "g1_scores",
+        relative_base=data_root(),
+        eval_session_order=evals,
+        targets=[str(target) for target in mve_cfg["targets"]],
+        layers=[int(layer) for layer in mve_cfg["layers"]],
+        seeds=probe_seeds,
+    )
     for target in mve_cfg["targets"]:
         delta = int(mve_cfg["t1_delta_ms"]) if target == "T1" else None
-        probe_seeds = [int(seed) for seed in mve_cfg["seeds"]]
-        plan_seeds = sorted(set(probe_seeds) | {0})
         plans = {
             seed: build_training_sample_plan(
                 _labels_root(),
@@ -462,7 +604,7 @@ def main() -> None:
                 int(mve_cfg["neg_downsample_ratio"]),
                 seed,
             )
-            for seed in plan_seeds
+            for seed in probe_seeds
         }
         summary: dict[int, dict] = {}
         for layer_value in mve_cfg["layers"]:
@@ -479,32 +621,68 @@ def main() -> None:
                 run_specs=run_specs,
                 plans=plans,
             )
+            for cell in cells:
+                score_writer.add(
+                    target=target,
+                    kind="probe",
+                    per_session=cell.per_session,
+                    layer=layer,
+                    seed=cell.seed,
+                    best_c=float(cell.metrics["best_c"]),
+                )
             summary[layer] = average_over_seeds(cells)[layer]
             del cells
-        baselines: dict[str, PerSession] = {
-            "hazard": hazard_baseline(train, evals, target, delta, run_specs),
-            "mimi": mimi_baseline(
-                evals,
-                target,
-                delta,
-                mve_cfg,
-                runs_root,
-                run_specs,
-                plans[0],
-            ),
-            "acoustic_gru": acoustic_gru_baseline(
-                train,
-                evals,
-                target,
-                delta,
-                seed=0,
-                run_specs=run_specs,
-            ),
+        hazard_scores = hazard_baseline(train, evals, target, delta, run_specs)
+        mimi_scores, mimi_best_c = mimi_baseline(
+            evals,
+            target,
+            delta,
+            mve_cfg,
+            runs_root,
+            run_specs,
+            probe_seeds,
+            plans,
+        )
+        acoustic_scores = acoustic_gru_baseline(
+            train,
+            evals,
+            target,
+            delta,
+            seed=0,
+            run_specs=run_specs,
+        )
+        baselines: dict[str, ScoreCollection] = {
+            "hazard": hazard_scores,
+            "mimi": mimi_scores,
+            "acoustic_gru": acoustic_scores,
         }
+        for seed, scores in mimi_scores.items():
+            score_writer.add(
+                target=target,
+                kind="mimi",
+                per_session=scores,
+                layer=None,
+                seed=seed,
+                best_c=mimi_best_c[seed],
+            )
+        score_writer.add(
+            target=target,
+            kind="hazard",
+            per_session=hazard_scores,
+            layer=None,
+            seed=0,
+        )
+        score_writer.add(
+            target=target,
+            kind="acoustic_gru",
+            per_session=acoustic_scores,
+            layer=None,
+            seed=0,
+        )
         required_baselines = {"hazard", "mimi", "acoustic_gru"}
         best_layer = max(summary, key=lambda layer: summary[layer]["auc_mean"])
-        validate_baseline_alignment(
-            summary[best_layer]["rep_per_session"],
+        validate_seeded_baseline_alignment(
+            summary[best_layer]["per_seed"],
             baselines,
             required_baselines,
             target,
@@ -512,9 +690,10 @@ def main() -> None:
         per_target[target] = evaluate_target(
             summary,
             baselines,
-            int(mve_cfg["bootstrap_n"]),
+            bootstrap_n,
             float(mve_cfg["g1_full_threshold"]),
             float(mve_cfg["g1_backup_threshold"]),
+            boot_seed=FROZEN_G1_BOOTSTRAP_SEED,
         )
     overall = overall_g1(per_target, float(mve_cfg["g1_full_threshold"]), float(mve_cfg["g1_backup_threshold"]))
     meta = {
@@ -524,16 +703,16 @@ def main() -> None:
         "n_train_sessions": len(train),
         "n_eval_sessions": len(evals),
     }
-    _write_text_atomic(REPORTS_DIR / "mve_报告.md", render_report(per_target, overall, meta))
-    _write_report_json_atomic(
-        "mve_summary.json",
-        {
-            "overall": overall,
-            "per_target": {
-                t: {k: v for k, v in m.items() if k != "layer_summary"} | {"layer_summary": m["layer_summary"]}
-                for t, m in per_target.items()
-            },
-        },
+    _publish_g1_outputs(
+        score_writer=score_writer,
+        runs_root=runs_root,
+        runner_code_version=runner_code_version,
+        label_hashes=label_hashes,
+        preflight_report_path=preflight_report_path,
+        analysis_protocol=analysis_protocol,
+        per_target=per_target,
+        overall=overall,
+        meta=meta,
     )
     print(f"G1 裁决：{overall['verdict']}（优势 {overall['advantage_point']:+.4f}，CI 下界 {overall['ci_lo']:+.4f}）")
 

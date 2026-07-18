@@ -19,7 +19,7 @@ import zarr
 
 from floor_circuit.cachelib.manifest import load_manifest, sha256_file
 from floor_circuit.mve.dataset import eligible_rows, run_dir_for
-from floor_circuit.probes.stats import PerSession
+from floor_circuit.probes.stats import PerSession, ScoreCollection, SeededPerSession
 
 
 @dataclass(frozen=True)
@@ -67,6 +67,69 @@ def validate_baseline_alignment(
         sample = "；".join(issues[:10])
         suffix = f"；另有 {len(issues) - 10} 项" if len(issues) > 10 else ""
         raise MvePreflightError(f"{target} 三基线时间域对齐失败：{sample}{suffix}")
+
+
+def validate_seeded_baseline_alignment(
+    probes: SeededPerSession,
+    baselines: dict[str, ScoreCollection],
+    required_names: set[str],
+    target: str,
+) -> None:
+    """逐种子确认探针与单/多种子基线使用完全相同的标签行。"""
+
+    issues: list[str] = []
+    probe_seeds = sorted(probes)
+    if not probe_seeds:
+        issues.append("探针种子集合为空")
+    if set(baselines) != required_names:
+        issues.append(f"基线集合 {sorted(baselines)}，期望 {sorted(required_names)}")
+    if issues:
+        raise MvePreflightError(f"{target} 多种子时间域对齐失败：" + "；".join(issues))
+
+    reference_seed = probe_seeds[0]
+    reference = probes[reference_seed]
+    reference_sessions = sorted(reference)
+
+    def check(candidate: PerSession, label: str, expected: PerSession) -> None:
+        if sorted(candidate) != sorted(expected):
+            issues.append(f"{label}: 会话集合不一致")
+            return
+        for sid in sorted(expected):
+            y_expected = np.asarray(expected[sid][0])
+            y_candidate, scores = (np.asarray(value) for value in candidate[sid])
+            if not np.array_equal(y_candidate, y_expected):
+                issues.append(f"{label}/{sid}: 标签行与探针不一致")
+            if len(scores) != len(y_expected):
+                issues.append(
+                    f"{label}/{sid}: 分数长度 {len(scores)}，标签长度 {len(y_expected)}"
+                )
+            elif not np.isfinite(scores).all():
+                issues.append(f"{label}/{sid}: 分数含非有限值")
+
+    for seed in probe_seeds:
+        check(probes[seed], f"probe/seed{seed}", reference)
+
+    for name, scores in baselines.items():
+        first = next(iter(scores.values()), None)
+        if isinstance(first, dict):
+            seeded = scores
+            if sorted(seeded) != probe_seeds:
+                issues.append(
+                    f"{name}: 种子集合 {sorted(seeded)}，期望 {probe_seeds}"
+                )
+                continue
+            for seed in probe_seeds:
+                check(seeded[seed], f"{name}/seed{seed}", probes[seed])
+        else:
+            for seed in probe_seeds:
+                check(scores, f"{name}/seed{seed}", probes[seed])
+
+    if not reference_sessions:
+        issues.append("探针会话集合为空")
+    if issues:
+        sample = "；".join(issues[:10])
+        suffix = f"；另有 {len(issues) - 10} 项" if len(issues) > 10 else ""
+        raise MvePreflightError(f"{target} 多种子时间域对齐失败：{sample}{suffix}")
 
 
 def _sha256_bytes(payload: bytes) -> str:

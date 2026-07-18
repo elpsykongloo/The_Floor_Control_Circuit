@@ -13,6 +13,7 @@ import zarr
 from floor_circuit.mve.dataset import (
     build_session_data,
     build_training_sample_plan,
+    load_role_xy,
     load_session_feature,
     load_training_sample,
     run_dir_for,
@@ -103,6 +104,201 @@ def test_training_plan_matches_legacy_global_downsample(tmp_path):
     assert plan.n_available == len(y_all)
     assert np.array_equal(actual_y, expected_y)
     assert np.array_equal(actual_X, expected_X)
+
+
+def test_training_plan_keeps_each_variable_length_role_time_domain(tmp_path):
+    """异长角色必须各自携带 n_steps，加载时不能复用最后一个 run 的长度。"""
+
+    runs = tmp_path / "runs"
+    labels_root = tmp_path / "labels"
+    labels_root.mkdir()
+    lengths = {
+        ("s0", 0): 3,
+        ("s0", 1): 4,
+        ("s1", 0): 5,
+        ("s1", 1): 6,
+    }
+    specs: dict[tuple[str, int], RunSpec] = {}
+    expected_arrays: dict[tuple[str, int], np.ndarray] = {}
+    for session_index, sid in enumerate(("s0", "s1")):
+        rows = []
+        for channel in (0, 1):
+            n_steps = lengths[(sid, channel)]
+            run_dir = run_dir_for(runs, sid, channel)
+            run_dir.mkdir(parents=True)
+            group = zarr.open_group(str(run_dir), mode="w")
+            values = (
+                np.arange(n_steps * 2, dtype=np.float32).reshape(n_steps, 2)
+                + session_index * 100
+                + channel * 10
+            )
+            array = group.create_array(
+                "acts_L4",
+                shape=values.shape,
+                dtype="float16",
+                chunks=values.shape,
+            )
+            array[:] = values.astype(np.float16)
+            expected_arrays[(sid, channel)] = values.astype(np.float16).astype(np.float32)
+            specs[(sid, channel)] = RunSpec(
+                sid,
+                channel,
+                run_dir,
+                n_steps,
+                12.5,
+                ("a" * 64, "b" * 64),
+            )
+            for step in range(n_steps):
+                rows.append(
+                    {
+                        "target": "T1",
+                        "agent_channel": channel,
+                        "step": step,
+                        "label": step % 2,
+                        "delta_ms": 240,
+                    }
+                )
+        pd.DataFrame(rows).to_parquet(labels_root / f"{sid}.parquet")
+
+    plan = build_training_sample_plan(
+        labels_root,
+        ["s0", "s1"],
+        specs,
+        "T1",
+        240,
+        5,
+        0,
+    )
+    assert {
+        (role.session_id, role.agent_channel): role.n_steps
+        for role in plan.roles
+    } == lengths
+
+    actual, _ = load_training_sample(runs, plan, 4)
+    expected = np.concatenate(
+        [
+            expected_arrays[(role.session_id, role.agent_channel)][role.steps]
+            for role in plan.roles
+        ]
+    )
+    np.testing.assert_array_equal(actual, expected)
+
+
+def test_mimi_loaders_concatenate_self_then_other_for_each_role(tmp_path):
+    """Mimi 双通道必须按角色对称地固定为 ``[self, other]``。"""
+
+    runs, labels, specs = _memory_world(tmp_path, ["s0"], n_steps=8, dim=2)
+    channel_values = {
+        0: np.column_stack(
+            [np.arange(8, dtype=np.float16), np.arange(8, dtype=np.float16) + 10]
+        ),
+        1: np.column_stack(
+            [np.arange(8, dtype=np.float16) + 100, np.arange(8, dtype=np.float16) + 110]
+        ),
+    }
+    for channel, values in channel_values.items():
+        group = zarr.open_group(str(run_dir_for(runs, "s0", channel)), mode="a")
+        group["mimi_latent"][:] = values
+
+    expected_role0 = np.concatenate([channel_values[0], channel_values[1]], axis=1)
+    expected_role1 = np.concatenate([channel_values[1], channel_values[0]], axis=1)
+    expected = np.concatenate([expected_role0, expected_role1]).astype(np.float32)
+
+    actual, _ = load_session_feature(
+        runs,
+        labels,
+        "s0",
+        specs,
+        -1,
+        "T1",
+        240,
+        feature="mimi",
+    )
+    np.testing.assert_array_equal(actual, expected)
+
+    legacy = build_session_data(
+        runs,
+        labels,
+        ["s0"],
+        -1,
+        "T1",
+        240,
+        feature="mimi",
+    )
+    np.testing.assert_array_equal(legacy["s0"][0], expected)
+
+    plan = build_training_sample_plan(labels, ["s0"], specs, "T1", 240, 5, 0)
+    sampled, _ = load_training_sample(runs, plan, -1, feature="mimi")
+    selected = []
+    for role in plan.roles:
+        pair = (
+            expected_role0
+            if role.agent_channel == 0
+            else expected_role1
+        )
+        selected.append(pair[role.steps])
+    np.testing.assert_array_equal(sampled, np.concatenate(selected).astype(np.float32))
+
+
+@pytest.mark.parametrize(
+    ("replacement_shape", "message"),
+    [
+        ((7, 2), "时间长度"),
+        ((8, 3), "双通道形状不一致"),
+    ],
+)
+def test_mimi_loader_rejects_channel_time_or_dimension_mismatch(
+    tmp_path,
+    replacement_shape,
+    message,
+):
+    runs, labels, specs = _memory_world(tmp_path, ["s0"], n_steps=8, dim=2)
+    group = zarr.open_group(str(run_dir_for(runs, "s0", 1)), mode="a")
+    del group["mimi_latent"]
+    replacement = group.create_array(
+        "mimi_latent",
+        shape=replacement_shape,
+        dtype="float16",
+        chunks=replacement_shape,
+    )
+    replacement[:] = np.zeros(replacement_shape, dtype=np.float16)
+
+    with pytest.raises(ValueError, match=message):
+        load_session_feature(
+            runs,
+            labels,
+            "s0",
+            specs,
+            -1,
+            "T1",
+            240,
+            feature="mimi",
+        )
+
+
+def test_legacy_mimi_loader_rejects_step_outside_both_channels(tmp_path):
+    runs, labels_root, _specs = _memory_world(tmp_path, ["s0"], n_steps=8, dim=2)
+    labels = pd.read_parquet(labels_root / "s0.parquet")
+    labels = pd.concat(
+        [
+            labels,
+            pd.DataFrame(
+                [
+                    {
+                        "target": "T1",
+                        "agent_channel": 0,
+                        "step": 8,
+                        "label": 0,
+                        "delta_ms": 240,
+                    }
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    with pytest.raises(ValueError, match="步号越过 Mimi 双通道时间域"):
+        load_role_xy(runs, labels, "s0", 0, -1, "T1", 240, feature="mimi")
 
 
 def test_streaming_probe_matches_legacy_and_reads_each_eval_once(tmp_path):
