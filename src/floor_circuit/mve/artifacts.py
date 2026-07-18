@@ -34,6 +34,7 @@ ANALYSIS_SOURCE_PATHS = (
 )
 _SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9_-]+$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_GIT_OID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 
 class ScoreBundleError(ValueError):
@@ -418,7 +419,7 @@ def _validate_manifest_payload(
         raise ScoreBundleError("analysis_protocol 缺少分析代码指纹")
     if not _SHA256.fullmatch(str(code.get("content_sha256", ""))):
         raise ScoreBundleError("分析代码内容指纹无效")
-    if not _SHA256.fullmatch(str(code.get("repository_head", ""))):
+    if not _GIT_OID.fullmatch(str(code.get("repository_head", ""))):
         raise ScoreBundleError("分析代码仓库提交无效")
     expected_version = (
         f"{code['repository_head'][:7]}+analysis.{code['content_sha256']}"
@@ -431,7 +432,7 @@ def _validate_manifest_payload(
     if not isinstance(source_commits, dict) or tuple(source_commits) != ANALYSIS_SOURCE_PATHS:
         raise ScoreBundleError("分析代码逐文件提交记录不完整")
     if any(
-        value is not None and (not isinstance(value, str) or not _SHA256.fullmatch(value))
+        value is not None and (not isinstance(value, str) or not _GIT_OID.fullmatch(value))
         for value in source_commits.values()
     ):
         raise ScoreBundleError("分析代码逐文件提交记录无效")

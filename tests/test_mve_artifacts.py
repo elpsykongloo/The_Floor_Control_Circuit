@@ -70,7 +70,13 @@ def _complete_writer(
     return writer, preflight
 
 
-def _finalize(writer: ScoreBundleWriter, preflight: Path) -> dict:
+def _finalize(
+    writer: ScoreBundleWriter,
+    preflight: Path,
+    *,
+    git_oid_length: int = 64,
+) -> dict:
+    repository_head = "d" * git_oid_length
     return writer.finalize(
         runs_root=preflight.parent / "runs",
         runner_code_version="abc1234+runner." + "1" * 64,
@@ -80,12 +86,12 @@ def _finalize(writer: ScoreBundleWriter, preflight: Path) -> dict:
             "bootstrap_n": 1000,
             "bootstrap_seed": 0,
             "code": {
-                "version": "ddddddd+analysis." + "c" * 64,
-                "repository_head": "d" * 64,
+                "version": f"{repository_head[:7]}+analysis." + "c" * 64,
+                "repository_head": repository_head,
                 "content_sha256": "c" * 64,
                 "sources": list(ANALYSIS_SOURCE_PATHS),
                 "source_commits": {
-                    source: "e" * 64
+                    source: "e" * git_oid_length
                     for source in ANALYSIS_SOURCE_PATHS
                 },
             },
@@ -140,6 +146,18 @@ def test_full_g1_bundle_has_exactly_34_unique_items(tmp_path: Path):
         for item in manifest["items"]
         if item["kind"] in {"hazard", "acoustic_gru"}
     )
+
+
+def test_bundle_accepts_sha1_git_object_ids(tmp_path: Path):
+    """本仓库使用 40 位 SHA-1；清单也兼容 64 位新格式。"""
+
+    writer, preflight = _complete_writer(tmp_path)
+    reference = _finalize(writer, preflight, git_oid_length=40)
+    manifest = validate_score_bundle(reference["manifest_path"])
+
+    code = manifest["analysis_protocol"]["code"]
+    assert len(code["repository_head"]) == 40
+    assert {len(value) for value in code["source_commits"].values()} == {40}
 
 
 def test_bundle_rejects_tampered_npz_and_incomplete_manifest(tmp_path: Path):
@@ -216,6 +234,29 @@ def _load_wp7():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_current_repository_provenance_can_publish_manifest(tmp_path: Path):
+    """真实 Git OID 长度必须通过最终清单校验，防止长跑结束后才失败。"""
+
+    module = _load_wp7()
+    writer, preflight = _complete_writer(tmp_path)
+    reference = writer.finalize(
+        runs_root=preflight.parent / "runs",
+        runner_code_version="abc1234+runner." + "1" * 64,
+        label_hashes={"session-a": "a" * 64, "session-b": "b" * 64},
+        preflight_report_path=preflight,
+        analysis_protocol={
+            "bootstrap_n": 1000,
+            "bootstrap_seed": 0,
+            "code": module._analysis_code_provenance(),
+        },
+    )
+
+    manifest = validate_score_bundle(reference["manifest_path"])
+    assert manifest["analysis_protocol"]["code"]["repository_head"] == (
+        module._analysis_code_provenance()["repository_head"]
+    )
 
 
 def test_json_and_markdown_reports_reference_score_bundle():
