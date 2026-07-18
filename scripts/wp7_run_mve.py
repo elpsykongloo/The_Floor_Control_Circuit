@@ -1,9 +1,15 @@
 """WP7：MVE 探针 + 基线 + G1 裁决（缓存 ingest 与 wp1 标签生成完成后运行）。
 
-用法：uv run python scripts/wp7_run_mve.py [--skip-gru]
+用法：uv run python scripts/wp7_run_mve.py [--runs-root ...]
+     uv run python scripts/wp7_run_mve.py --ablation-text-pad   # 旧 PAD 缓存消融复盘
 产出：reports/mve_报告.md + reports/mve_summary.json；原始分数落 <data_root>/mve/。
-说明：声学 GRU 与 Mimi 基线所需的特征/潜表征分别来自本脚本内特征提取与 runner 的
-mimi_latent 导出；hazard 基线由标签表直接构建。
+消融模式输出隔离为 *_ablation_pad 文件，不构成正式 G1。
+
+PREREG #7 协议要点（2026-07-18）：
+- 正式缓存必须 text_mode=greedy（预检强制核验 manifest）；
+- 时间对齐：标签步 s 观测截止 s·τ；acts 读行 s，Mimi/hazard/声学读行 s−1；
+- 嵌套选择：C 与最优层在 probe_train 内层划分（inner_train/inner_val）上选择，
+  probe_val 仅用于最终一次性报告。
 """
 
 from __future__ import annotations
@@ -22,6 +28,11 @@ import pandas as pd
 from _bootstrap import REPO_ROOT, REPORTS_DIR
 
 from floor_circuit.config import data_root, load_config
+from floor_circuit.mve.alignment import (
+    MIN_ELIGIBLE_STEP,
+    RUNNER_TIME_ALIGNMENT,
+    feature_row_indices,
+)
 from floor_circuit.mve.artifacts import (
     ANALYSIS_SOURCE_PATHS,
     FROZEN_G1_BOOTSTRAP_N,
@@ -147,7 +158,13 @@ def _analysis_code_provenance() -> dict:
     }
 
 
-def _split_sessions(mve_cfg: dict) -> tuple[list[str], list[str]]:
+def _split_sessions(mve_cfg: dict) -> tuple[list[str], list[str], list[str], list[str]]:
+    """返回 (train, evals, inner_train, inner_val)。
+
+    嵌套选择划分（PREREG #7）：按冻结划分文件内的既有顺序取前 inner_val_sessions 个
+    为 inner_val，其余为 inner_train。冻结文件按会话 id（UUID）字典序排列——顺序与
+    会话内容无关，等效于任意固定划分；会话本身在冻结时已随机分配到 probe_train。
+    """
     split = json.loads((REPO_ROOT / "configs" / "splits" / "candor.json").read_text(encoding="utf-8"))
     n_train = int(mve_cfg["n_sessions_train"])
     n_eval = int(mve_cfg["n_sessions_eval"])
@@ -157,7 +174,12 @@ def _split_sessions(mve_cfg: dict) -> tuple[list[str], list[str]]:
         raise RuntimeError(f"冻结划分容量不足：probe_train={len(train)}/{n_train}，probe_val={len(evals)}/{n_eval}")
     if set(train) & set(evals):
         raise RuntimeError("冻结的 probe_train 与 probe_val 存在会话重叠")
-    return train, evals
+    n_inner_val = int(mve_cfg["inner_val_sessions"])
+    if not 0 < n_inner_val < n_train:
+        raise RuntimeError(f"inner_val_sessions={n_inner_val} 必须在 (0, {n_train}) 内")
+    inner_val = train[:n_inner_val]
+    inner_train = train[n_inner_val:]
+    return train, evals, inner_train, inner_val
 
 
 def _labels_root() -> Path:
@@ -205,9 +227,16 @@ def _load_wav_prefix(path: Path, duration_s: float) -> tuple[np.ndarray, int]:
     return np.asarray(wav, dtype=np.float32), sample_rate
 
 
-def _invalidate_g1_outputs() -> None:
-    """正式计算开始前移除旧裁决，失败时不保留可被误读的历史结论。"""
-    for path in (REPORTS_DIR / "mve_报告.md", REPORTS_DIR / "mve_summary.json"):
+def _output_names(ablation_tag: str | None) -> tuple[str, str]:
+    if ablation_tag:
+        return f"mve_报告_ablation_{ablation_tag}.md", f"mve_summary_ablation_{ablation_tag}.json"
+    return "mve_报告.md", "mve_summary.json"
+
+
+def _invalidate_g1_outputs(ablation_tag: str | None = None) -> None:
+    """本次计算开始前移除**本模式自己的**旧结论，失败时不保留可被误读的历史结论。"""
+    for name in _output_names(ablation_tag):
+        path = REPORTS_DIR / name
         if path.exists():
             path.unlink()
 
@@ -224,8 +253,9 @@ def _mve_summary_payload(
     overall: dict,
     per_target: dict[str, dict],
     score_bundle: dict,
+    protocol: dict,
 ) -> dict:
-    """构造可审计的 G1 小结，并显式引用逐会话分数包。"""
+    """构造可审计的 G1 小结，并显式引用逐会话分数包与协议声明。"""
 
     return {
         "overall": overall,
@@ -239,6 +269,7 @@ def _mve_summary_payload(
             for target, result in per_target.items()
         },
         "score_bundle": score_bundle,
+        "protocol": protocol,
     }
 
 
@@ -253,9 +284,12 @@ def _publish_g1_outputs(
     per_target: dict[str, dict],
     overall: dict,
     meta: dict,
+    protocol: dict,
+    ablation_tag: str | None = None,
 ) -> dict:
     """发布最终分数清单与两份裁决报告；任一步失败都撤下全部完成标志。"""
 
+    report_name, summary_name = _output_names(ablation_tag)
     try:
         score_bundle = score_writer.finalize(
             runs_root=runs_root,
@@ -266,14 +300,14 @@ def _publish_g1_outputs(
         )
         report_meta = {**meta, "score_bundle": score_bundle}
         report_text = render_report(per_target, overall, report_meta)
-        summary_payload = _mve_summary_payload(overall, per_target, score_bundle)
-        _write_text_atomic(REPORTS_DIR / "mve_报告.md", report_text)
-        _write_report_json_atomic("mve_summary.json", summary_payload)
+        summary_payload = _mve_summary_payload(overall, per_target, score_bundle, protocol)
+        _write_text_atomic(REPORTS_DIR / report_name, report_text)
+        _write_report_json_atomic(summary_name, summary_payload)
     except BaseException:
         try:
             score_writer.remove_manifest()
         finally:
-            _invalidate_g1_outputs()
+            _invalidate_g1_outputs(ablation_tag)
         raise
     return score_bundle
 
@@ -295,20 +329,20 @@ def linear_feature_cells(
     runs_root: Path,
     run_specs: dict[tuple[str, int], RunSpec],
     plans: dict[int, TrainingSamplePlan],
+    inner_plans: dict[int, TrainingSamplePlan],
+    sessions_inner_val: list[str],
 ) -> list[ProbeCell]:
-    """单层、单特征串行拟合；训练先抽样，验证逐会话读取。"""
+    """两阶段嵌套拟合（PREREG #7）。
+
+    阶段 1：inner_train 抽样上拟合全部 C，在 inner_val 上选 best_c（选择证据记入
+    metrics.selection_*）；阶段 2：以 best_c 在全量 probe_train 抽样上重训，
+    在 probe_val 一次性评估。probe_val 分数不参与任何选择。
+    """
 
     cells: list[ProbeCell] = []
     for seed in seeds:
-        plan = plans[seed]
-        X_train, y_train = load_training_sample(
-            runs_root,
-            plan,
-            layer,
-            feature=feature,
-        )
 
-        def provide_eval(sid: str) -> tuple[np.ndarray, np.ndarray]:
+        def provide_session(sid: str) -> tuple[np.ndarray, np.ndarray]:
             return load_session_feature(
                 runs_root,
                 _labels_root(),
@@ -320,16 +354,47 @@ def linear_feature_cells(
                 feature=feature,
             )
 
+        X_inner, y_inner = load_training_sample(
+            runs_root,
+            inner_plans[seed],
+            layer,
+            feature=feature,
+        )
+        selection_fit, _selection_scores = fit_probe_streaming(
+            X_inner,
+            y_inner,
+            sessions_inner_val,
+            provide_session,
+            c_grid,
+            seed,
+        )
+        del X_inner, y_inner
+        best_c = float(selection_fit.best_c)
+        selection_auc_by_c = {
+            float(c): float(auc) for c, auc in selection_fit.val_auc_by_c.items()
+        }
+        del selection_fit
+
+        X_train, y_train = load_training_sample(
+            runs_root,
+            plans[seed],
+            layer,
+            feature=feature,
+        )
         fit, per_session = fit_probe_streaming(
             X_train,
             y_train,
             sessions_eval,
-            provide_eval,
-            c_grid,
+            provide_session,
+            [best_c],
             seed,
         )
+        if float(fit.best_c) != best_c:
+            raise RuntimeError(f"阶段 2 的 C={fit.best_c} 偏离内层选定值 {best_c}")
         metrics = pooled_metrics(per_session)
-        metrics["best_c"] = fit.best_c
+        metrics["best_c"] = best_c
+        metrics["selection_auc"] = selection_auc_by_c[best_c]
+        metrics["selection_auc_by_c"] = selection_auc_by_c
         cells.append(
             ProbeCell(
                 layer=layer,
@@ -350,7 +415,11 @@ def hazard_baseline(
     delta_ms,
     run_specs: dict[tuple[str, int], RunSpec],
 ) -> PerSession:
-    """T5 状态序列 → hazard 特征 → logistic。评估集输出按会话组织。"""
+    """T5 状态序列 → hazard 特征 → logistic。评估集输出按会话组织。
+
+    时间对齐（PREREG #7）：标签步 s 只允许使用 states[0..s−1]（观测截止 s·τ），
+    即读取 hazard 特征矩阵的第 s−1 行。
+    """
     grids = load_config("grids")
     step_s = float(grids["clocks"]["moshi"]["step_ms"]) / 1000.0
     feats: dict[str, tuple[np.ndarray, np.ndarray]] = {}
@@ -362,9 +431,16 @@ def hazard_baseline(
             t5 = labels[(labels["target"] == "T5") & (labels["agent_channel"] == ch)].sort_values("step")
             states = t5["label"].to_numpy()[:n_steps]
             X_all = hazard_features(states, step_s)
-            rows = eligible_rows(labels, target, delta_ms, ch, max_steps=n_steps)
+            rows = eligible_rows(
+                labels,
+                target,
+                delta_ms,
+                ch,
+                max_steps=n_steps,
+                min_step=MIN_ELIGIBLE_STEP,
+            )
             steps = rows["step"].to_numpy(dtype=np.int64)
-            xs.append(X_all[steps])
+            xs.append(X_all[feature_row_indices("hazard", steps)])
             ys.append(rows["label"].to_numpy(dtype=np.int64))
         feats[sid] = (np.concatenate(xs), np.concatenate(ys))
     X_tr = np.concatenate([feats[s][0] for s in sessions_train])
@@ -402,6 +478,7 @@ def _acoustic_windows_peak_bytes(
                     delta_ms,
                     channel,
                     max_steps=spec.n_steps,
+                    min_step=MIN_ELIGIBLE_STEP,
                 )
             )
     one_copy = n_rows * CONTEXT_STEPS * ACOUSTIC_FEATURE_DIM * np.dtype(np.float32).itemsize
@@ -445,20 +522,26 @@ def acoustic_gru_baseline(
     def feats_for(sid: str, n_steps: int, clock_hz: float) -> np.ndarray:
         feature_path = cache / f"{sid}_steps{n_steps}.npy"
         meta_path = cache / f"{sid}_steps{n_steps}.json"
-        expected_meta = {
-            "schema_version": 2,
-            "n_steps": n_steps,
-            "clock_hz": clock_hz,
-            "source_audio_hashes": list(run_specs[(sid, 0)].source_audio_hashes),
-            "features": ["rms", "f0", "spectral_flux", "zcr"],
-            "channels": [0, 1],
-        }
+
+        def expected_meta(f0_backends: list[str]) -> dict:
+            # schema 3（PREREG #7 审查修复）：登记 F0 后端并使 yin 旧足迹（4·hop）缓存失效
+            return {
+                "schema_version": 3,
+                "n_steps": n_steps,
+                "clock_hz": clock_hz,
+                "source_audio_hashes": list(run_specs[(sid, 0)].source_audio_hashes),
+                "features": ["rms", "f0", "spectral_flux", "zcr"],
+                "channels": [0, 1],
+                "f0_backends": f0_backends,
+            }
+
         if feature_path.is_file() and meta_path.is_file():
             try:
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
                 cached = np.load(feature_path, allow_pickle=False)
                 if (
-                    meta == expected_meta
+                    meta == expected_meta(meta.get("f0_backends", []))
+                    and meta.get("f0_backends")
                     and cached.shape == (n_steps, 8)
                     and cached.dtype == np.float32
                     and np.isfinite(cached).all()
@@ -476,12 +559,20 @@ def acoustic_gru_baseline(
             data_root() / "candor_extracted" / sid / "audio_ch1.wav",
             duration_s,
         )
-        a0, a1 = acoustic_frames(w0, sr0), acoustic_frames(w1, sr1)
+        a0, meta0 = acoustic_frames(w0, sr0, return_meta=True)
+        a1, meta1 = acoustic_frames(w1, sr1, return_meta=True)
         if len(a0) < n_steps or len(a1) < n_steps:
             raise RuntimeError(f"{sid} 声学特征不足：ch0={len(a0)}，ch1={len(a1)}，期望 {n_steps}")
         out = np.concatenate([a0[:n_steps], a1[:n_steps]], axis=1).astype(np.float32)
         _write_npy_atomic(feature_path, out)
-        _write_text_atomic(meta_path, json.dumps(expected_meta, ensure_ascii=False, indent=1))
+        _write_text_atomic(
+            meta_path,
+            json.dumps(
+                expected_meta([meta0["f0_backend"], meta1["f0_backend"]]),
+                ensure_ascii=False,
+                indent=1,
+            ),
+        )
         return out
 
     def windows_xy(sid: str) -> tuple[np.ndarray, np.ndarray]:
@@ -491,9 +582,17 @@ def acoustic_gru_baseline(
             spec = run_specs[(sid, ch)]
             feats = feats_for(sid, spec.n_steps, spec.clock_hz)
             f = feats if ch == 0 else feats[:, list(range(4, 8)) + list(range(0, 4))]  # 角色对称交换
-            rows = eligible_rows(labels, target, delta_ms, ch, max_steps=spec.n_steps)
+            rows = eligible_rows(
+                labels,
+                target,
+                delta_ms,
+                ch,
+                max_steps=spec.n_steps,
+                min_step=MIN_ELIGIBLE_STEP,
+            )
             steps = rows["step"].to_numpy(dtype=np.int64)
-            xs.append(make_windows(f, steps))
+            # 时间对齐（PREREG #7）：窗尾 = s−1，观测截止 s·τ
+            xs.append(make_windows(f, feature_row_indices("acoustic", steps)))
             ys.append(rows["label"].to_numpy(dtype=np.int64))
         return np.concatenate(xs), np.concatenate(ys)
 
@@ -511,6 +610,8 @@ def mimi_baseline(
     run_specs: dict[tuple[str, int], RunSpec],
     seeds: list[int],
     training_plans: dict[int, TrainingSamplePlan],
+    inner_plans: dict[int, TrainingSamplePlan],
+    sessions_inner_val: list[str],
 ) -> tuple[SeededPerSession, dict[int, float]]:
     cells = linear_feature_cells(
         sessions_eval=sessions_eval,
@@ -523,6 +624,8 @@ def mimi_baseline(
         runs_root=runs_root,
         run_specs=run_specs,
         plans=training_plans,
+        inner_plans=inner_plans,
+        sessions_inner_val=sessions_inner_val,
     )
     if sorted(cell.seed for cell in cells) != sorted(seeds):
         raise RuntimeError("Mimi 基线没有返回完整的探针种子集合")
@@ -540,8 +643,14 @@ def main() -> None:
         help="保留的诊断参数；正式 G1 禁止跳过声学 GRU",
     )
     ap.add_argument("--runs-root", default=None, help="ingest 后的 zarr run 根目录")
+    ap.add_argument(
+        "--ablation-text-pad",
+        action="store_true",
+        help="对旧 text_mode=pad 缓存跑消融复盘：输出 *_ablation_pad 文件，不构成正式 G1",
+    )
     args = ap.parse_args()
-    _invalidate_g1_outputs()
+    ablation_tag = "pad" if args.ablation_text_pad else None
+    _invalidate_g1_outputs(ablation_tag)
     if args.skip_gru:
         raise SystemExit("--skip-gru 不满足冻结的三基线协议，不能生成 G1 裁决")
 
@@ -550,15 +659,23 @@ def main() -> None:
     bootstrap_n = int(mve_cfg["bootstrap_n"])
     if bootstrap_n != FROZEN_G1_BOOTSTRAP_N:
         raise RuntimeError("G1 bootstrap 次数与冻结协议不一致")
+    frozen_text_mode = str(mve_cfg["text_mode"])
+    if frozen_text_mode != "greedy":
+        raise RuntimeError(f"冻结的正式文本流协议必须为 greedy，配置为 {frozen_text_mode!r}")
+    expected_text_mode = "pad" if args.ablation_text_pad else frozen_text_mode
     analysis_protocol = {
         "bootstrap_n": bootstrap_n,
         "bootstrap_seed": FROZEN_G1_BOOTSTRAP_SEED,
         "code": _analysis_code_provenance(),
     }
-    train, evals = _split_sessions(mve_cfg)
+    train, evals, inner_train, inner_val = _split_sessions(mve_cfg)
     sessions = train + evals
     label_hashes = prepare_labels_flat(sessions)
-    runs_root = Path(args.runs_root) if args.runs_root else data_root() / "activations" / "moshi" / "mve_r1_zarr"
+    if args.runs_root:
+        runs_root = Path(args.runs_root)
+    else:
+        cache_name = "mve_r1" if expected_text_mode == "pad" else f"mve_r1_{expected_text_mode}"
+        runs_root = data_root() / "activations" / "moshi" / f"{cache_name}_zarr"
     clock_hz = float(grids["clocks"]["moshi"]["hz"])
     expected_n_steps = round(float(mve_cfg["max_minutes_per_session"]) * 60.0 * clock_hz)
     runner_code_version = _runner_code_version()
@@ -576,16 +693,29 @@ def main() -> None:
         float(mve_cfg["max_minutes_per_session"]) * 60.0,
         float(mve_cfg["mimi_chunk_seconds"]),
         int(mve_cfg["forward_chunk_steps"]),
+        expected_text_mode=expected_text_mode,
+        enforce_code_version=not args.ablation_text_pad,
+        require_time_alignment=not args.ablation_text_pad,
     )
     preflight["label_sha256"] = label_hashes
-    preflight_report_path = _write_report_json_atomic("mve_preflight.json", preflight)
+    preflight_name = (
+        "mve_preflight.json" if not ablation_tag else f"mve_preflight_ablation_{ablation_tag}.json"
+    )
+    preflight_report_path = _write_report_json_atomic(preflight_name, preflight)
+    if args.ablation_text_pad:
+        # 消融分数包的 runner 溯源必须记缓存的实测版本，而非当前（greedy）runner 版本
+        observed_versions = preflight["observed_code_versions"]
+        if len(observed_versions) != 1:
+            raise RuntimeError(f"PAD 消融缓存含多个 runner 版本：{observed_versions}")
+        runner_code_version = observed_versions[0]
 
     per_target: dict[str, dict] = {}
     raw_dir = data_root() / "mve"
     raw_dir.mkdir(parents=True, exist_ok=True)
     probe_seeds = [int(seed) for seed in mve_cfg["seeds"]]
+    bundle_name = "g1_scores" if not ablation_tag else f"g1_scores_ablation_{ablation_tag}"
     score_writer = ScoreBundleWriter.create(
-        raw_dir / "g1_scores",
+        raw_dir / bundle_name,
         relative_base=data_root(),
         eval_session_order=evals,
         targets=[str(target) for target in mve_cfg["targets"]],
@@ -606,6 +736,24 @@ def main() -> None:
             )
             for seed in probe_seeds
         }
+        inner_plans = {
+            seed: build_training_sample_plan(
+                _labels_root(),
+                inner_train,
+                run_specs,
+                target,
+                delta,
+                int(mve_cfg["neg_downsample_ratio"]),
+                seed,
+            )
+            for seed in probe_seeds
+        }
+        for seed, plan in inner_plans.items():
+            n_positive = plan.n_selected_positive
+            if n_positive == 0 or plan.n_selected == n_positive:
+                raise RuntimeError(
+                    f"{target}/seed{seed}: inner_train 抽样缺少正类或负类，无法做嵌套选择"
+                )
         summary: dict[int, dict] = {}
         for layer_value in mve_cfg["layers"]:
             layer = int(layer_value)
@@ -620,6 +768,8 @@ def main() -> None:
                 runs_root=runs_root,
                 run_specs=run_specs,
                 plans=plans,
+                inner_plans=inner_plans,
+                sessions_inner_val=inner_val,
             )
             for cell in cells:
                 score_writer.add(
@@ -642,6 +792,8 @@ def main() -> None:
             run_specs,
             probe_seeds,
             plans,
+            inner_plans,
+            inner_val,
         )
         acoustic_scores = acoustic_gru_baseline(
             train,
@@ -680,7 +832,9 @@ def main() -> None:
             seed=0,
         )
         required_baselines = {"hazard", "mimi", "acoustic_gru"}
-        best_layer = max(summary, key=lambda layer: summary[layer]["auc_mean"])
+        # PREREG #7：最优层按 inner_val 选择 AUC 的种子均值选定，与 probe_val 无关；
+        # 并列时取层号较小者（max 的首个命中，summary 按层升序构建）。
+        best_layer = max(summary, key=lambda ell: summary[ell]["selection_auc_mean"])
         validate_seeded_baseline_alignment(
             summary[best_layer]["per_seed"],
             baselines,
@@ -694,7 +848,16 @@ def main() -> None:
             float(mve_cfg["g1_full_threshold"]),
             float(mve_cfg["g1_backup_threshold"]),
             boot_seed=FROZEN_G1_BOOTSTRAP_SEED,
+            best_layer=best_layer,
         )
+        per_target[target]["selection"] = {
+            "rule": "best_layer = argmax_layer mean_seed(inner_val AUC at best_c)，并列取较小层号",
+            "best_layer": int(best_layer),
+            "selection_auc_mean_by_layer": {
+                int(layer): summary[layer].get("selection_auc_mean")
+                for layer in sorted(summary)
+            },
+        }
     overall = overall_g1(per_target, float(mve_cfg["g1_full_threshold"]), float(mve_cfg["g1_backup_threshold"]))
     meta = {
         "layers": mve_cfg["layers"],
@@ -702,6 +865,24 @@ def main() -> None:
         "bootstrap_n": mve_cfg["bootstrap_n"],
         "n_train_sessions": len(train),
         "n_eval_sessions": len(evals),
+        "n_inner_train_sessions": len(inner_train),
+        "n_inner_val_sessions": len(inner_val),
+        "text_mode": expected_text_mode,
+        "ablation": ablation_tag,
+    }
+    protocol = {
+        "text_mode": expected_text_mode,
+        "ablation": ablation_tag,
+        "time_alignment": {
+            **RUNNER_TIME_ALIGNMENT,
+            "min_eligible_step": MIN_ELIGIBLE_STEP,
+            "baseline_row_shift_steps": 1,
+        },
+        "nested_selection": {
+            "inner_val_sessions": inner_val,
+            "n_inner_train": len(inner_train),
+            "n_inner_val": len(inner_val),
+        },
     }
     _publish_g1_outputs(
         score_writer=score_writer,
@@ -713,8 +894,11 @@ def main() -> None:
         per_target=per_target,
         overall=overall,
         meta=meta,
+        protocol=protocol,
+        ablation_tag=ablation_tag,
     )
-    print(f"G1 裁决：{overall['verdict']}（优势 {overall['advantage_point']:+.4f}，CI 下界 {overall['ci_lo']:+.4f}）")
+    prefix = "消融结论（非正式 G1）" if ablation_tag else "G1 裁决"
+    print(f"{prefix}：{overall['verdict']}（优势 {overall['advantage_point']:+.4f}，CI 下界 {overall['ci_lo']:+.4f}）")
 
 
 if __name__ == "__main__":

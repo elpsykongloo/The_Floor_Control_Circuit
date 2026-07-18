@@ -82,6 +82,12 @@ def average_over_seeds(cells: list[ProbeCell]) -> dict[int, dict]:
             },
             "per_seed": {cell.seed: cell.per_session for cell in grp},
         }
+        if all("selection_auc" in cell.metrics for cell in grp):
+            selection_aucs = np.array([c.metrics["selection_auc"] for c in grp])
+            out[layer]["selection_auc_mean"] = float(selection_aucs.mean())
+            out[layer]["selection_auc_by_seed"] = {
+                cell.seed: float(cell.metrics["selection_auc"]) for cell in grp
+            }
     return out
 
 
@@ -92,10 +98,17 @@ def evaluate_target(
     full_thr: float,
     backup_thr: float,
     boot_seed: int = 0,
+    *,
+    best_layer: int,
 ) -> dict:
-    """选最优层 → 成对优势 bootstrap → 该目标的 G1 材料。"""
+    """对**外部选定**的最优层做成对优势 bootstrap → 该目标的 G1 材料。
 
-    best_layer = max(layer_summary, key=lambda ell: layer_summary[ell]["auc_mean"])
+    PREREG #7：最优层与各种子的 C 必须在 probe_train 内层划分上选择后传入；
+    本函数不得再在报告用的评估集分数上做任何选择。
+    """
+
+    if best_layer not in layer_summary:
+        raise ValueError(f"外部选定层 L{best_layer} 不在层摘要 {sorted(layer_summary)} 中")
     probes: SeededPerSession = layer_summary[best_layer]["per_seed"]
     adv = paired_seed_mean_advantage_bootstrap(
         probes,
@@ -137,8 +150,11 @@ def evaluate_target(
         "shuffled_auc": shuffled_metrics["auc_mean"],
         "shuffled_auc_sd": shuffled_metrics["auc_sd"],
         "shuffled_n_seeds": shuffled_metrics["n_seeds"],
-        "ci_scope": "给定已在 probe_val 上选择的目标、层与各种子 C 后的会话级条件 CI",
-        "covers_model_selection_uncertainty": False,
+        "ci_scope": (
+            "层与各种子 C 在 probe_train 内层划分上选择，probe_val 仅用于最终报告；"
+            "会话级 bootstrap CI 对选定模型无报告集选择泄漏（目标间取优仍为冻结决策规则）"
+        ),
+        "selection_disjoint_from_report": True,
         "verdict": g1_verdict(adv["advantage_point"], adv["ci_lo"], full_thr, backup_thr),
     }
 
@@ -166,14 +182,20 @@ _VERDICT_TEXT = {
 
 def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str:
     """生成 reports/mve_报告.md 正文。"""
+    title = "# MVE 报告（Moshi R1，G1 裁决）"
+    if meta.get("ablation"):
+        title = f"# MVE 消融报告（Moshi R1，{meta['ablation']}；**非正式 G1 裁决**）"
     lines = [
-        "# MVE 报告（Moshi R1，G1 裁决）",
+        title,
         "",
         f"- 配置：层 {meta.get('layers')}，目标 {list(per_target)}，种子 {meta.get('seeds')}，"
-        f"bootstrap {meta.get('bootstrap_n')} 次（会话级）",
-        f"- 数据：训练 {meta.get('n_train_sessions')} 会话 / 评估 {meta.get('n_eval_sessions')} 会话",
-        "- 置信区间口径：给定已在 probe_val 上选择的目标、层与各探针种子的 C 后，"
-        "按会话重采样得到条件 CI；该区间不覆盖模型选择不确定性。",
+        f"bootstrap {meta.get('bootstrap_n')} 次（会话级）；文本流 text_mode={meta.get('text_mode')}",
+        f"- 数据：训练 {meta.get('n_train_sessions')} 会话 / 评估 {meta.get('n_eval_sessions')} 会话；"
+        f"内层选择划分 inner_train {meta.get('n_inner_train_sessions')} / inner_val {meta.get('n_inner_val_sessions')}",
+        "- 时间对齐（PREREG #7）：标签步 s 的观测截止统一为 s·τ；acts 读行 s、"
+        "Mimi/hazard/声学读行 s−1，step 0 全表征剔除。",
+        "- 置信区间口径：层与各种子 C 在 probe_train 内层划分上选择，probe_val 只用于最终报告；"
+        "会话级 bootstrap CI 对选定模型无报告集选择泄漏（目标间取优为冻结决策规则）。",
         "",
     ]
     score_bundle = meta.get("score_bundle")
@@ -201,9 +223,14 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
             )
         adv = m["advantage"]
         selected = m["layer_summary"][m["best_layer"]]
+        selection_note = (
+            f"（内层选择 AUC {selected['selection_auc_mean']:.4f}）"
+            if "selection_auc_mean" in selected
+            else ""
+        )
         lines += [
             "",
-            f"- 最优层：L{m['best_layer']}；探针 AUC "
+            f"- 最优层：L{m['best_layer']}（在 inner_val 上选定{selection_note}）；探针 AUC "
             f"{adv['probe_auc']:.4f} ± {selected['auc_sd']:.4f}"
             f"（{selected['n_seeds']} 个种子；95% CI "
             f"[{m['probe_ci']['ci_lo']:.4f}, {m['probe_ci']['ci_hi']:.4f}]）",
@@ -226,12 +253,18 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
             f"- 该目标裁决：`{m['verdict']}`",
             "",
         ]
+    heading = "## G1 总裁决" if not meta.get("ablation") else "## 消融结论（不构成 G1 裁决）"
     lines += [
-        "## G1 总裁决",
+        heading,
         "",
         f"- 决定性目标：{overall['decisive_target']}；优势 {overall['advantage_point']:+.4f}"
         f"（CI 下界 {overall['ci_lo']:+.4f}）",
         f"- **裁决：`{overall['verdict']}`** —— {_VERDICT_TEXT[overall['verdict']]}",
         "",
     ]
+    if meta.get("ablation"):
+        lines += [
+            f"> ⚠️ 本报告为 **{meta['ablation']}** 消融变体，按 PREREG 变更记录 #7 不得作为正式 G1 依据。",
+            "",
+        ]
     return "\n".join(lines)

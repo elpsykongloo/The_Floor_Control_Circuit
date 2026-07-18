@@ -12,8 +12,20 @@ from floor_circuit.schemas import State
 ACOUSTIC_FEATURES = ("rms", "f0", "spectral_flux", "zcr")
 
 
-def acoustic_frames(wav: np.ndarray, sr: int, hop_ms: float = 80.0) -> np.ndarray:
-    """80 ms 帧声学特征 [T, 4]：RMS、F0、谱通量、ZCR（顺序冻结为 ACOUSTIC_FEATURES）。"""
+def acoustic_frames(
+    wav: np.ndarray,
+    sr: int,
+    hop_ms: float = 80.0,
+    *,
+    return_meta: bool = False,
+) -> np.ndarray | tuple[np.ndarray, dict]:
+    """80 ms 帧声学特征 [T, 4]：RMS、F0、谱通量、ZCR（顺序冻结为 ACOUSTIC_FEATURES）。
+
+    时间对齐前提（PREREG #7，mve/alignment.py 依赖）：帧 i 的观测不越过 (i+1)·hop。
+    四个特征均为 frame≤2·hop + center=True（足迹 [i·hop−hop, i·hop+hop)）或
+    parselmouth ±20 ms 分析窗，逐帧因果性由 tests/test_time_alignment.py 扰动核验。
+    return_meta=True 时返回 (feats, {"f0_backend": ...})，供缓存元数据登记后端。
+    """
     import librosa
 
     wav = np.asarray(wav, dtype=np.float32)
@@ -23,14 +35,23 @@ def acoustic_frames(wav: np.ndarray, sr: int, hop_ms: float = 80.0) -> np.ndarra
     zcr = librosa.feature.zero_crossing_rate(y=wav, frame_length=frame, hop_length=hop, center=True)[0]
     stft = np.abs(librosa.stft(wav, n_fft=frame, hop_length=hop, center=True))
     flux = np.sqrt(np.sum(np.diff(stft, axis=1, prepend=stft[:, :1]) ** 2, axis=0))
-    f0 = _f0_track(wav, sr, hop)
+    f0, f0_backend = _f0_track(wav, sr, hop)
     n = min(len(rms), len(zcr), len(flux), len(f0))
     feats = np.stack([rms[:n], f0[:n], flux[:n], zcr[:n]], axis=1).astype(np.float32)
-    return np.nan_to_num(feats, nan=0.0, posinf=0.0, neginf=0.0)
+    feats = np.nan_to_num(feats, nan=0.0, posinf=0.0, neginf=0.0)
+    if return_meta:
+        return feats, {"f0_backend": f0_backend}
+    return feats
 
 
-def _f0_track(wav: np.ndarray, sr: int, hop: int) -> np.ndarray:
-    """F0 轨迹：优先 parselmouth（快、稳），缺失时退回 librosa.yin。无声帧记 0。"""
+def _f0_track(wav: np.ndarray, sr: int, hop: int) -> tuple[np.ndarray, str]:
+    """F0 轨迹：优先 parselmouth，异常时**显式警告**后退 librosa.yin。无声帧记 0。
+
+    两条路径都必须满足"帧 i 观测 ≤ (i+1)·hop"：parselmouth 分析窗 3/75≈40 ms
+    （帧时刻 ±20 ms < hop）；yin 用 frame_length=2·hop + center=True，与 RMS/ZCR
+    同足迹（撤回前的 4·hop 会多看一帧未来，见 PREREG #7 审查记录）。
+    返回 (f0, backend)，backend ∈ {"parselmouth", "yin"} 供缓存元数据登记。
+    """
     n_frames = 1 + len(wav) // hop
     try:
         import parselmouth
@@ -42,13 +63,20 @@ def _f0_track(wav: np.ndarray, sr: int, hop: int) -> np.ndarray:
         t_frames = np.arange(n_frames) * hop / sr
         f0 = np.interp(t_frames, t_pitch, values, left=0.0, right=0.0)
         f0[~np.isfinite(f0)] = 0.0
-        return f0.astype(np.float32)
-    except Exception:
+        return f0.astype(np.float32), "parselmouth"
+    except Exception as exc:
+        import sys
+
         import librosa
 
-        f0 = librosa.yin(wav, fmin=75.0, fmax=500.0, sr=sr, frame_length=4 * hop, hop_length=hop)
+        print(
+            f"[acoustic] 警告：parselmouth F0 失败（{exc!r}），退用 librosa.yin"
+            "（足迹 2·hop，因果对齐保持）",
+            file=sys.stderr,
+        )
+        f0 = librosa.yin(wav, fmin=75.0, fmax=500.0, sr=sr, frame_length=2 * hop, hop_length=hop)
         f0[~np.isfinite(f0)] = 0.0
-        return f0[:n_frames].astype(np.float32)
+        return f0[:n_frames].astype(np.float32), "yin"
 
 
 def hazard_features(states: np.ndarray, step_s: float) -> np.ndarray:

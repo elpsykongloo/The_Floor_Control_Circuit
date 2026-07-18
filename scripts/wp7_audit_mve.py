@@ -49,7 +49,11 @@ AuthoritativeLabels = dict[str, dict[str, np.ndarray]]
 
 AUDIT_SCHEMA = "floor_circuit.mve.independent_audit.v1"
 FLOAT_ATOL = 1e-12
-CI_SCOPE = "给定已在 probe_val 上选择的目标、层与各种子 C 后的会话级条件 CI"
+CI_SCOPE = (
+    "层与各种子 C 在 probe_train 内层划分上选择，probe_val 仅用于最终报告；"
+    "会话级 bootstrap CI 对选定模型无报告集选择泄漏（目标间取优仍为冻结决策规则）"
+)
+MIN_ELIGIBLE_STEP = 1  # 与 mve/alignment.py 一致（本脚本独立复算，不 import 正式链）
 DEFAULT_SUMMARY = REPORTS_DIR / "mve_summary.json"
 DEFAULT_OUTPUT = REPORTS_DIR / "mve_independent_audit.json"
 DEFAULT_SPLIT = REPO_ROOT / "configs" / "splits" / "candor.json"
@@ -289,7 +293,8 @@ def _assemble_authoritative_labels(
                 or (steps_numeric < 0).any()
             ):
                 raise IndependentAuditError(f"{session_id}/{target}/agent{channel}: step 不是非负整数")
-            rows = rows.loc[steps_numeric < expected_n_steps]
+            # 时间对齐（PREREG #7）：与正式链一致地剔除 step < MIN_ELIGIBLE_STEP
+            rows = rows.loc[(steps_numeric < expected_n_steps) & (steps_numeric >= MIN_ELIGIBLE_STEP)]
             rows = rows.sort_values("step", kind="stable")
             steps = rows["step"].to_numpy(dtype=np.int64)
             if len(steps) != len(np.unique(steps)):
@@ -451,6 +456,9 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
         "expected_max_seconds": snapshot.get("expected_max_seconds") == float(mve["max_minutes_per_session"]) * 60.0,
         "expected_mimi_chunk_seconds": snapshot.get("expected_mimi_chunk_seconds") == float(mve["mimi_chunk_seconds"]),
         "expected_forward_chunk_steps": snapshot.get("expected_forward_chunk_steps") == int(mve["forward_chunk_steps"]),
+        "expected_text_mode": snapshot.get("expected_text_mode") == str(mve["text_mode"]),
+        "enforce_code_version": snapshot.get("enforce_code_version") is True,
+        "require_time_alignment": snapshot.get("require_time_alignment") is True,
         "runner_code_version": snapshot.get("expected_code_version") == manifest["runner_code_version"],
         "label_sha256": snapshot.get("label_sha256") == manifest["label_sha256"],
     }
@@ -710,11 +718,160 @@ def _verdict(
     return "n1"
 
 
+def _verify_runner_manifests(manifest: dict[str, Any]) -> dict[str, Any]:
+    """独立打开 runs_root 下全部 400 个缓存 manifest，核验冻结文本流与时间对齐声明。
+
+    这是 PREREG #7 "四层核验"中独立审计层的实体检查——不信任预检快照的转述，
+    直接读缓存产物本身。runs_root 缺失即硬失败（正式审计必须在数据所在机器运行）。
+    """
+
+    runs_root = Path(str(manifest["runs_root"]))
+    if not runs_root.is_dir():
+        raise IndependentAuditError(f"runs_root 不存在，无法独立核验缓存 manifest：{runs_root}")
+    sessions = sorted(str(value) for value in manifest["label_sha256"])
+    expected_alignment = {
+        "initial_token_position": 0,
+        "acts_observed_through_offset_steps": 0,
+    }
+    n_verified = 0
+    for session_id in sessions:
+        for channel in (0, 1):
+            path = runs_root / f"{session_id}_agent{channel}" / "manifest.json"
+            payload = _load_json_object(path, "缓存 manifest")
+            if payload.get("text_mode") != "greedy":
+                raise IndependentAuditError(
+                    f"{session_id}/agent{channel}: 缓存 text_mode={payload.get('text_mode')!r}，"
+                    "冻结协议要求 greedy"
+                )
+            declared = payload.get("extra", {}).get("execution", {}).get("time_alignment")
+            if declared != expected_alignment:
+                raise IndependentAuditError(
+                    f"{session_id}/agent{channel}: 缓存 time_alignment={declared!r}，"
+                    f"期望 {expected_alignment!r}"
+                )
+            n_verified += 1
+    return {
+        "n_manifests": n_verified,
+        "text_mode": "greedy",
+        "time_alignment_verified": True,
+    }
+
+
+def _declared_selection(summary: dict[str, Any]) -> dict[str, int]:
+    """核验 per_target.selection 声明的内部一致性并返回声明的最优层。
+
+    嵌套选择在 inner_val（probe_train 内层划分）上进行，其原始分数不进入 34 项
+    分数包；本审计验证 (a) 声明的 best_layer 是声明的逐层选择 AUC 表的 argmax
+    （并列取较小层号，与正式链一致），(b) 层集合与冻结层一致，(c) best_layer 字段
+    与 selection 声明互相一致。选择过程本身由确定性种子与分析代码指纹约束，可整链
+    复跑复现。
+    """
+    per_target = summary.get("per_target")
+    if not isinstance(per_target, dict):
+        raise IndependentAuditError("summary.per_target 缺失")
+    declared: dict[str, int] = {}
+    for target in FROZEN_G1_TARGETS:
+        result = per_target.get(target)
+        if not isinstance(result, dict) or not isinstance(result.get("selection"), dict):
+            raise IndependentAuditError(f"{target}: summary 缺少 selection 声明")
+        selection = result["selection"]
+        try:
+            best_layer = int(selection["best_layer"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise IndependentAuditError(f"{target}: selection.best_layer 无效") from exc
+        table = selection.get("selection_auc_mean_by_layer")
+        if not isinstance(table, dict):
+            raise IndependentAuditError(f"{target}: selection 缺少逐层选择 AUC 表")
+        try:
+            by_layer = {int(layer): value for layer, value in table.items()}
+        except (TypeError, ValueError) as exc:
+            raise IndependentAuditError(f"{target}: 选择 AUC 表层键无效") from exc
+        if sorted(by_layer) != sorted(FROZEN_G1_LAYERS):
+            raise IndependentAuditError(
+                f"{target}: 选择 AUC 表层集合 {sorted(by_layer)} 与冻结层不一致"
+            )
+        if any(
+            isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value)
+            for value in by_layer.values()
+        ):
+            raise IndependentAuditError(f"{target}: 选择 AUC 表含非法值")
+        argmax_layer = max(sorted(by_layer), key=lambda ell: by_layer[ell])
+        if argmax_layer != best_layer:
+            raise IndependentAuditError(
+                f"{target}: 声明 best_layer=L{best_layer} 与选择表 argmax=L{argmax_layer} 不一致"
+            )
+        if result.get("best_layer") != best_layer:
+            raise IndependentAuditError(f"{target}: best_layer 字段与 selection 声明不一致")
+        layer_summary = result.get("layer_summary")
+        if isinstance(layer_summary, dict):
+            for layer, declared_mean in by_layer.items():
+                entry = layer_summary.get(str(layer), {})
+                mean_value = entry.get("selection_auc_mean")
+                by_seed = entry.get("selection_auc_by_seed")
+                if mean_value is None or not isinstance(by_seed, dict) or not by_seed:
+                    raise IndependentAuditError(f"{target}/L{layer}: layer_summary 缺少选择 AUC 证据")
+                seed_values = [float(value) for value in by_seed.values()]
+                if not np.isclose(float(mean_value), float(np.mean(seed_values)), rtol=0.0, atol=FLOAT_ATOL):
+                    raise IndependentAuditError(
+                        f"{target}/L{layer}: selection_auc_mean 与逐种子均值不一致"
+                    )
+                if not np.isclose(float(mean_value), float(declared_mean), rtol=0.0, atol=FLOAT_ATOL):
+                    raise IndependentAuditError(
+                        f"{target}/L{layer}: 选择表与 layer_summary 的选择 AUC 不一致"
+                    )
+        declared[target] = best_layer
+    return declared
+
+
+def _verify_protocol(
+    summary: dict[str, Any],
+    mve: dict[str, Any],
+    *,
+    split_path: Path,
+) -> dict[str, Any]:
+    """核对 summary.protocol 的文本流模式、时间对齐声明与嵌套选择划分。"""
+
+    protocol = summary.get("protocol")
+    if not isinstance(protocol, dict):
+        raise IndependentAuditError("summary.protocol 缺失")
+    if protocol.get("ablation") is not None:
+        raise IndependentAuditError("正式 G1 summary 不得为消融变体")
+    checks: dict[str, bool] = {
+        "text_mode": protocol.get("text_mode") == str(mve["text_mode"]) == "greedy",
+        "time_alignment": protocol.get("time_alignment")
+        == {
+            "initial_token_position": 0,
+            "acts_observed_through_offset_steps": 0,
+            "min_eligible_step": MIN_ELIGIBLE_STEP,
+            "baseline_row_shift_steps": 1,
+        },
+    }
+    split = _load_json_object(split_path, "冻结划分")
+    train = [str(value) for value in split["splits"]["probe_train"][: int(mve["n_sessions_train"])]]
+    expected_inner_val = train[: int(mve["inner_val_sessions"])]
+    nested = protocol.get("nested_selection")
+    checks["nested_selection_inner_val"] = (
+        isinstance(nested, dict)
+        and nested.get("inner_val_sessions") == expected_inner_val
+        and nested.get("n_inner_val") == len(expected_inner_val)
+        and nested.get("n_inner_train") == len(train) - len(expected_inner_val)
+    )
+    failed = [name for name, passed in checks.items() if not passed]
+    if failed:
+        raise IndependentAuditError(f"summary.protocol 校验失败：{failed}")
+    return checks
+
+
 def recompute_summary(
     manifest: dict[str, Any],
     loaded: dict[ItemKey, PerSession],
+    declared_selection: dict[str, int],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """完全独立复算 summary 的 ``overall`` 与 ``per_target``。"""
+    """完全独立复算 summary 的 ``overall`` 与 ``per_target``。
+
+    最优层取声明值（其与选择表的 argmax 一致性已由 ``_declared_selection`` 验证；
+    选择输入在 inner_val 上，按协议不进入 probe_val 分数包）。
+    """
 
     mve = load_config("grids")["mve"]
     full_threshold = float(mve["g1_full_threshold"])
@@ -750,10 +907,7 @@ def recompute_summary(
                 },
             }
 
-        best_layer = max(
-            FROZEN_G1_LAYERS,
-            key=lambda layer: layer_summary[str(layer)]["auc_mean"],
-        )
+        best_layer = declared_selection[target]
         selected_probe = probes_by_layer[best_layer]
         baselines: dict[str, SeededPerSession] = {
             "hazard": {0: loaded[(target, "hazard", None, 0)]},
@@ -791,7 +945,7 @@ def recompute_summary(
             "shuffled_auc_sd": shuffled_metrics["auc_sd"],
             "shuffled_n_seeds": shuffled_metrics["n_seeds"],
             "ci_scope": CI_SCOPE,
-            "covers_model_selection_uncertainty": False,
+            "selection_disjoint_from_report": True,
             "verdict": _verdict(
                 advantage["advantage_point"],
                 advantage["ci_lo"],
@@ -937,7 +1091,7 @@ def audit_summary(
     summary_file = Path(summary_path).resolve()
     summary = _load_json_object(summary_file, "G1 summary")
     _validate_generated_at(summary)
-    expected_top_keys = {"generated_at", "overall", "per_target", "score_bundle"}
+    expected_top_keys = {"generated_at", "overall", "per_target", "score_bundle", "protocol"}
     if set(summary) != expected_top_keys:
         raise IndependentAuditError(f"summary 顶层字段集合不一致：{sorted(summary)}")
     resolved_manifest, manifest, manifest_sha256, expected_bundle = _resolve_manifest(
@@ -970,14 +1124,39 @@ def audit_summary(
         resolved_manifest,
         authoritative,
     )
-    recomputed, bootstrap_checks = recompute_summary(manifest, loaded)
+    protocol_checks = _verify_protocol(summary, mve, split_path=Path(split_path))
+    metadata_checks["protocol"] = protocol_checks
+    metadata_checks["runner_manifests"] = _verify_runner_manifests(manifest)
+    declared_selection = _declared_selection(summary)
+    recomputed, bootstrap_checks = recompute_summary(manifest, loaded, declared_selection)
     expected_summary = {
         **recomputed,
         "score_bundle": expected_bundle,
     }
+    # selection 证据（inner_val 上产生）已由 _declared_selection/_verify_protocol 单独
+    # 核验，其原始输入按协议不进入 probe_val 分数包，因此从数值比对中剥离。
+    selection_evidence_keys = {"selection_auc_mean", "selection_auc_by_seed"}
     actual_summary = {
         "overall": summary["overall"],
-        "per_target": summary["per_target"],
+        "per_target": {
+            target: {
+                key: (
+                    {
+                        layer: {
+                            field: field_value
+                            for field, field_value in entry.items()
+                            if field not in selection_evidence_keys
+                        }
+                        for layer, entry in value.items()
+                    }
+                    if key == "layer_summary"
+                    else value
+                )
+                for key, value in result.items()
+                if key != "selection"
+            }
+            for target, result in summary["per_target"].items()
+        },
         "score_bundle": summary["score_bundle"],
     }
     differences: list[dict[str, Any]] = []

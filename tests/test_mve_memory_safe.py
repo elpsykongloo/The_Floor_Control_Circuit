@@ -202,7 +202,8 @@ def test_mimi_loaders_concatenate_self_then_other_for_each_role(tmp_path):
 
     expected_role0 = np.concatenate([channel_values[0], channel_values[1]], axis=1)
     expected_role1 = np.concatenate([channel_values[1], channel_values[0]], axis=1)
-    expected = np.concatenate([expected_role0, expected_role1]).astype(np.float32)
+    # 时间对齐（PREREG #7）：合法步 1..7，mimi 读行 s−1 = 0..6
+    expected = np.concatenate([expected_role0[:7], expected_role1[:7]]).astype(np.float32)
 
     actual, _ = load_session_feature(
         runs,
@@ -236,7 +237,7 @@ def test_mimi_loaders_concatenate_self_then_other_for_each_role(tmp_path):
             if role.agent_channel == 0
             else expected_role1
         )
-        selected.append(pair[role.steps])
+        selected.append(pair[role.steps - 1])
     np.testing.assert_array_equal(sampled, np.concatenate(selected).astype(np.float32))
 
 
@@ -276,7 +277,8 @@ def test_mimi_loader_rejects_channel_time_or_dimension_mismatch(
         )
 
 
-def test_legacy_mimi_loader_rejects_step_outside_both_channels(tmp_path):
+def test_legacy_mimi_loader_excludes_steps_outside_time_domain(tmp_path):
+    """步域按特征时间长度统一截断：step ≥ n_steps 的标签行被剔除而非读取越界行。"""
     runs, labels_root, _specs = _memory_world(tmp_path, ["s0"], n_steps=8, dim=2)
     labels = pd.read_parquet(labels_root / "s0.parquet")
     labels = pd.concat(
@@ -297,8 +299,10 @@ def test_legacy_mimi_loader_rejects_step_outside_both_channels(tmp_path):
         ignore_index=True,
     )
 
-    with pytest.raises(ValueError, match="步号越过 Mimi 双通道时间域"):
-        load_role_xy(runs, labels, "s0", 0, -1, "T1", 240, feature="mimi")
+    X, y = load_role_xy(runs, labels, "s0", 0, -1, "T1", 240, feature="mimi")
+    # 合法步 1..7（step 0 与 step 8 均被剔除）
+    assert X.shape == (7, 4)
+    assert len(y) == 7
 
 
 def test_streaming_probe_matches_legacy_and_reads_each_eval_once(tmp_path):

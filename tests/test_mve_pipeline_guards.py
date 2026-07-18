@@ -277,6 +277,151 @@ def test_stateful_chunked_backbone_matches_whole_sequence_and_skips_heads(tmp_pa
     }
 
 
+class _PadPredictingHead(torch.nn.Module):
+    """恒预测 PAD(=3) 的文本头：greedy 路径应与 pad 路径逐元素一致。"""
+
+    def __init__(self, hidden: int, vocab: int = 32, pad_id: int = 3):
+        super().__init__()
+        self.linear = torch.nn.Linear(hidden, vocab, bias=True)
+        with torch.no_grad():
+            self.linear.weight.zero_()
+            self.linear.bias.zero_()
+            self.linear.bias[pad_id] = 10.0
+
+    def forward(self, values: torch.Tensor) -> torch.Tensor:
+        return self.linear(values)
+
+
+class _CountingHead:
+    """第 p 次调用返回 argmax=10+p 的 one-hot logits，用于验证 token 反馈。"""
+
+    def __init__(self, vocab: int = 64):
+        self.vocab = vocab
+        self.calls = 0
+
+    def __call__(self, values: torch.Tensor) -> torch.Tensor:
+        logits = torch.zeros(values.shape[0], values.shape[1], self.vocab)
+        logits[..., 10 + self.calls] = 5.0
+        self.calls += 1
+        return logits
+
+
+class _RecordingTextEmb(torch.nn.Module):
+    """包装 text_emb，记录每次前向收到的 token id。"""
+
+    def __init__(self, inner: torch.nn.Embedding):
+        super().__init__()
+        self.inner = inner
+        self.seen: list[int] = []
+
+    def forward(self, tokens: torch.Tensor) -> torch.Tensor:
+        self.seen.extend(int(value) for value in tokens.reshape(-1))
+        return self.inner(tokens)
+
+
+def test_selftext_greedy_with_pad_head_matches_pad_path(tmp_path):
+    """文本头恒预测 PAD 时，greedy 逐步前向必须与 pad 分块前向逐元素一致。"""
+    module = _load_moshi_family()
+    generator = torch.Generator().manual_seed(23)
+    codes = torch.randint(0, 60, (1, 3, 13), generator=generator)
+    codes[0, 0, :] = 3  # 复现 build_parallel_codes 的文本流全 PAD 输入
+
+    lm_pad = _StreamingFakeLm()
+    pad_dir = tmp_path / "pad"
+    pad_dir.mkdir()
+    module.forward_capture(lm_pad, codes.clone(), [1], pad_dir, chunk_steps=4)
+    expected = np.concatenate(
+        [np.load(path) for path in sorted(pad_dir.glob("acts_L1_part*.npy"))],
+        axis=0,
+    )
+
+    lm_greedy = _StreamingFakeLm()
+    lm_greedy.text_padding_token_id = 3
+    lm_greedy.text_linear = _PadPredictingHead(hidden=4)
+    greedy_dir = tmp_path / "greedy"
+    greedy_dir.mkdir()
+    stats = module.forward_capture_selftext(
+        lm_greedy,
+        codes.clone(),
+        [1],
+        greedy_dir,
+        chunk_steps=4,
+        mode="greedy",
+        temperature=None,
+        seed=0,
+    )
+    actual = np.concatenate(
+        [np.load(path) for path in sorted(greedy_dir.glob("acts_L1_part*.npy"))],
+        axis=0,
+    )
+
+    np.testing.assert_array_equal(actual, expected)
+    tokens = np.load(greedy_dir / "text_tokens.npy")
+    assert tokens.tolist() == [3] * 13
+    assert stats["text_token_pad_fraction"] == 1.0
+    assert stats["n_steps"] == 13
+    assert stats["n_parts"] == 4
+    assert stats["text_head_source"] == "text_linear"
+
+
+def test_selftext_feeds_predicted_token_to_next_step(tmp_path):
+    """位置 p 贪心出的 token 必须成为位置 p+1 的文本输入（位置 0 为初始 token）。"""
+    module = _load_moshi_family()
+    lm = _StreamingFakeLm()
+    lm.text_padding_token_id = 3
+    lm.text_linear = _CountingHead()
+    recorder = _RecordingTextEmb(lm.text_emb)
+    lm.text_emb = recorder
+    generator = torch.Generator().manual_seed(29)
+    codes = torch.randint(0, 60, (1, 3, 6), generator=generator)
+
+    module.forward_capture_selftext(
+        lm,
+        codes,
+        [1],
+        tmp_path,
+        chunk_steps=4,
+        mode="greedy",
+        temperature=None,
+        seed=0,
+    )
+
+    tokens = np.load(tmp_path / "text_tokens.npy")
+    assert tokens.tolist() == [10, 11, 12, 13, 14, 15]
+    initial_text = int(lm._get_initial_token()[0, 0, 0])
+    assert recorder.seen == [initial_text, 10, 11, 12, 13, 14]
+
+
+def test_selftext_sampled_is_reproducible_and_records_temperature(tmp_path):
+    """sampled 模式在同一 seed 下必须逐 token 复现。"""
+    module = _load_moshi_family()
+    generator = torch.Generator().manual_seed(31)
+    codes = torch.randint(0, 60, (1, 3, 8), generator=generator)
+    outputs = []
+    for attempt in ("a", "b"):
+        lm = _StreamingFakeLm()
+        lm.text_padding_token_id = 3
+        head = torch.nn.Linear(4, 32)
+        torch.manual_seed(17)
+        torch.nn.init.uniform_(head.weight, -1.0, 1.0)
+        torch.nn.init.zeros_(head.bias)
+        lm.text_linear = head
+        out_dir = tmp_path / attempt
+        out_dir.mkdir()
+        module.forward_capture_selftext(
+            lm,
+            codes.clone(),
+            [1],
+            out_dir,
+            chunk_steps=4,
+            mode="sampled",
+            temperature=0.7,
+            seed=42,
+        )
+        outputs.append(np.load(out_dir / "text_tokens.npy"))
+    np.testing.assert_array_equal(outputs[0], outputs[1])
+
+
 class _FakeQuantizer:
     def encode(self, latent: torch.Tensor) -> torch.Tensor:
         return latent[:, :1].round().to(torch.long)
@@ -414,6 +559,8 @@ def _command(tmp_path: Path, run: str, audio_agent: Path, audio_other: Path) -> 
         "0.08",
         "--forward-chunk-steps",
         "128",
+        "--text-mode",
+        "greedy",
         "--out",
         str(tmp_path / run),
         "--code-version",
@@ -455,6 +602,8 @@ def test_cache_plan_shards_are_disjoint_and_ps1_checks_native_exit(tmp_path, mon
     assert "if ($LASTEXITCODE -ne 0)" in script
     assert "Test-MveRun" in script
     assert "$manifest.code_version -ne $CodeVersion" in script
+    assert "$manifest.text_mode -ne $TextMode" in script
+    assert "-TextMode 'greedy'" in script
     assert "$manifest.extra.execution.max_seconds" in script
     assert "$manifest.extra.execution.mimi_chunk_seconds" in script
     assert "$manifest.extra.execution.forward_chunk_steps" in script
@@ -491,6 +640,7 @@ def test_cache_plan_commands_carry_bounded_streaming_parameters(tmp_path, monkey
                 "max_minutes_per_session": 10,
                 "mimi_chunk_seconds": 0.08,
                 "forward_chunk_steps": 128,
+                "text_mode": "greedy",
             }
         },
     )
@@ -505,9 +655,13 @@ def test_cache_plan_commands_carry_bounded_streaming_parameters(tmp_path, monkey
         assert module._option_value(command, "--max-seconds") == "600.0"
         assert module._option_value(command, "--mimi-chunk-seconds") == "0.08"
         assert module._option_value(command, "--forward-chunk-steps") == "128"
+        assert module._option_value(command, "--text-mode") == "greedy"
+        assert "mve_r1_greedy" in module._option_value(command, "--out")
     assert meta["max_seconds"] == 600.0
     assert meta["mimi_chunk_seconds"] == 0.08
     assert meta["forward_chunk_steps"] == 128
+    assert meta["text_mode"] == "greedy"
+    assert meta["out_root"].endswith("mve_r1_greedy")
 
 
 def test_cache_plan_rejects_missing_audio_and_invalid_shard(tmp_path, monkeypatch):
@@ -571,6 +725,8 @@ def test_mimi_baseline_uses_custom_root_and_all_probe_seeds(tmp_path, monkeypatc
         seen["feature"] = kwargs["feature"]
         seen["seeds"] = kwargs["seeds"]
         seen["plans"] = kwargs["plans"]
+        seen["inner_plans"] = kwargs["inner_plans"]
+        seen["sessions_inner_val"] = kwargs["sessions_inner_val"]
         return [
             SimpleNamespace(
                 seed=seed,
@@ -583,6 +739,7 @@ def test_mimi_baseline_uses_custom_root_and_all_probe_seeds(tmp_path, monkeypatc
     monkeypatch.setattr(module, "linear_feature_cells", fake_cells)
     custom_root = tmp_path / "custom_zarr"
     plans = {seed: SimpleNamespace(seed=seed) for seed in (0, 1, 2)}
+    inner_plans = {seed: SimpleNamespace(seed=seed, inner=True) for seed in (0, 1, 2)}
     result, best_c = module.mimi_baseline(
         ["eval"],
         "T1",
@@ -592,12 +749,16 @@ def test_mimi_baseline_uses_custom_root_and_all_probe_seeds(tmp_path, monkeypatc
         {},
         [0, 1, 2],
         plans,
+        inner_plans,
+        ["inner-val"],
     )
     assert seen == {
         "runs_root": custom_root,
         "feature": "mimi",
         "seeds": [0, 1, 2],
         "plans": plans,
+        "inner_plans": inner_plans,
+        "sessions_inner_val": ["inner-val"],
     }
     assert sorted(result) == [0, 1, 2]
     assert best_c == {0: 1.0, 1: 2.0, 2: 3.0}

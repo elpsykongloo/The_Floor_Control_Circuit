@@ -28,6 +28,7 @@ FROZEN_G1_BOOTSTRAP_SEED = 0
 ANALYSIS_SOURCE_PATHS = (
     "scripts/wp7_run_mve.py",
     "src/floor_circuit/probes/stats.py",
+    "src/floor_circuit/mve/alignment.py",
     "src/floor_circuit/mve/run.py",
     "src/floor_circuit/mve/dataset.py",
     "src/floor_circuit/mve/artifacts.py",

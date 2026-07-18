@@ -323,6 +323,7 @@ def test_json_and_markdown_reports_reference_score_bundle():
         overall,
         {"T1": target},
         bundle,
+        {"text_mode": "greedy", "ablation": None},
     )
 
     assert bundle["absolute_path"] in report
@@ -377,6 +378,7 @@ def test_publish_failure_removes_manifest_and_both_official_reports(
             per_target={"T1": {"layer_summary": {}}},
             overall={},
             meta={},
+            protocol={"text_mode": "greedy", "ablation": None},
         )
 
     assert not writer.manifest_path.exists()

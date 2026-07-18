@@ -116,6 +116,11 @@ def _scores_for_item(
     return result
 
 
+def _selection_auc(layer: int, target: str, seed: int) -> float:
+    """合成 inner_val 选择 AUC：与 _strength 同序（L20 最优），带种子扰动。"""
+    return _strength("probe", layer, target) - 0.01 + 0.001 * seed
+
+
 def _official_summary() -> dict[str, Any]:
     """用正式链构造合成 summary，专门检验独立实现的逐字段等价性。"""
 
@@ -125,7 +130,11 @@ def _official_summary() -> dict[str, Any]:
         for layer in LAYERS:
             for seed in SEEDS:
                 per_session = _scores_for_item(target, "probe", layer, seed)
-                metrics = {**pooled_metrics(per_session), "best_c": 0.1}
+                metrics = {
+                    **pooled_metrics(per_session),
+                    "best_c": 0.1,
+                    "selection_auc": _selection_auc(layer, target, seed),
+                }
                 cells.append(
                     ProbeCell(
                         layer=layer,
@@ -140,17 +149,43 @@ def _official_summary() -> dict[str, Any]:
             "mimi": {seed: _scores_for_item(target, "mimi", None, seed) for seed in SEEDS},
             "acoustic_gru": _scores_for_item(target, "acoustic_gru", None, 0),
         }
+        summary = average_over_seeds(cells)
+        best_layer = max(summary, key=lambda ell: summary[ell]["selection_auc_mean"])
         per_target[target] = evaluate_target(
-            average_over_seeds(cells),
+            summary,
             baselines,
             n_boot=1000,
             full_thr=0.05,
             backup_thr=0.02,
             boot_seed=0,
+            best_layer=best_layer,
         )
+        per_target[target]["selection"] = {
+            "rule": "best_layer = argmax_layer mean_seed(inner_val AUC at best_c)，并列取较小层号",
+            "best_layer": int(best_layer),
+            "selection_auc_mean_by_layer": {
+                int(layer): summary[layer]["selection_auc_mean"]
+                for layer in sorted(summary)
+            },
+        }
     return {
         "overall": overall_g1(per_target, full_thr=0.05, backup_thr=0.02),
         "per_target": per_target,
+        "protocol": {
+            "text_mode": "greedy",
+            "ablation": None,
+            "time_alignment": {
+                "initial_token_position": 0,
+                "acts_observed_through_offset_steps": 0,
+                "min_eligible_step": 1,
+                "baseline_row_shift_steps": 1,
+            },
+            "nested_selection": {
+                "inner_val_sessions": TRAIN_SESSIONS[:32],
+                "n_inner_train": 128,
+                "n_inner_val": 32,
+            },
+        },
     }
 
 
@@ -169,6 +204,9 @@ def _preflight_payload(label_hashes: dict[str, str], runner_version: str) -> dic
         ],
         "expected_n_steps": 7500,
         "expected_clock_hz": 12.5,
+        "expected_text_mode": "greedy",
+        "enforce_code_version": True,
+        "require_time_alignment": True,
         "expected_code_version": runner_version,
         "expected_max_seconds": 600.0,
         "expected_mimi_chunk_seconds": 0.08,
@@ -199,11 +237,13 @@ def _write_frozen_inputs(root: Path) -> tuple[Path, dict[str, str]]:
 
     t1 = _labels("T1")
     t4 = _labels("T4")
+    # 步号自 1 起：时间对齐（PREREG #7）下 step 0 不进入特征配对，NPZ 标签
+    # 对应的权威行集也从 step 1 开始。
     frame = pd.DataFrame(
         {
             "target": ["T1"] * len(t1) + ["T4"] * len(t4),
             "agent_channel": [0] * len(t1) + [1] * len(t4),
-            "step": [*range(len(t1)), *range(len(t4))],
+            "step": [*range(1, len(t1) + 1), *range(1, len(t4) + 1)],
             "delta_ms": [240] * len(t1) + [-1] * len(t4),
             "label": np.concatenate([t1, t4]),
         }
@@ -276,6 +316,27 @@ def _write_package(
             best_c=0.1 if kind in {"probe", "mimi"} else None,
             per_session=_scores_for_item(target, kind, layer, seed),
         )
+    runs_root = root / "runs"
+    for session_id in [*TRAIN_SESSIONS, *reversed(EVAL_SESSIONS)]:
+        for channel in (0, 1):
+            run_dir = runs_root / f"{session_id}_agent{channel}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "text_mode": "greedy",
+                        "extra": {
+                            "execution": {
+                                "time_alignment": {
+                                    "initial_token_position": 0,
+                                    "acts_observed_through_offset_steps": 0,
+                                }
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
     runner_version = "951e839+runner." + "a" * 64
     preflight = root / "mve_preflight.json"
     preflight.write_text(
@@ -612,6 +673,84 @@ def test_repository_source_guard_rejects_omitted_required_source(synthetic_world
             manifest["analysis_protocol"],
             tuple(ANALYSIS_SOURCE_PATHS),
         )
+
+
+def test_independent_audit_rejects_selection_argmax_mismatch(tmp_path: Path):
+    """声明的 best_layer 若不是声明选择表的 argmax，审计必须失败。"""
+    summary_path, manifest_path, _ = _write_package(tmp_path / "bad-selection")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    for target in TARGETS:
+        entry = summary["per_target"][target]
+        wrong_layer = next(
+            layer for layer in LAYERS if layer != entry["selection"]["best_layer"]
+        )
+        entry["selection"]["best_layer"] = wrong_layer
+        entry["best_layer"] = wrong_layer
+    summary_path.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+
+    result = AUDIT.run_audit(
+        summary_path,
+        manifest_path,
+        output_path=tmp_path / "bad-selection-audit.json",
+        **_audit_paths(summary_path),
+    )
+
+    assert result["status"] == "failed"
+    assert "argmax" in result["error"]
+
+
+def test_independent_audit_rejects_pad_runner_manifest_on_disk(tmp_path: Path):
+    """审计必须实读缓存 manifest：任何一个 run 是 pad 文本流即失败（第四层核验）。"""
+    summary_path, manifest_path, _ = _write_package(tmp_path / "pad-runner-manifest")
+    tampered = (
+        tmp_path
+        / "pad-runner-manifest"
+        / "runs"
+        / f"{TRAIN_SESSIONS[3]}_agent1"
+        / "manifest.json"
+    )
+    payload = json.loads(tampered.read_text(encoding="utf-8"))
+    payload["text_mode"] = "pad"
+    tampered.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = AUDIT.run_audit(
+        summary_path,
+        manifest_path,
+        output_path=tmp_path / "pad-runner-manifest-audit.json",
+        **_audit_paths(summary_path),
+    )
+
+    assert result["status"] == "failed"
+    assert "text_mode" in result["error"]
+    assert TRAIN_SESSIONS[3] in result["error"]
+
+
+def test_independent_audit_rejects_pad_text_mode_snapshot(tmp_path: Path):
+    """预检快照声明 pad 文本流时，正式 G1 审计必须失败。"""
+    summary_path, manifest_path, _ = _write_package(tmp_path / "pad-snapshot")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    snapshot_path = manifest_path.parent / manifest["preflight_report_path"]
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    snapshot["expected_text_mode"] = "pad"
+    snapshot_path.write_text(
+        json.dumps(snapshot, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+    manifest["preflight_report_sha256"] = sha256_file(snapshot_path)
+    _rewrite_manifest_reference(summary_path, manifest_path, manifest)
+
+    result = AUDIT.run_audit(
+        summary_path,
+        manifest_path,
+        output_path=tmp_path / "pad-snapshot-audit.json",
+        **_audit_paths(summary_path),
+    )
+
+    assert result["status"] == "failed"
+    assert "expected_text_mode" in result["error"]
 
 
 def test_independent_audit_rejects_best_c_outside_frozen_grid(tmp_path: Path):

@@ -18,6 +18,7 @@ import pandas as pd
 import zarr
 
 from floor_circuit.cachelib.manifest import load_manifest, sha256_file
+from floor_circuit.mve.alignment import MIN_ELIGIBLE_STEP, RUNNER_TIME_ALIGNMENT
 from floor_circuit.mve.dataset import eligible_rows, run_dir_for
 from floor_circuit.probes.stats import PerSession, ScoreCollection, SeededPerSession
 
@@ -32,6 +33,7 @@ class RunSpec:
     n_steps: int
     clock_hz: float
     source_audio_hashes: tuple[str, ...]
+    code_version: str | None = None  # manifest 实测值（消融模式的溯源依据）
 
 
 class MvePreflightError(RuntimeError):
@@ -231,13 +233,18 @@ def _validate_label(
         spec = run_specs.get((sid, channel))
         if spec is None:
             continue
-        for target, delta in (("T1", t1_delta_ms), ("T5", None)):
+        # T1 按特征装配的真实行域（min_step=1）检查；T5 逐步覆盖检查必须含 step 0
+        for target, delta, min_step in (
+            ("T1", t1_delta_ms, MIN_ELIGIBLE_STEP),
+            ("T5", None, 0),
+        ):
             rows = eligible_rows(
                 labels,
                 target,
                 delta,
                 channel,
                 max_steps=spec.n_steps,
+                min_step=min_step,
             )
             if rows.empty:
                 issues.append(f"{sid}/agent{channel}: 前 {spec.n_steps} 步缺少 {target} 标签")
@@ -248,6 +255,7 @@ def _validate_label(
                 delta,
                 channel,
                 max_steps=spec.n_steps,
+                min_step=MIN_ELIGIBLE_STEP,
             )
             if not rows.empty and not np.isin(rows["label"].to_numpy(), [0, 1]).all():
                 issues.append(f"{sid}/agent{channel}: {target} 含非二值标签")
@@ -266,7 +274,11 @@ def _validate_target_pools(
     run_specs: dict[tuple[str, int], RunSpec],
     t1_delta_ms: int,
 ) -> tuple[list[str], dict]:
-    """允许 T4 单角色或单会话无事件，但训练池与验证池都必须具备二分类监督。"""
+    """允许 T4 单角色或单会话无事件，但训练池与验证池都必须具备二分类监督。
+
+    计数口径与特征装配一致（min_step=MIN_ELIGIBLE_STEP）：快照里的 n_rows/正负类
+    统计对应真实可用行集，而非含 step 0 的原始标签行。
+    """
 
     issues: list[str] = []
     summary: dict[str, dict] = {}
@@ -291,6 +303,7 @@ def _validate_target_pools(
                         delta,
                         channel,
                         max_steps=spec.n_steps,
+                        min_step=MIN_ELIGIBLE_STEP,
                     )
                     target_values[target].append(rows["label"].to_numpy(dtype=np.int64))
         pool_summary: dict[str, dict] = {}
@@ -324,6 +337,9 @@ def _validate_run(
     expected_mimi_chunk_seconds: float,
     expected_forward_chunk_steps: int,
     current_audio_hashes: dict[str, str] | None,
+    expected_text_mode: str,
+    enforce_code_version: bool,
+    require_time_alignment: bool,
 ) -> tuple[RunSpec | None, list[str]]:
     run_dir = run_dir_for(runs_root, sid, channel)
     prefix = f"{sid}/agent{channel}"
@@ -346,7 +362,11 @@ def _validate_run(
         issues.append(f"{prefix}: n_steps={manifest.n_steps}，期望 {expected_n_steps}")
     if manifest.clock_hz is None or not np.isclose(manifest.clock_hz, expected_clock_hz):
         issues.append(f"{prefix}: clock_hz={manifest.clock_hz}，期望 {expected_clock_hz}")
-    if manifest.code_version != expected_code_version:
+    if manifest.text_mode != expected_text_mode:
+        issues.append(
+            f"{prefix}: text_mode={manifest.text_mode!r}，冻结协议要求 {expected_text_mode!r}"
+        )
+    if enforce_code_version and manifest.code_version != expected_code_version:
         issues.append(
             f"{prefix}: code_version={manifest.code_version!r}，期望 {expected_code_version!r}"
         )
@@ -390,6 +410,13 @@ def _validate_run(
         issues.append(f"{prefix}: delay_application 不是全时间轴只施加一次")
     if execution.get("latent_kind") != "pre_quantization_continuous":
         issues.append(f"{prefix}: Mimi latent 不是量化前连续表征")
+    if require_time_alignment:
+        declared = execution.get("time_alignment")
+        if declared != RUNNER_TIME_ALIGNMENT:
+            issues.append(
+                f"{prefix}: execution.time_alignment={declared!r}，"
+                f"期望 {RUNNER_TIME_ALIGNMENT!r}（PREREG #7）"
+            )
 
     n_steps = int(manifest.n_steps or 0)
     clock_hz = float(manifest.clock_hz or 0.0)
@@ -427,6 +454,7 @@ def _validate_run(
         n_steps,
         clock_hz,
         tuple(sorted(str(value) for value in manifest.source_audio.values())),
+        manifest.code_version,
     ), issues
 
 
@@ -444,8 +472,17 @@ def preflight_mve_inputs(
     expected_max_seconds: float,
     expected_mimi_chunk_seconds: float,
     expected_forward_chunk_steps: int,
+    *,
+    expected_text_mode: str,
+    enforce_code_version: bool = True,
+    require_time_alignment: bool = True,
 ) -> tuple[dict[tuple[str, int], RunSpec], dict]:
-    """硬校验正式 G1 所需的 400 个 run、五类数组与 200 份标签。"""
+    """硬校验正式 G1 所需的 400 个 run、五类数组与 200 份标签。
+
+    expected_text_mode：冻结的 R1 文本流协议（正式 = greedy；PAD 消融显式传 pad）。
+    enforce_code_version / require_time_alignment：仅 PAD 消融复盘允许放宽
+    （旧缓存由撤回前的 runner 生成，无 time_alignment 声明）。
+    """
 
     runs_root, labels_root, audio_root = Path(runs_root), Path(labels_root), Path(audio_root)
     if len(session_ids) != len(set(session_ids)):
@@ -486,6 +523,9 @@ def preflight_mve_inputs(
                 expected_mimi_chunk_seconds,
                 expected_forward_chunk_steps,
                 audio_hashes[sid],
+                expected_text_mode,
+                enforce_code_version,
+                require_time_alignment,
             )
             issues.extend(run_issues)
             if spec is not None:
@@ -528,6 +568,12 @@ def preflight_mve_inputs(
         "required_arrays_per_run": [f"acts_L{layer}" for layer in layers] + ["mimi_latent"],
         "expected_n_steps": expected_n_steps,
         "expected_clock_hz": expected_clock_hz,
+        "expected_text_mode": expected_text_mode,
+        "enforce_code_version": enforce_code_version,
+        "require_time_alignment": require_time_alignment,
+        "observed_code_versions": sorted(
+            {str(spec.code_version) for spec in specs.values()}
+        ),
         "expected_code_version": expected_code_version,
         "expected_max_seconds": expected_max_seconds,
         "expected_mimi_chunk_seconds": expected_mimi_chunk_seconds,

@@ -3,14 +3,20 @@
 在各自模型 .venv 内运行（依赖：torch、moshi、numpy；音频读取优先 soundfile，缺失退 stdlib wave）。
 与主仓库解耦：只按附录 C 契约输出 npy 分片 + manifest.json，仓库侧 wp5_ingest 转 zarr。
 
-三种模式：
-  --probe-api      加载模型并转储关键属性/签名 → 首跑联调的依据（出错时把输出整体回传）
-  --text-mode pad     流式 teacher-forced 前向（默认）：双音频流强制、文本流全 PAD。
-                      Mimi 与 transformer 均保持跨块状态，避免长序列整段前向。
-  --text-mode greedy  逐步贪心自预测文本流（实验性，慢）：hook sanity 的 AB 对照用。
+运行模式：
+  --probe-api          加载模型并转储关键属性/签名 → 首跑联调的依据（出错时把输出整体回传）
+  --text-mode greedy   **正式默认**（冻结协议，PREREG #7）：音频流 teacher-forced、
+                       文本内心独白流逐步贪心自预测（位置 p 的 text_linear logits 贪心出
+                       token，作为位置 p+1 的文本输入）。逐步前向，较慢。
+  --text-mode sampled  同上但温度采样（--text-temperature，固定 --seed）：AB 核验用。
+  --text-mode pad      文本流全 PAD 的快速分块前向：仅限消融复盘，不得用于正式 G1。
+
+时间对齐声明（写入 manifest.extra.execution.time_alignment，预检核验）：
+  序列首位插入初始 token，acts[s] 仅观测 ≤ s·τ 的音频（offset=0）。
 
 已知需要首跑确认的适配点（全部经 _first_attr 探测并写入 manifest.extra）：
-  文本 PAD token id、初始填充 token id、流顺序（self_first/other_first）、delays 属性。
+  文本 PAD token id、初始填充 token id、流顺序（self_first/other_first）、delays 属性、
+  文本输出头 text_linear。
 """
 
 from __future__ import annotations
@@ -31,6 +37,15 @@ import numpy as np
 BLOCK_STEPS = 4096
 DEFAULT_MIMI_CHUNK_SECONDS = 0.08
 DEFAULT_FORWARD_CHUNK_STEPS = 128
+DEFAULT_TEXT_TEMPERATURE = 0.7
+DEFAULT_TEXT_TOP_K = 25  # 官方 LMGen 文本采样默认 top_k_text=25
+
+# 与仓库侧 src/floor_circuit/mve/alignment.py 的 RUNNER_TIME_ALIGNMENT 保持逐字一致
+# （runner 与仓库包解耦，不能 import；preflight 会对 manifest 交叉核验该声明）。
+TIME_ALIGNMENT = {
+    "initial_token_position": 0,
+    "acts_observed_through_offset_steps": 0,
+}
 
 
 class AdapterError(RuntimeError):
@@ -125,7 +140,7 @@ def write_npy_atomic(path: str | Path, array: np.ndarray) -> None:
 
 def clear_run_outputs(out_dir: Path) -> None:
     """仅清理 runner 自己的旧产物；保留目录中的其他文件。"""
-    paths = [out_dir / "manifest.json"]
+    paths = [out_dir / "manifest.json", out_dir / "text_tokens.npy"]
     for pattern in ("acts_L*_part*.npy", "mimi_latent_part*.npy", ".*.tmp"):
         paths.extend(out_dir.glob(pattern))
     removed = 0
@@ -235,6 +250,7 @@ def probe_api(args) -> dict:
             "class": type(lm).__name__,
             "forward_sig": str(_inspect.signature(lm.forward)),
             "attrs": {k: _jsonable(getattr(lm, k)) for k in interesting if hasattr(lm, k)},
+            "has_text_linear": callable(getattr(lm, "text_linear", None)),
             "has_transformer_layers": hasattr(getattr(lm, "transformer", None), "layers"),
             "n_layers": len(lm.transformer.layers) if hasattr(getattr(lm, "transformer", None), "layers") else None,
             "layer_class": type(lm.transformer.layers[0]).__name__
@@ -557,6 +573,156 @@ def forward_capture(
     }
 
 
+def forward_capture_selftext(
+    lm,
+    codes,
+    layers: list[int],
+    out_dir: Path,
+    chunk_steps: int,
+    mode: str,
+    temperature: float | None,
+    seed: int,
+    top_k: int = DEFAULT_TEXT_TOP_K,
+) -> dict:
+    """逐步自预测文本流的 teacher-forced 前向（PREREG #7 冻结协议）。
+
+    音频码本按官方延迟表 teacher-forced；文本流与官方 LMGen 同语义：位置 p 的
+    主干输出经 text_linear 得到文本 logits，贪心 argmax（或温度采样）出的 token
+    作为位置 p+1 的文本输入，位置 0 输入初始 token。逐步前向保持 transformer
+    流式状态；每累计 chunk_steps 行原子写出一个 npy 分片（与 pad 路径同布局）。
+    """
+    import torch
+
+    if chunk_steps <= 0:
+        raise AdapterError(f"chunk_steps 必须大于 0，当前为 {chunk_steps}")
+    if mode not in ("greedy", "sampled"):
+        raise AdapterError(f"未知自预测文本模式 {mode!r}")
+    tf = lm.transformer
+    if not hasattr(tf, "layers"):
+        raise AdapterError(f"lm.transformer 无 .layers；类型 {type(tf).__name__}")
+    streaming = getattr(tf, "streaming", None)
+    if not callable(streaming):
+        raise AdapterError("lm.transformer 不支持 streaming()，拒绝退回整段前向")
+    n_layers = len(tf.layers)
+    context = getattr(lm, "context", None)
+    bad = [ell for ell in layers if ell < 0 or ell >= n_layers]
+    if bad:
+        raise AdapterError(f"层号越界 {bad}（共 {n_layers} 层，0 起）")
+    head_name, text_head = _first_attr(lm, ["text_linear"], "文本输出头 text_linear")
+    if not callable(text_head):
+        raise AdapterError(f"lm.{head_name} 不可调用，无法产生文本 logits")
+    _, pad_id = _first_attr(
+        lm, ["text_padding_token_id", "existing_text_padding_id"], "文本 PAD token id"
+    )
+    generator = None
+    if mode == "sampled":
+        if temperature is None or float(temperature) <= 0:
+            raise AdapterError("sampled 文本模式需要正的 --text-temperature")
+        generator = torch.Generator(device="cpu").manual_seed(int(seed))
+
+    captured: dict[int, list] = {ell: [] for ell in layers}
+    handles = []
+
+    def mk_hook(ell):
+        def hook(_mod, _inp, out):
+            h = out[0] if isinstance(out, tuple) else out
+            captured[ell].append(h.detach()[0].to(torch.float16).cpu())
+
+        return hook
+
+    for ell in layers:
+        handles.append(tf.layers[ell].register_forward_hook(mk_hook(ell)))
+
+    t0 = time.time()
+    model_input = prepare_teacher_forced_input(lm, codes)
+    if int(model_input.shape[0]) != 1:
+        raise AdapterError("自预测文本流仅支持 batch=1（文本反馈按单序列实现）")
+    n_steps = int(model_input.shape[2])
+    buffers: dict[int, list] = {ell: [] for ell in layers}
+    text_tokens = np.empty(n_steps, dtype=np.int64)
+    hidden_dim = None
+    part_index = 0
+    written = 0
+
+    def flush(part_rows: int) -> None:
+        nonlocal part_index, written
+        for ell in layers:
+            acts = torch.cat(buffers[ell], dim=0).numpy()
+            if acts.shape[0] != part_rows:
+                raise AdapterError(
+                    f"层 {ell} 分片 {part_index} 帧数 {acts.shape[0]} ≠ {part_rows}"
+                )
+            write_npy_atomic(out_dir / f"acts_L{ell}_part{part_index:05d}.npy", acts)
+            buffers[ell].clear()
+        part_index += 1
+        written += part_rows
+
+    prev_token: int | None = None
+    try:
+        with torch.no_grad(), streaming(batch_size=int(model_input.shape[0])):
+            for p in range(n_steps):
+                step_input = model_input[:, :, p : p + 1].clone()
+                if p > 0:
+                    step_input[:, 0, 0] = int(prev_token)
+                for values in captured.values():
+                    values.clear()
+                hidden = forward_backbone(lm, step_input)
+                logits = text_head(hidden)[0, -1].float()
+                if mode == "greedy":
+                    token = int(torch.argmax(logits).item())
+                else:
+                    # 与官方 LMGen 文本采样同口径：top-k 截断后温度采样
+                    k = min(int(top_k), int(logits.shape[-1])) if top_k else int(logits.shape[-1])
+                    top_values, top_indices = torch.topk(logits, k)
+                    probs = torch.softmax(top_values / float(temperature), dim=-1)
+                    pick = int(torch.multinomial(probs.cpu(), 1, generator=generator).item())
+                    token = int(top_indices[pick].item())
+                text_tokens[p] = token
+                prev_token = token
+                del hidden, logits
+                for ell in layers:
+                    if not captured[ell]:
+                        raise AdapterError(f"层 {ell} 在步 {p} 未捕获输出")
+                    h = torch.cat(captured[ell], dim=0)
+                    if h.shape[0] != 1:
+                        raise AdapterError(f"层 {ell} 步 {p} 捕获 {h.shape[0]} 行，期望 1")
+                    current_dim = int(h.shape[1])
+                    if hidden_dim is None:
+                        hidden_dim = current_dim
+                    elif hidden_dim != current_dim:
+                        raise AdapterError(f"隐藏维度在步间变化：{hidden_dim} → {current_dim}")
+                    buffers[ell].append(h)
+                if (p + 1) % chunk_steps == 0:
+                    flush(chunk_steps)
+                    if part_index % 10 == 0:
+                        rate = (p + 1) / max(time.time() - t0, 1e-9)
+                        log(f"自预测前向 {p + 1}/{n_steps} 步（{rate:.1f} 步/s）")
+            if n_steps % chunk_steps:
+                flush(n_steps % chunk_steps)
+    finally:
+        for hd in handles:
+            hd.remove()
+    if hidden_dim is None:
+        raise AdapterError("自预测前向没有捕获任何隐藏状态")
+    if written != n_steps:
+        raise AdapterError(f"自预测前向仅写出 {written}/{n_steps} 步")
+    write_npy_atomic(out_dir / "text_tokens.npy", text_tokens)
+    pad_fraction = float(np.mean(text_tokens == int(pad_id))) if n_steps else 0.0
+    log(
+        f"自预测前向完成：T={n_steps}，PAD 占比 {pad_fraction:.3f}，"
+        f"耗时 {time.time() - t0:.1f}s"
+    )
+    return {
+        "hidden_dim": hidden_dim,
+        "n_steps": n_steps,
+        "n_parts": part_index,
+        "forward_chunk_steps": chunk_steps,
+        "transformer_context": int(context) if context is not None else None,
+        "text_head_source": head_name,
+        "text_token_pad_fraction": pad_fraction,
+    }
+
+
 def run(args) -> None:
     code_version = resolve_code_version(args.code_version)
     out_dir = Path(args.out)
@@ -569,8 +735,7 @@ def run(args) -> None:
     if args.max_seconds:
         n = int(args.max_seconds * sr)
         wav_agent, wav_other = wav_agent[:n], wav_other[:n]
-    if args.text_mode != "pad":
-        raise AdapterError("greedy 文本模式为实验项，待 pad 路径首跑通过后在本机联调（hook sanity AB 用）")
+    log(f"文本流模式：{args.text_mode}")
     log(f"Mimi 流式编码 agent（块长 {args.mimi_chunk_seconds:g}s）")
     codes_agent, z, latent_source = encode_mimi_stream(
         mimi,
@@ -588,9 +753,22 @@ def run(args) -> None:
         return_latent=False,
     )
     codes, build_meta = build_parallel_codes(lm, codes_agent, codes_other, args)
-    stats = forward_capture(
-        lm, codes, args.layers, out_dir, args.forward_chunk_steps
-    )
+    if args.text_mode == "pad":
+        stats = forward_capture(
+            lm, codes, args.layers, out_dir, args.forward_chunk_steps
+        )
+    else:
+        stats = forward_capture_selftext(
+            lm,
+            codes,
+            args.layers,
+            out_dir,
+            args.forward_chunk_steps,
+            args.text_mode,
+            args.text_temperature,
+            args.seed,
+            top_k=args.text_top_k,
+        )
     mimi_latent_ok = z is not None
     if z is not None:
         for pi, i0 in enumerate(range(0, z.shape[0], BLOCK_STEPS)):
@@ -600,6 +778,7 @@ def run(args) -> None:
             )
     build_meta["execution"] = {
         "forward_mode": "streaming_teacher_forced_backbone",
+        "text_mode": args.text_mode,
         "mimi_chunk_seconds": float(args.mimi_chunk_seconds),
         "mimi_chunk_frames": round(
             float(args.mimi_chunk_seconds) * float(getattr(mimi, "frame_rate", 0.0))
@@ -613,7 +792,15 @@ def run(args) -> None:
         "max_seconds": float(args.max_seconds) if args.max_seconds else None,
         "latent_kind": "pre_quantization_continuous" if z is not None else None,
         "latent_source": latent_source,
+        "time_alignment": dict(TIME_ALIGNMENT),
     }
+    if args.text_mode != "pad":
+        build_meta["execution"]["text_head_source"] = stats["text_head_source"]
+        build_meta["execution"]["text_token_pad_fraction"] = stats["text_token_pad_fraction"]
+        if args.text_mode == "sampled":
+            build_meta["execution"]["text_temperature"] = float(args.text_temperature)
+            build_meta["execution"]["text_top_k"] = int(args.text_top_k)
+            build_meta["execution"]["text_seed"] = int(args.seed)
     manifest = {
         "schema_version": 1,
         "model": args.model_name,
@@ -624,7 +811,7 @@ def run(args) -> None:
         "clock_hz": float(getattr(mimi, "frame_rate", 12.5)),
         "n_steps": stats["n_steps"],
         "seed": args.seed,
-        "temperature": None,
+        "temperature": float(args.text_temperature) if args.text_mode == "sampled" else None,
         "text_mode": args.text_mode,
         "source_audio": {
             str(args.audio_agent): sha256_file(args.audio_agent),
@@ -668,7 +855,24 @@ def build_parser(default_model: str) -> argparse.ArgumentParser:
         default=DEFAULT_FORWARD_CHUNK_STEPS,
         help="transformer 有状态前向块长（Moshi 帧）；默认 128 步",
     )
-    ap.add_argument("--text-mode", choices=["pad", "greedy"], default="pad")
+    ap.add_argument(
+        "--text-mode",
+        choices=["greedy", "sampled", "pad"],
+        default="greedy",
+        help="冻结协议默认 greedy；sampled 仅 AB 核验；pad 仅消融复盘",
+    )
+    ap.add_argument(
+        "--text-temperature",
+        type=float,
+        default=DEFAULT_TEXT_TEMPERATURE,
+        help="sampled 文本模式的采样温度（greedy/pad 模式忽略）",
+    )
+    ap.add_argument(
+        "--text-top-k",
+        type=int,
+        default=DEFAULT_TEXT_TOP_K,
+        help="sampled 文本模式的 top-k 截断（官方 LMGen 默认 25；greedy/pad 忽略）",
+    )
     ap.add_argument("--stream-order", choices=["self_first", "other_first"], default="self_first")
     ap.add_argument("--dump-mimi-latent", action="store_true", default=True)
     ap.add_argument("--no-dump-mimi-latent", dest="dump_mimi_latent", action="store_false")

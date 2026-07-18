@@ -3,7 +3,10 @@
 默认生成 PowerShell 批处理（在 Moshi venv 中跑），便于断点续跑：
   uv run python scripts/wp7_cache_mve.py --emit-ps1 <data_root>/mve/cache_mve.ps1
 或串行直跑：--exec
-每会话跑两个角色（agent=ch0/ch1），输出 <data_root>/activations/moshi/mve_r1/<sid>_agent{ch}/
+每会话跑两个角色（agent=ch0/ch1）。文本流模式取自 configs/grids.yaml 的
+mve.text_mode（冻结为 greedy，PREREG #7）；输出目录按模式隔离：
+  greedy → <data_root>/activations/moshi/mve_r1_greedy/<sid>_agent{ch}/
+（撤回前的 PAD 缓存保留在 mve_r1/，仅作消融，不参与正式 G1。）
 """
 
 from __future__ import annotations
@@ -146,12 +149,13 @@ def render_ps1(commands: list[list[str]], cuda_visible_devices: str | None = Non
         (
             "    param([string]$ManifestPath, [string]$CodeVersion, [string]$Layers,"
             " [double]$MaxSeconds, [double]$MimiChunkSeconds,"
-            " [int]$ForwardChunkSteps)"
+            " [int]$ForwardChunkSteps, [string]$TextMode)"
         ),
         "    if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) { return $false }",
         "    try {",
         "        $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json",
         "        if ($manifest.code_version -ne $CodeVersion) { return $false }",
+        "        if ($manifest.text_mode -ne $TextMode) { return $false }",
         "        if ((@($manifest.layers) -join ',') -ne $Layers) { return $false }",
         "        if ([long]$manifest.n_steps -le 0) { return $false }",
         (
@@ -205,6 +209,7 @@ def render_ps1(commands: list[list[str]], cuda_visible_devices: str | None = Non
         max_seconds = _option_value(command, "--max-seconds")
         mimi_chunk_seconds = _option_value(command, "--mimi-chunk-seconds")
         forward_chunk_steps = _option_value(command, "--forward-chunk-steps")
+        text_mode = _option_value(command, "--text-mode")
         invocation = " ".join(["&", *(_powershell_quote(part) for part in command)])
         lines.extend(
             [
@@ -215,7 +220,8 @@ def render_ps1(commands: list[list[str]], cuda_visible_devices: str | None = Non
                     f"-Layers {_powershell_quote(layers)} "
                     f"-MaxSeconds {max_seconds} "
                     f"-MimiChunkSeconds {mimi_chunk_seconds} "
-                    f"-ForwardChunkSteps {forward_chunk_steps})) {{"
+                    f"-ForwardChunkSteps {forward_chunk_steps} "
+                    f"-TextMode {_powershell_quote(text_mode)})) {{"
                 ),
                 f"    {invocation}",
                 (
@@ -242,15 +248,21 @@ def build_commands() -> tuple[list[list[str]], dict]:
     max_s = float(grids["max_minutes_per_session"]) * 60.0
     mimi_chunk_seconds = float(grids["mimi_chunk_seconds"])
     forward_chunk_steps = int(grids["forward_chunk_steps"])
+    text_mode = str(grids["text_mode"])
     if max_s <= 0:
         raise ValueError("mve.max_minutes_per_session 必须大于 0")
     if mimi_chunk_seconds <= 0:
         raise ValueError("mve.mimi_chunk_seconds 必须大于 0")
     if forward_chunk_steps <= 0:
         raise ValueError("mve.forward_chunk_steps 必须大于 0")
+    if text_mode != "greedy":
+        raise ValueError(
+            f"正式缓存计划要求 mve.text_mode=greedy（PREREG #7），配置为 {text_mode!r}"
+        )
     code_version = _runner_code_version(runner)
     audio_root = data_root() / "candor_extracted"
-    out_root = data_root() / "activations" / "moshi" / "mve_r1"
+    # PAD 旧缓存固定在 mve_r1/（消融），正式缓存按模式隔离目录
+    out_root = data_root() / "activations" / "moshi" / f"mve_r1_{text_mode}"
     cmds = []
     for sid in sessions:
         for agent_ch in (0, 1):
@@ -268,6 +280,7 @@ def build_commands() -> tuple[list[list[str]], dict]:
                     "--max-seconds", str(max_s),
                     "--mimi-chunk-seconds", str(mimi_chunk_seconds),
                     "--forward-chunk-steps", str(forward_chunk_steps),
+                    "--text-mode", text_mode,
                     "--out", str(out_dir),
                     "--code-version", code_version,
                 ]
@@ -283,6 +296,8 @@ def build_commands() -> tuple[list[list[str]], dict]:
         "max_seconds": max_s,
         "mimi_chunk_seconds": mimi_chunk_seconds,
         "forward_chunk_steps": forward_chunk_steps,
+        "text_mode": text_mode,
+        "out_root": str(out_root),
     }
     return cmds, meta
 

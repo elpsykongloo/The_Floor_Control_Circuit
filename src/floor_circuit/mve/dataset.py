@@ -2,6 +2,9 @@
 
 R1 复放每会话跑两次（agent=ch0 / agent=ch1），run 目录命名 <session>_agent{ch}；
 bootstrap 的 cluster 单位始终是会话（两份角色数据并入同一 sid）。
+
+时间对齐（PREREG #7）：标签行 step s 的观测截止为 s·τ；acts 读行 s、mimi 读行
+s−1（见 mve/alignment.py），全部路径统一剔除 step < MIN_ELIGIBLE_STEP 的行。
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ import pandas as pd
 import zarr
 
 from floor_circuit.cachelib.zarr_io import read_acts, read_array
+from floor_circuit.mve.alignment import MIN_ELIGIBLE_STEP, feature_row_indices
 from floor_circuit.probes.linear import SessionData
 
 MAX_TRAIN_FEATURE_BYTES = 8 * 1024**3
@@ -60,7 +64,10 @@ def eligible_rows(
     delta_ms: int | None,
     agent_channel: int,
     max_steps: int | None = None,
+    min_step: int = 0,
 ) -> pd.DataFrame:
+    """min_step：特征装配路径必须传 MIN_ELIGIBLE_STEP（时间对齐，PREREG #7）；
+    标签完整性检查（如 preflight 的 T5 逐步覆盖）保持默认 0。"""
     sub = labels[(labels["target"] == target) & (labels["agent_channel"] == agent_channel)]
     if target == "T1":
         if delta_ms is None:
@@ -68,6 +75,8 @@ def eligible_rows(
         sub = sub[sub["delta_ms"] == delta_ms]
     if max_steps is not None:
         sub = sub[sub["step"] < int(max_steps)]
+    if min_step > 0:
+        sub = sub[sub["step"] >= int(min_step)]
     return sub.sort_values("step", kind="stable")
 
 
@@ -106,6 +115,7 @@ def build_training_sample_plan(
                 delta_ms,
                 channel,
                 max_steps=int(spec.n_steps),
+                min_step=MIN_ELIGIBLE_STEP,
             )
             steps = rows["step"].to_numpy(dtype=np.int64)
             values = rows["label"].to_numpy(dtype=np.int64)
@@ -221,7 +231,7 @@ def _validate_role_feature_arrays(
     role: RoleSampleSelection,
     feature: str,
 ) -> int:
-    """校验角色数组的时间轴、步号和维度，返回拼接后的特征维度。"""
+    """校验角色数组的时间轴、对齐后行索引和维度，返回拼接后的特征维度。"""
 
     shapes = [tuple(int(value) for value in array.shape) for array in arrays]
     if any(len(shape) != 2 for shape in shapes):
@@ -240,9 +250,10 @@ def _validate_role_feature_arrays(
             f"{role.session_id}/agent{role.agent_channel}/mimi 双通道形状不一致：{shapes}"
         )
     if len(role.steps):
-        if int(role.steps[0]) < 0 or int(role.steps[-1]) >= role.n_steps:
+        rows = feature_row_indices(feature, role.steps)
+        if int(rows[0]) < 0 or int(rows[-1]) >= role.n_steps:
             raise ValueError(
-                f"{role.session_id}/agent{role.agent_channel} 的步号越过特征时间域"
+                f"{role.session_id}/agent{role.agent_channel} 对齐后的行索引越过特征时间域"
             )
         if np.any(np.diff(role.steps) < 0):
             raise ValueError(
@@ -287,13 +298,15 @@ def _write_role_feature_rows(
     destination: np.ndarray,
     arrays: tuple[zarr.Array, ...],
     steps: np.ndarray,
+    feature: str,
 ) -> None:
-    """逐通道写入预分配矩阵，避免为双通道拼接创建额外整块副本。"""
+    """逐通道写入预分配矩阵；行索引经时间对齐映射（acts=s、mimi=s−1）。"""
 
+    rows = feature_row_indices(feature, steps)
     column = 0
     for array in arrays:
         width = int(array.shape[1])
-        destination[:, column : column + width] = _read_feature_rows(array, steps)
+        destination[:, column : column + width] = _read_feature_rows(array, rows)
         column += width
     if column != destination.shape[1]:
         raise RuntimeError(f"角色特征只写入 {column}/{destination.shape[1]} 列")
@@ -333,6 +346,7 @@ def load_training_sample(
             features[offset : offset + n_rows],
             arrays,
             role.steps,
+            feature,
         )
         labels[offset : offset + n_rows] = role.labels
         offset += n_rows
@@ -364,6 +378,7 @@ def load_session_feature(
             delta_ms,
             channel,
             max_steps=int(spec.n_steps),
+            min_step=MIN_ELIGIBLE_STEP,
         )
         roles.append(
             RoleSampleSelection(
@@ -401,6 +416,7 @@ def load_session_feature(
             features[offset : offset + count],
             arrays,
             role.steps,
+            feature,
         )
         values[offset : offset + count] = role.labels
         offset += count
@@ -437,15 +453,14 @@ def load_role_xy(
             )
     else:
         raise ValueError(f"未知特征类型：{feature}")
-    rows = eligible_rows(labels, target, delta_ms, agent_channel)
-    steps = rows["step"].to_numpy(dtype=np.int64)
-    if feature == "mimi" and len(steps) and (
-        int(steps[0]) < 0 or int(steps[-1]) >= int(features[0].shape[0])
-    ):
-        raise ValueError(f"{session_id}/agent{agent_channel} 的步号越过 Mimi 双通道时间域")
-    keep = steps < features[0].shape[0]
-    steps, y = steps[keep], rows["label"].to_numpy(dtype=np.int64)[keep]
-    selected = [array[steps].astype(np.float32) for array in features]
+    rows_frame = eligible_rows(labels, target, delta_ms, agent_channel, min_step=MIN_ELIGIBLE_STEP)
+    steps = rows_frame["step"].to_numpy(dtype=np.int64)
+    # 步域统一按特征时间长度截断（与正式路径的 max_steps 口径一致，四表征同一行集）
+    keep = steps < int(features[0].shape[0])
+    steps = steps[keep]
+    y = rows_frame["label"].to_numpy(dtype=np.int64)[keep]
+    rows = feature_row_indices(feature, steps)
+    selected = [array[rows].astype(np.float32) for array in features]
     return np.concatenate(selected, axis=1) if len(selected) > 1 else selected[0], y
 
 

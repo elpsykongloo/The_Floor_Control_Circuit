@@ -117,10 +117,12 @@ def _write_run(
             },
             mimi_latent=True,
             code_version="test-runner",
+            text_mode="greedy",
             extra={
                 "delay_application": "global_once_before_streaming_forward",
                 "execution": {
                     "forward_mode": "streaming_teacher_forced_backbone",
+                    "text_mode": "greedy",
                     "max_seconds": n_steps / 12.5,
                     "mimi_chunk_seconds": 0.08,
                     "mimi_chunk_frames": 1,
@@ -129,6 +131,10 @@ def _write_run(
                     "mimi_state_preserved": True,
                     "depformer_skipped": True,
                     "latent_kind": "pre_quantization_continuous",
+                    "time_alignment": {
+                        "initial_token_position": 0,
+                        "acts_observed_through_offset_steps": 0,
+                    },
                 },
             },
         ),
@@ -216,6 +222,7 @@ def test_preflight_validates_runs_arrays_latent_and_labels(tmp_path):
         expected_max_seconds=6 / 12.5,
         expected_mimi_chunk_seconds=0.08,
         expected_forward_chunk_steps=128,
+        expected_text_mode="greedy",
     )
 
     assert len(specs) == 4
@@ -247,6 +254,7 @@ def test_preflight_rejects_quantized_latent_and_missing_layer(tmp_path):
             6 / 12.5,
             0.08,
             128,
+            expected_text_mode="greedy",
         )
 
     message = str(caught.value)
@@ -285,6 +293,7 @@ def test_preflight_rejects_stale_runner_execution_and_source_audio(tmp_path):
             6 / 12.5,
             0.08,
             128,
+            expected_text_mode="greedy",
         )
 
     message = str(caught.value)
@@ -320,10 +329,12 @@ def test_preflight_allows_empty_t4_roles_and_preserves_pool_supervision(tmp_path
         6 / 12.5,
         0.08,
         128,
+        expected_text_mode="greedy",
     )
 
-    assert report["target_pools"]["train"]["T4"]["n_rows"] == 6
-    assert report["target_pools"]["val"]["T4"]["n_rows"] == 12
+    # n_steps=6，min_step=1 口径下每角色 5 行（与特征装配的真实行集一致）
+    assert report["target_pools"]["train"]["T4"]["n_rows"] == 5
+    assert report["target_pools"]["val"]["T4"]["n_rows"] == 10
 
 
 def test_preflight_rejects_target_pool_without_both_classes(tmp_path):
@@ -348,7 +359,79 @@ def test_preflight_rejects_target_pool_without_both_classes(tmp_path):
             6 / 12.5,
             0.08,
             128,
+            expected_text_mode="greedy",
         )
+
+
+def test_preflight_rejects_pad_text_mode_and_missing_time_alignment(tmp_path):
+    """PREREG #7：正式 G1 预检必须拒绝 PAD 缓存与缺失时间对齐声明的 manifest。"""
+    runs, labels, audio, layers = _world(tmp_path, ["s1"])
+    run_dir = run_dir_for(runs, "s1", 0)
+    manifest = RunManifest.model_validate_json(
+        (run_dir / "manifest.json").read_text(encoding="utf-8")
+    )
+    manifest.text_mode = "pad"
+    del manifest.extra["execution"]["time_alignment"]
+    save_manifest(run_dir, manifest)
+
+    with pytest.raises(MvePreflightError) as caught:
+        preflight_mve_inputs(
+            runs,
+            labels,
+            audio,
+            ["s1"],
+            {"train": ["s1"], "val": []},
+            layers,
+            6,
+            12.5,
+            240,
+            "test-runner",
+            6 / 12.5,
+            0.08,
+            128,
+            expected_text_mode="greedy",
+        )
+
+    message = str(caught.value)
+    assert "text_mode" in message
+    assert "time_alignment" in message
+
+
+def test_preflight_ablation_mode_accepts_legacy_pad_manifest(tmp_path):
+    """消融复盘：expected_text_mode=pad + 放宽 code_version/time_alignment 应通过。"""
+    sessions = ["s1", "s2"]
+    runs, labels, audio, layers = _world(tmp_path, sessions)
+    for sid in sessions:
+        for channel in (0, 1):
+            run_dir = run_dir_for(runs, sid, channel)
+            manifest = RunManifest.model_validate_json(
+                (run_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            manifest.text_mode = "pad"
+            manifest.code_version = "legacy-runner"
+            del manifest.extra["execution"]["time_alignment"]
+            save_manifest(run_dir, manifest)
+
+    _specs, report = preflight_mve_inputs(
+        runs,
+        labels,
+        audio,
+        sessions,
+        {"train": ["s1"], "val": ["s2"]},
+        layers,
+        6,
+        12.5,
+        240,
+        "test-runner",
+        6 / 12.5,
+        0.08,
+        128,
+        expected_text_mode="pad",
+        enforce_code_version=False,
+        require_time_alignment=False,
+    )
+    assert report["expected_text_mode"] == "pad"
+    assert report["enforce_code_version"] is False
 
 
 def test_eligible_rows_caps_and_orders_by_manifest_steps():
@@ -363,6 +446,8 @@ def test_eligible_rows_caps_and_orders_by_manifest_steps():
     )
     rows = eligible_rows(labels, "T1", 240, 0, max_steps=4)
     assert rows["step"].tolist() == [0, 1, 3]
+    filtered = eligible_rows(labels, "T1", 240, 0, max_steps=4, min_step=1)
+    assert filtered["step"].tolist() == [1, 3]
 
 
 def test_hazard_baseline_uses_each_role_n_steps(tmp_path, monkeypatch):
@@ -387,8 +472,9 @@ def test_hazard_baseline_uses_each_role_n_steps(tmp_path, monkeypatch):
 
     result = module.hazard_baseline(["train"], ["eval"], "T1", 240, specs)
 
-    assert len(result["eval"][0]) == 8
-    assert len(result["eval"][1]) == 8
+    # n_steps=4 且时间对齐剔除 step 0 → 每通道步 1..3，共 2 通道 × 3 行
+    assert len(result["eval"][0]) == 6
+    assert len(result["eval"][1]) == 6
 
 
 def test_hazard_baseline_preserves_empty_eval_cluster(tmp_path, monkeypatch):

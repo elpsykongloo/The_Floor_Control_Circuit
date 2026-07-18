@@ -112,7 +112,8 @@ class TestMveDataset:
         data = build_session_data(runs_root, labels_root, sids, layer=12, target="T1", delta_ms=240)
         assert set(data) == set(sids)
         X, y = data["s0"]
-        assert X.shape == (240, 8) and len(y) == 240  # 两角色 × 120 步
+        # 两角色 × 119 步（时间对齐后 step 0 全表征剔除，PREREG #7）
+        assert X.shape == (238, 8) and len(y) == 238
 
 
 class TestMveOrchestration:
@@ -135,8 +136,9 @@ class TestMveOrchestration:
             sid: (reference[sid][0], rng.normal(0, 1, len(reference[sid][0])))
             for sid in evals
         }
+        chosen = max(summary, key=lambda ell: summary[ell]["auc_mean"])
         res = evaluate_target(summary, {"noise": noise_baseline}, n_boot=100,
-                              full_thr=0.05, backup_thr=0.02)
+                              full_thr=0.05, backup_thr=0.02, best_layer=chosen)
         assert res["best_layer"] == 12 and res["verdict"] == "full_e1"
         assert set(res["baseline_metrics"]["noise"]) >= {"auc", "auprc", "balanced_acc"}
         assert abs(res["shuffled_auc"] - 0.5) < 0.12
@@ -183,6 +185,7 @@ class TestMveOrchestration:
             n_boot=100,
             full_thr=0.05,
             backup_thr=0.02,
+            best_layer=12,
         )
 
         expected_probe = float(
@@ -215,6 +218,6 @@ class TestMveOrchestration:
                 "n_eval_sessions": 4,
             },
         )
-        assert "不覆盖模型选择不确定性" in report
+        assert "无报告集选择泄漏" in report
         assert "3 个种子" in report
         assert f"探针 AUC {summary[12]['auc_mean']:.4f}" in report
