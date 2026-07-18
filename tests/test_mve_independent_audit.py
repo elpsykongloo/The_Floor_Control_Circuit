@@ -177,8 +177,11 @@ def _official_summary() -> dict[str, Any]:
             "time_alignment": {
                 "initial_token_position": 0,
                 "acts_observed_through_offset_steps": 0,
-                "min_eligible_step": 1,
-                "baseline_row_shift_steps": 1,
+                "label_step_observed_through_offset_steps": 1,
+                "acts_row_for_step": "s+1",
+                "baseline_row_for_step": "s",
+                "min_eligible_step": 0,
+                "last_label_step_dropped": True,
             },
             "nested_selection": {
                 "inner_val_sessions": TRAIN_SESSIONS[:32],
@@ -237,8 +240,8 @@ def _write_frozen_inputs(root: Path) -> tuple[Path, dict[str, str]]:
 
     t1 = _labels("T1")
     t4 = _labels("T4")
-    # 步号自 1 起：时间对齐（PREREG #7）下 step 0 不进入特征配对，NPZ 标签
-    # 对应的权威行集也从 step 1 开始。
+    # 步号 1..len：均在可用步域 [0, expected_n_steps−1) 内（PREREG #8），
+    # 权威行集与 NPZ 标签逐行对应。
     frame = pd.DataFrame(
         {
             "target": ["T1"] * len(t1) + ["T4"] * len(t4),

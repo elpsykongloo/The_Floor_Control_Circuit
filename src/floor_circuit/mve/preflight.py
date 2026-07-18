@@ -18,7 +18,11 @@ import pandas as pd
 import zarr
 
 from floor_circuit.cachelib.manifest import load_manifest, sha256_file
-from floor_circuit.mve.alignment import MIN_ELIGIBLE_STEP, RUNNER_TIME_ALIGNMENT
+from floor_circuit.mve.alignment import (
+    MIN_ELIGIBLE_STEP,
+    RUNNER_TIME_ALIGNMENT,
+    usable_label_steps,
+)
 from floor_circuit.mve.dataset import eligible_rows, run_dir_for
 from floor_circuit.probes.stats import PerSession, ScoreCollection, SeededPerSession
 
@@ -233,18 +237,18 @@ def _validate_label(
         spec = run_specs.get((sid, channel))
         if spec is None:
             continue
-        # T1 按特征装配的真实行域（min_step=1）检查；T5 逐步覆盖检查必须含 step 0
-        for target, delta, min_step in (
-            ("T1", t1_delta_ms, MIN_ELIGIBLE_STEP),
-            ("T5", None, 0),
+        # T1 按特征装配的真实行域（步 0..n_steps−2）检查；T5 逐步覆盖必须查满 0..n_steps−1
+        for target, delta, max_steps in (
+            ("T1", t1_delta_ms, usable_label_steps(spec.n_steps)),
+            ("T5", None, spec.n_steps),
         ):
             rows = eligible_rows(
                 labels,
                 target,
                 delta,
                 channel,
-                max_steps=spec.n_steps,
-                min_step=min_step,
+                max_steps=max_steps,
+                min_step=MIN_ELIGIBLE_STEP,
             )
             if rows.empty:
                 issues.append(f"{sid}/agent{channel}: 前 {spec.n_steps} 步缺少 {target} 标签")
@@ -254,7 +258,7 @@ def _validate_label(
                 target,
                 delta,
                 channel,
-                max_steps=spec.n_steps,
+                max_steps=usable_label_steps(spec.n_steps),
                 min_step=MIN_ELIGIBLE_STEP,
             )
             if not rows.empty and not np.isin(rows["label"].to_numpy(), [0, 1]).all():
@@ -302,7 +306,7 @@ def _validate_target_pools(
                         target,
                         delta,
                         channel,
-                        max_steps=spec.n_steps,
+                        max_steps=usable_label_steps(spec.n_steps),
                         min_step=MIN_ELIGIBLE_STEP,
                     )
                     target_values[target].append(rows["label"].to_numpy(dtype=np.int64))

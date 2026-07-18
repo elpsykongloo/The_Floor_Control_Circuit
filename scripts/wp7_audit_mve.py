@@ -53,7 +53,17 @@ CI_SCOPE = (
     "层与各种子 C 在 probe_train 内层划分上选择，probe_val 仅用于最终报告；"
     "会话级 bootstrap CI 对选定模型无报告集选择泄漏（目标间取优仍为冻结决策规则）"
 )
-MIN_ELIGIBLE_STEP = 1  # 与 mve/alignment.py 一致（本脚本独立复算，不 import 正式链）
+MIN_ELIGIBLE_STEP = 0  # 与 mve/alignment.py 一致（本脚本独立复算，不 import 正式链）
+# PREREG #8 锚定：标签步 s 观测截止 (s+1)·τ；acts 读行 s+1、基线读行 s；末标签步丢弃
+EXPECTED_TIME_ALIGNMENT = {
+    "initial_token_position": 0,
+    "acts_observed_through_offset_steps": 0,
+    "label_step_observed_through_offset_steps": 1,
+    "acts_row_for_step": "s+1",
+    "baseline_row_for_step": "s",
+    "min_eligible_step": MIN_ELIGIBLE_STEP,
+    "last_label_step_dropped": True,
+}
 DEFAULT_SUMMARY = REPORTS_DIR / "mve_summary.json"
 DEFAULT_OUTPUT = REPORTS_DIR / "mve_independent_audit.json"
 DEFAULT_SPLIT = REPO_ROOT / "configs" / "splits" / "candor.json"
@@ -293,8 +303,10 @@ def _assemble_authoritative_labels(
                 or (steps_numeric < 0).any()
             ):
                 raise IndependentAuditError(f"{session_id}/{target}/agent{channel}: step 不是非负整数")
-            # 时间对齐（PREREG #7）：与正式链一致地剔除 step < MIN_ELIGIBLE_STEP
-            rows = rows.loc[(steps_numeric < expected_n_steps) & (steps_numeric >= MIN_ELIGIBLE_STEP)]
+            # 时间对齐（PREREG #7/#8）：与正式链一致——末标签步（无对应 acts 行）丢弃
+            rows = rows.loc[
+                (steps_numeric < expected_n_steps - 1) & (steps_numeric >= MIN_ELIGIBLE_STEP)
+            ]
             rows = rows.sort_values("step", kind="stable")
             steps = rows["step"].to_numpy(dtype=np.int64)
             if len(steps) != len(np.unique(steps)):
@@ -838,13 +850,7 @@ def _verify_protocol(
         raise IndependentAuditError("正式 G1 summary 不得为消融变体")
     checks: dict[str, bool] = {
         "text_mode": protocol.get("text_mode") == str(mve["text_mode"]) == "greedy",
-        "time_alignment": protocol.get("time_alignment")
-        == {
-            "initial_token_position": 0,
-            "acts_observed_through_offset_steps": 0,
-            "min_eligible_step": MIN_ELIGIBLE_STEP,
-            "baseline_row_shift_steps": 1,
-        },
+        "time_alignment": protocol.get("time_alignment") == EXPECTED_TIME_ALIGNMENT,
     }
     split = _load_json_object(split_path, "冻结划分")
     train = [str(value) for value in split["splits"]["probe_train"][: int(mve["n_sessions_train"])]]

@@ -3,8 +3,9 @@
 R1 复放每会话跑两次（agent=ch0 / agent=ch1），run 目录命名 <session>_agent{ch}；
 bootstrap 的 cluster 单位始终是会话（两份角色数据并入同一 sid）。
 
-时间对齐（PREREG #7）：标签行 step s 的观测截止为 s·τ；acts 读行 s、mimi 读行
-s−1（见 mve/alignment.py），全部路径统一剔除 step < MIN_ELIGIBLE_STEP 的行。
+时间对齐（PREREG #7/#8）：标签步 s 的观测截止为 (s+1)·τ（在线：刚接收完对方帧 s）；
+acts 读行 s+1、mimi/hazard/声学读行 s（见 mve/alignment.py）。acts[0]（initial）
+永不使用，末标签步（无对应 acts 行）丢弃：可用步 0..n_steps−2。
 """
 
 from __future__ import annotations
@@ -18,7 +19,11 @@ import pandas as pd
 import zarr
 
 from floor_circuit.cachelib.zarr_io import read_acts, read_array
-from floor_circuit.mve.alignment import MIN_ELIGIBLE_STEP, feature_row_indices
+from floor_circuit.mve.alignment import (
+    MIN_ELIGIBLE_STEP,
+    feature_row_indices,
+    usable_label_steps,
+)
 from floor_circuit.probes.linear import SessionData
 
 MAX_TRAIN_FEATURE_BYTES = 8 * 1024**3
@@ -66,8 +71,9 @@ def eligible_rows(
     max_steps: int | None = None,
     min_step: int = 0,
 ) -> pd.DataFrame:
-    """min_step：特征装配路径必须传 MIN_ELIGIBLE_STEP（时间对齐，PREREG #7）；
-    标签完整性检查（如 preflight 的 T5 逐步覆盖）保持默认 0。"""
+    """特征装配路径必须传 max_steps=usable_label_steps(n_steps)（末标签步丢弃，
+    PREREG #8）与 min_step=MIN_ELIGIBLE_STEP；标签完整性检查（如 preflight 的 T5
+    逐步覆盖）用原始 n_steps 与 min_step=0。"""
     sub = labels[(labels["target"] == target) & (labels["agent_channel"] == agent_channel)]
     if target == "T1":
         if delta_ms is None:
@@ -114,7 +120,7 @@ def build_training_sample_plan(
                 target,
                 delta_ms,
                 channel,
-                max_steps=int(spec.n_steps),
+                max_steps=usable_label_steps(int(spec.n_steps)),
                 min_step=MIN_ELIGIBLE_STEP,
             )
             steps = rows["step"].to_numpy(dtype=np.int64)
@@ -300,7 +306,7 @@ def _write_role_feature_rows(
     steps: np.ndarray,
     feature: str,
 ) -> None:
-    """逐通道写入预分配矩阵；行索引经时间对齐映射（acts=s、mimi=s−1）。"""
+    """逐通道写入预分配矩阵；行索引经时间对齐映射（acts=s+1、基线=s）。"""
 
     rows = feature_row_indices(feature, steps)
     column = 0
@@ -377,7 +383,7 @@ def load_session_feature(
             target,
             delta_ms,
             channel,
-            max_steps=int(spec.n_steps),
+            max_steps=usable_label_steps(int(spec.n_steps)),
             min_step=MIN_ELIGIBLE_STEP,
         )
         roles.append(
@@ -455,8 +461,8 @@ def load_role_xy(
         raise ValueError(f"未知特征类型：{feature}")
     rows_frame = eligible_rows(labels, target, delta_ms, agent_channel, min_step=MIN_ELIGIBLE_STEP)
     steps = rows_frame["step"].to_numpy(dtype=np.int64)
-    # 步域统一按特征时间长度截断（与正式路径的 max_steps 口径一致，四表征同一行集）
-    keep = steps < int(features[0].shape[0])
+    # 步域统一截断到可用标签步（末步丢弃，四表征同一行集；与正式路径口径一致）
+    keep = steps < usable_label_steps(int(features[0].shape[0]))
     steps = steps[keep]
     y = rows_frame["label"].to_numpy(dtype=np.int64)[keep]
     rows = feature_row_indices(feature, steps)

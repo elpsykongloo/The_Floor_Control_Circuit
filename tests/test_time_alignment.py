@@ -1,7 +1,8 @@
-"""时间对齐哨兵测试（PREREG #7）：任何表征都不得读到观测截止之后的信息。
+"""时间对齐哨兵测试（PREREG #7/#8）：四路表征观测截止统一为 (s+1)·τ。
 
-约定：标签步 s 的观测截止 = s·τ。acts 读行 s；Mimi/hazard/声学读行 s−1。
-每个哨兵都带反例（旧实现的行映射确实泄漏未来一帧），防止测试退化为恒真。
+锚定（#8，用户依 LMGen 源码裁定）：标签步 s = 在线系统刚接收完对方帧 s 的决策
+状态；acts 读行 s+1（数组首位是 initial），Mimi/hazard/声学读行 s；acts[0] 永不
+使用，末标签步（无对应 acts 行）丢弃。每个哨兵都带反例，防止测试退化为恒真。
 """
 
 from __future__ import annotations
@@ -10,10 +11,13 @@ import numpy as np
 import pytest
 
 from floor_circuit.mve.alignment import (
+    ANALYSIS_TIME_ALIGNMENT,
     FEATURE_OBSERVED_THROUGH_OFFSET,
+    LABEL_STEP_OBSERVED_THROUGH_OFFSET,
     MIN_ELIGIBLE_STEP,
     RUNNER_TIME_ALIGNMENT,
     feature_row_indices,
+    usable_label_steps,
 )
 from floor_circuit.probes.baselines import hazard_features
 from floor_circuit.probes.gru import make_windows
@@ -21,28 +25,42 @@ from floor_circuit.probes.gru import make_windows
 
 class TestRowMapping:
     def test_offsets_are_frozen(self):
+        assert LABEL_STEP_OBSERVED_THROUGH_OFFSET == 1
         assert FEATURE_OBSERVED_THROUGH_OFFSET == {
             "acts": 0,
             "mimi": 1,
             "hazard": 1,
             "acoustic": 1,
         }
-        assert MIN_ELIGIBLE_STEP == 1
+        assert MIN_ELIGIBLE_STEP == 0
         assert RUNNER_TIME_ALIGNMENT == {
             "initial_token_position": 0,
             "acts_observed_through_offset_steps": 0,
         }
+        assert ANALYSIS_TIME_ALIGNMENT["acts_row_for_step"] == "s+1"
+        assert ANALYSIS_TIME_ALIGNMENT["baseline_row_for_step"] == "s"
+        assert ANALYSIS_TIME_ALIGNMENT["last_label_step_dropped"] is True
 
-    def test_acts_reads_row_s_and_mimi_reads_row_s_minus_1(self):
-        steps = np.array([1, 4, 9], dtype=np.int64)
-        np.testing.assert_array_equal(feature_row_indices("acts", steps), [1, 4, 9])
-        np.testing.assert_array_equal(feature_row_indices("mimi", steps), [0, 3, 8])
-        np.testing.assert_array_equal(feature_row_indices("hazard", steps), [0, 3, 8])
-        np.testing.assert_array_equal(feature_row_indices("acoustic", steps), [0, 3, 8])
+    def test_acts_reads_row_s_plus_1_and_baselines_read_row_s(self):
+        steps = np.array([0, 4, 9], dtype=np.int64)
+        np.testing.assert_array_equal(feature_row_indices("acts", steps), [1, 5, 10])
+        np.testing.assert_array_equal(feature_row_indices("mimi", steps), [0, 4, 9])
+        np.testing.assert_array_equal(feature_row_indices("hazard", steps), [0, 4, 9])
+        np.testing.assert_array_equal(feature_row_indices("acoustic", steps), [0, 4, 9])
 
-    def test_step_zero_is_rejected(self):
+    def test_initial_state_row_zero_is_never_selected_for_acts(self):
+        # acts 行 0 是纯 initial 状态；任何合法标签步映射到的 acts 行都 ≥ 1
+        steps = np.arange(0, 50, dtype=np.int64)
+        assert int(feature_row_indices("acts", steps).min()) == 1
+
+    def test_last_label_step_is_dropped(self):
+        assert usable_label_steps(7500) == 7499  # 可用步 0..7498；acts 行最大 7499
+        assert usable_label_steps(1) == 0
+        assert usable_label_steps(0) == 0
+
+    def test_negative_step_is_rejected(self):
         with pytest.raises(ValueError, match="MIN_ELIGIBLE_STEP"):
-            feature_row_indices("mimi", np.array([0, 1], dtype=np.int64))
+            feature_row_indices("mimi", np.array([-1, 1], dtype=np.int64))
 
     def test_unknown_feature_is_rejected(self):
         with pytest.raises(ValueError, match="未知表征类型"):
@@ -54,7 +72,7 @@ def _random_states(rng: np.random.Generator, n: int) -> np.ndarray:
 
 
 class TestHazardCausality:
-    """hazard 行 s−1 只能依赖 states[0..s−1]（观测截止 s·τ）。"""
+    """hazard 行 s 只能依赖 states[0..s]（观测截止 (s+1)·τ）。"""
 
     def test_selected_rows_are_causal(self):
         rng = np.random.default_rng(20260718)
@@ -62,59 +80,59 @@ class TestHazardCausality:
             n = int(rng.integers(8, 40))
             states = _random_states(rng, n)
             full = hazard_features(states, step_s=0.08)
-            for step in range(MIN_ELIGIBLE_STEP, n):
-                row = feature_row_indices("hazard", np.array([step]))[0]
-                truncated = hazard_features(states[:step], step_s=0.08)
+            for step in range(MIN_ELIGIBLE_STEP, n - 1):
+                row = int(feature_row_indices("hazard", np.array([step]))[0])
+                truncated = hazard_features(states[: step + 1], step_s=0.08)
                 np.testing.assert_array_equal(
                     full[row],
                     truncated[row],
-                    err_msg=f"step {step}: hazard 行读到了 states[{step}:] 的信息",
+                    err_msg=f"step {step}: hazard 行读到了 states[{step + 1}:] 的信息",
                 )
 
-    def test_old_mapping_leaks_current_step_state(self):
-        """反例：旧实现读行 s，state[s] 一变该行就变（证明泄漏真实存在）。"""
+    def test_row_beyond_cutoff_leaks_next_state(self):
+        """反例：读行 s+1 会随 states[s+1] 变化（证明越界读取真实泄漏）。"""
         states = np.array([0, 0, 1, 1, 3, 3, 0, 0], dtype=np.int64)
         perturbed = states.copy()
         step = 4
-        perturbed[step] = 4  # OVERLAP_HOLD → GAP：改变当前步的活跃状态
-        old_row_original = hazard_features(states, 0.08)[step]
-        old_row_perturbed = hazard_features(perturbed, 0.08)[step]
-        assert not np.array_equal(old_row_original, old_row_perturbed)
-        # 新映射（行 s−1）对同一扰动不变
-        new_row_original = hazard_features(states, 0.08)[step - 1]
-        new_row_perturbed = hazard_features(perturbed, 0.08)[step - 1]
-        np.testing.assert_array_equal(new_row_original, new_row_perturbed)
+        perturbed[step + 1] = 4  # 改变截止之后的状态
+        leaked_original = hazard_features(states, 0.08)[step + 1]
+        leaked_perturbed = hazard_features(perturbed, 0.08)[step + 1]
+        assert not np.array_equal(leaked_original, leaked_perturbed)
+        # 正确映射（行 s）对同一扰动不变
+        row_original = hazard_features(states, 0.08)[step]
+        row_perturbed = hazard_features(perturbed, 0.08)[step]
+        np.testing.assert_array_equal(row_original, row_perturbed)
 
 
 class TestAcousticWindowCausality:
-    """声学窗口（窗尾 s−1）不得包含帧 s 及之后的内容。"""
+    """声学窗口（窗尾 s）不得包含帧 s+1 及之后的内容。"""
 
     def test_windows_ignore_future_frames(self):
         rng = np.random.default_rng(7)
         feats = rng.normal(size=(30, 4)).astype(np.float32)
-        steps = np.arange(MIN_ELIGIBLE_STEP, 30, dtype=np.int64)
+        steps = np.arange(MIN_ELIGIBLE_STEP, 29, dtype=np.int64)
         rows = feature_row_indices("acoustic", steps)
         windows = make_windows(feats, rows)
         for index, step in enumerate(steps):
             perturbed = feats.copy()
-            perturbed[step:] += 100.0
+            perturbed[step + 1 :] += 100.0
             perturbed_windows = make_windows(perturbed, rows)
             np.testing.assert_array_equal(
                 windows[index],
                 perturbed_windows[index],
-                err_msg=f"step {step}: 声学窗口读到了帧 {step} 及之后的内容",
+                err_msg=f"step {step}: 声学窗口读到了帧 {step + 1} 及之后的内容",
             )
 
-    def test_old_window_end_contains_current_frame(self):
-        """反例：旧实现窗尾 = s，会随帧 s 变化。"""
+    def test_window_end_beyond_cutoff_contains_future_frame(self):
+        """反例：窗尾 = s+1 会随帧 s+1 变化。"""
         rng = np.random.default_rng(9)
         feats = rng.normal(size=(12, 4)).astype(np.float32)
         step = 5
         perturbed = feats.copy()
-        perturbed[step] += 100.0
-        old = make_windows(feats, np.array([step]))
-        old_perturbed = make_windows(perturbed, np.array([step]))
-        assert not np.array_equal(old, old_perturbed)
+        perturbed[step + 1] += 100.0
+        leaked = make_windows(feats, np.array([step + 1]))
+        leaked_perturbed = make_windows(perturbed, np.array([step + 1]))
+        assert not np.array_equal(leaked, leaked_perturbed)
 
 
 class TestAcousticFrameFootprint:
@@ -133,7 +151,7 @@ class TestAcousticFrameFootprint:
         hop = round(sr * 80.0 / 1000.0)
         return wav, sr, hop
 
-    def _assert_causal(self, monkeypatch=None, expect_backend: str = "parselmouth") -> None:
+    def _assert_causal(self, expect_backend: str) -> None:
         from floor_circuit.probes import baselines
 
         wav, sr, hop = self._wav()
@@ -160,8 +178,8 @@ class TestAcousticFrameFootprint:
         self._assert_causal(expect_backend="yin")
 
 
-class TestMimiRowShiftEndToEnd:
-    """迷你 zarr 世界：行值编码行号，端到端验证 acts=s、mimi=s−1。"""
+class TestRowShiftEndToEnd:
+    """迷你 zarr 世界：行值编码行号，端到端验证 acts=s+1、mimi=s、末步丢弃。"""
 
     def test_dataset_assembly_uses_shifted_rows(self, tmp_path):
         import pandas as pd
@@ -195,9 +213,9 @@ class TestMimiRowShiftEndToEnd:
         )
 
         X_acts, y = load_role_xy(runs, labels, "s0", 0, 4, "T1", 240, feature="acts")
-        assert y.tolist() == [1, 0, 1, 0, 1]  # 步 1..5
-        np.testing.assert_array_equal(X_acts[:, 0], [1, 2, 3, 4, 5])  # acts 行 = s
+        assert y.tolist() == [0, 1, 0, 1, 0]  # 可用步 0..4（末步 5 丢弃）
+        np.testing.assert_array_equal(X_acts[:, 0], [1, 2, 3, 4, 5])  # acts 行 = s+1，行 0 弃用
 
         X_mimi, _ = load_role_xy(runs, labels, "s0", 0, -1, "T1", 240, feature="mimi")
-        np.testing.assert_array_equal(X_mimi[:, 0], [0, 1, 2, 3, 4])  # 自通道行 = s−1
-        np.testing.assert_array_equal(X_mimi[:, 1], [100, 101, 102, 103, 104])  # 对方通道同移
+        np.testing.assert_array_equal(X_mimi[:, 0], [0, 1, 2, 3, 4])  # 自通道行 = s
+        np.testing.assert_array_equal(X_mimi[:, 1], [100, 101, 102, 103, 104])  # 对方通道同行

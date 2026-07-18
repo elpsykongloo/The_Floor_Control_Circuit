@@ -332,7 +332,7 @@ def test_preflight_allows_empty_t4_roles_and_preserves_pool_supervision(tmp_path
         expected_text_mode="greedy",
     )
 
-    # n_steps=6，min_step=1 口径下每角色 5 行（与特征装配的真实行集一致）
+    # n_steps=6，可用步 0..4（末步丢弃）→ 每角色 5 行（与特征装配的真实行集一致）
     assert report["target_pools"]["train"]["T4"]["n_rows"] == 5
     assert report["target_pools"]["val"]["T4"]["n_rows"] == 10
 
@@ -472,7 +472,7 @@ def test_hazard_baseline_uses_each_role_n_steps(tmp_path, monkeypatch):
 
     result = module.hazard_baseline(["train"], ["eval"], "T1", 240, specs)
 
-    # n_steps=4 且时间对齐剔除 step 0 → 每通道步 1..3，共 2 通道 × 3 行
+    # n_steps=4 且末标签步丢弃 → 每通道可用步 0..2，共 2 通道 × 3 行（PREREG #8）
     assert len(result["eval"][0]) == 6
     assert len(result["eval"][1]) == 6
 

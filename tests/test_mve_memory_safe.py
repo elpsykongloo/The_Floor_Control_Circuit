@@ -177,7 +177,8 @@ def test_training_plan_keeps_each_variable_length_role_time_domain(tmp_path):
     actual, _ = load_training_sample(runs, plan, 4)
     expected = np.concatenate(
         [
-            expected_arrays[(role.session_id, role.agent_channel)][role.steps]
+            # acts 行 = 步 + 1（PREREG #8）
+            expected_arrays[(role.session_id, role.agent_channel)][role.steps + 1]
             for role in plan.roles
         ]
     )
@@ -202,7 +203,7 @@ def test_mimi_loaders_concatenate_self_then_other_for_each_role(tmp_path):
 
     expected_role0 = np.concatenate([channel_values[0], channel_values[1]], axis=1)
     expected_role1 = np.concatenate([channel_values[1], channel_values[0]], axis=1)
-    # 时间对齐（PREREG #7）：合法步 1..7，mimi 读行 s−1 = 0..6
+    # 时间对齐（PREREG #8）：可用步 0..6（末步丢弃），mimi 读行 s = 0..6
     expected = np.concatenate([expected_role0[:7], expected_role1[:7]]).astype(np.float32)
 
     actual, _ = load_session_feature(
@@ -237,7 +238,7 @@ def test_mimi_loaders_concatenate_self_then_other_for_each_role(tmp_path):
             if role.agent_channel == 0
             else expected_role1
         )
-        selected.append(pair[role.steps - 1])
+        selected.append(pair[role.steps])
     np.testing.assert_array_equal(sampled, np.concatenate(selected).astype(np.float32))
 
 
@@ -300,7 +301,7 @@ def test_legacy_mimi_loader_excludes_steps_outside_time_domain(tmp_path):
     )
 
     X, y = load_role_xy(runs, labels, "s0", 0, -1, "T1", 240, feature="mimi")
-    # 合法步 1..7（step 0 与 step 8 均被剔除）
+    # 可用步 0..6（末步 7 与越界步 8 均被剔除，PREREG #8）
     assert X.shape == (7, 4)
     assert len(y) == 7
 

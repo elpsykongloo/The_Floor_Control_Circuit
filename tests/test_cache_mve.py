@@ -89,7 +89,8 @@ def make_world(tmp_path, sids, t=120, h=8, layers=(4, 12), effect=2.0):
             rd = run_dir_for(runs_root, sid, ch)
             y = (rng.random(t) < 0.2).astype(np.int64)
             base = rng.normal(0, 1, (t, h)).astype(np.float32)
-            base[:, 0] += effect * y
+            # 信号植入 acts 行 s+1（标签步 s 的对应行，PREREG #8）
+            base[1:, 0] += effect * y[:-1].astype(np.float32)
             for layer in layers:
                 noise = base if layer == 12 else rng.normal(0, 1, (t, h)).astype(np.float32)
                 write_acts_direct(rd, layer, noise.astype(np.float16))
@@ -112,7 +113,7 @@ class TestMveDataset:
         data = build_session_data(runs_root, labels_root, sids, layer=12, target="T1", delta_ms=240)
         assert set(data) == set(sids)
         X, y = data["s0"]
-        # 两角色 × 119 步（时间对齐后 step 0 全表征剔除，PREREG #7）
+        # 两角色 × 119 步（末标签步丢弃：可用步 0..118，PREREG #8）
         assert X.shape == (238, 8) and len(y) == 238
 
 

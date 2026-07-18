@@ -7,7 +7,8 @@
 
 PREREG #7 协议要点（2026-07-18）：
 - 正式缓存必须 text_mode=greedy（预检强制核验 manifest）；
-- 时间对齐：标签步 s 观测截止 s·τ；acts 读行 s，Mimi/hazard/声学读行 s−1；
+- 时间对齐（#8 锚定）：标签步 s 观测截止 (s+1)·τ（在线刚接收完对方帧 s）；
+  acts 读行 s+1，Mimi/hazard/声学读行 s；acts[0]（initial）弃用，末标签步丢弃；
 - 嵌套选择：C 与最优层在 probe_train 内层划分（inner_train/inner_val）上选择，
   probe_val 仅用于最终一次性报告。
 """
@@ -29,9 +30,10 @@ from _bootstrap import REPO_ROOT, REPORTS_DIR
 
 from floor_circuit.config import data_root, load_config
 from floor_circuit.mve.alignment import (
+    ANALYSIS_TIME_ALIGNMENT,
     MIN_ELIGIBLE_STEP,
-    RUNNER_TIME_ALIGNMENT,
     feature_row_indices,
+    usable_label_steps,
 )
 from floor_circuit.mve.artifacts import (
     ANALYSIS_SOURCE_PATHS,
@@ -417,8 +419,8 @@ def hazard_baseline(
 ) -> PerSession:
     """T5 状态序列 → hazard 特征 → logistic。评估集输出按会话组织。
 
-    时间对齐（PREREG #7）：标签步 s 只允许使用 states[0..s−1]（观测截止 s·τ），
-    即读取 hazard 特征矩阵的第 s−1 行。
+    时间对齐（PREREG #7/#8）：标签步 s 使用 states[0..s]（观测截止 (s+1)·τ），
+    即读取 hazard 特征矩阵的第 s 行（feature_row_indices 统一映射）。
     """
     grids = load_config("grids")
     step_s = float(grids["clocks"]["moshi"]["step_ms"]) / 1000.0
@@ -436,7 +438,7 @@ def hazard_baseline(
                 target,
                 delta_ms,
                 ch,
-                max_steps=n_steps,
+                max_steps=usable_label_steps(n_steps),
                 min_step=MIN_ELIGIBLE_STEP,
             )
             steps = rows["step"].to_numpy(dtype=np.int64)
@@ -477,7 +479,7 @@ def _acoustic_windows_peak_bytes(
                     target,
                     delta_ms,
                     channel,
-                    max_steps=spec.n_steps,
+                    max_steps=usable_label_steps(spec.n_steps),
                     min_step=MIN_ELIGIBLE_STEP,
                 )
             )
@@ -587,11 +589,11 @@ def acoustic_gru_baseline(
                 target,
                 delta_ms,
                 ch,
-                max_steps=spec.n_steps,
+                max_steps=usable_label_steps(spec.n_steps),
                 min_step=MIN_ELIGIBLE_STEP,
             )
             steps = rows["step"].to_numpy(dtype=np.int64)
-            # 时间对齐（PREREG #7）：窗尾 = s−1，观测截止 s·τ
+            # 时间对齐（PREREG #7/#8）：窗尾 = s，观测截止 (s+1)·τ
             xs.append(make_windows(f, feature_row_indices("acoustic", steps)))
             ys.append(rows["label"].to_numpy(dtype=np.int64))
         return np.concatenate(xs), np.concatenate(ys)
@@ -873,11 +875,7 @@ def main() -> None:
     protocol = {
         "text_mode": expected_text_mode,
         "ablation": ablation_tag,
-        "time_alignment": {
-            **RUNNER_TIME_ALIGNMENT,
-            "min_eligible_step": MIN_ELIGIBLE_STEP,
-            "baseline_row_shift_steps": 1,
-        },
+        "time_alignment": dict(ANALYSIS_TIME_ALIGNMENT),
         "nested_selection": {
             "inner_val_sessions": inner_val,
             "n_inner_train": len(inner_train),
