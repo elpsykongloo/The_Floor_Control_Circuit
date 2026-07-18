@@ -24,10 +24,11 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from _bootstrap import REPO_ROOT, REPORTS_DIR
 from sklearn.metrics import average_precision_score, balanced_accuracy_score, roc_auc_score
 
-from floor_circuit.config import load_config
+from floor_circuit.config import data_root, load_config
 from floor_circuit.mve.artifacts import (
     ANALYSIS_SOURCE_PATHS,
     FROZEN_G1_BOOTSTRAP_N,
@@ -44,12 +45,26 @@ from floor_circuit.mve.artifacts import (
 PerSession = dict[str, tuple[np.ndarray, np.ndarray]]
 SeededPerSession = dict[int, PerSession]
 ItemKey = tuple[str, str, int | None, int]
+AuthoritativeLabels = dict[str, dict[str, np.ndarray]]
 
 AUDIT_SCHEMA = "floor_circuit.mve.independent_audit.v1"
 FLOAT_ATOL = 1e-12
 CI_SCOPE = "给定已在 probe_val 上选择的目标、层与各种子 C 后的会话级条件 CI"
 DEFAULT_SUMMARY = REPORTS_DIR / "mve_summary.json"
 DEFAULT_OUTPUT = REPORTS_DIR / "mve_independent_audit.json"
+DEFAULT_SPLIT = REPO_ROOT / "configs" / "splits" / "candor.json"
+REQUIRED_SCORE_SOURCE_PATHS = (
+    "configs/grids.yaml",
+    "configs/splits/candor.json",
+    "src/floor_circuit/config.py",
+    "src/floor_circuit/schemas.py",
+    "src/floor_circuit/cachelib/manifest.py",
+    "src/floor_circuit/cachelib/zarr_io.py",
+    "src/floor_circuit/mve/preflight.py",
+    "src/floor_circuit/probes/linear.py",
+    "src/floor_circuit/probes/baselines.py",
+    "src/floor_circuit/probes/gru.py",
+)
 
 
 class IndependentAuditError(RuntimeError):
@@ -123,6 +138,251 @@ def _source_commit(relative: str) -> str | None:
     return value or None
 
 
+def _sha256_path(path: Path, chunk_size: int = 1 << 20) -> str:
+    """独立计算文件摘要，不复用正式分数包的摘要函数。"""
+
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            while block := handle.read(chunk_size):
+                digest.update(block)
+    except OSError as exc:
+        raise IndependentAuditError(f"无法读取待核验文件：{path}") from exc
+    return digest.hexdigest()
+
+
+def _git_commit_file(repository_head: str, relative: str) -> bytes:
+    try:
+        return subprocess.check_output(
+            ["git", "-C", str(REPO_ROOT), "show", f"{repository_head}:{relative}"],
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise IndependentAuditError(f"提交 {repository_head} 不含要求的分数来源：{relative}") from exc
+
+
+def _canonical_text_bytes(payload: bytes) -> bytes:
+    """按 Git 文本规范统一换行，避免 Windows 检出层的 CRLF 造成假差异。"""
+
+    return payload.replace(b"\r\n", b"\n")
+
+
+def _verify_repository_sources(
+    analysis: dict[str, Any],
+    source_paths: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """确认记录的仓库头真实存在，且分数生成来源等于该提交中的内容。"""
+
+    repository_head = str(analysis["code"]["repository_head"])
+    try:
+        object_type = subprocess.check_output(
+            ["git", "-C", str(REPO_ROOT), "cat-file", "-t", repository_head],
+            text=True,
+            encoding="utf-8",
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise IndependentAuditError(f"analysis repository_head 不是当前仓库可解析对象：{repository_head}") from exc
+    if object_type != "commit":
+        raise IndependentAuditError(f"analysis repository_head 对象类型为 {object_type!r}，期望 commit")
+
+    required = tuple(dict.fromkeys((*ANALYSIS_SOURCE_PATHS, *REQUIRED_SCORE_SOURCE_PATHS)))
+    selected = required if source_paths is None else tuple(source_paths)
+    missing = sorted(set(required) - set(selected))
+    if missing:
+        raise IndependentAuditError(f"分数生成来源核验集合不完整：{missing}")
+
+    verified: dict[str, Any] = {}
+    for relative in selected:
+        path = REPO_ROOT / relative
+        if not path.is_file():
+            raise IndependentAuditError(f"当前分数生成来源不存在：{relative}")
+        current = _canonical_text_bytes(path.read_bytes())
+        committed = _canonical_text_bytes(_git_commit_file(repository_head, relative))
+        current_sha256 = hashlib.sha256(current).hexdigest()
+        commit_sha256 = hashlib.sha256(committed).hexdigest()
+        if current_sha256 != commit_sha256:
+            raise IndependentAuditError(f"当前分数生成来源与 repository_head 内容不一致：{relative}")
+        verified[relative] = {
+            "sha256": current_sha256,
+            "repository_head_sha256": commit_sha256,
+        }
+    return {
+        "repository_head": repository_head,
+        "object_type": object_type,
+        "required_sources": list(required),
+        "verified_sources": verified,
+    }
+
+
+def _load_frozen_sessions(
+    split_path: Path,
+    *,
+    n_train: int,
+    n_eval: int,
+) -> tuple[list[str], list[str]]:
+    split = _load_json_object(split_path, "CANDOR 冻结划分")
+    groups = split.get("splits")
+    if not isinstance(groups, dict):
+        raise IndependentAuditError("CANDOR 冻结划分缺少 splits")
+    train_all = groups.get("probe_train")
+    eval_all = groups.get("probe_val")
+    if not isinstance(train_all, list) or not isinstance(eval_all, list):
+        raise IndependentAuditError("CANDOR 冻结划分缺少 probe_train/probe_val")
+    train = [str(value) for value in train_all[:n_train]]
+    evals = [str(value) for value in eval_all[:n_eval]]
+    if len(train) != n_train or len(evals) != n_eval:
+        raise IndependentAuditError("CANDOR 冻结划分容量不足")
+    if (
+        any(not value for value in [*train, *evals])
+        or len(train) != len(set(train))
+        or len(evals) != len(set(evals))
+        or set(train) & set(evals)
+    ):
+        raise IndependentAuditError("CANDOR 冻结训练/验证会话为空、重复或有交叠")
+    return train, evals
+
+
+def _marker_label_record(marker: dict[str, Any], session_id: str) -> dict[str, Any]:
+    try:
+        record = marker["outputs"]["labels"]
+    except (KeyError, TypeError) as exc:
+        raise IndependentAuditError(f"{session_id}: WP1 完成标记缺少 outputs.labels") from exc
+    if not isinstance(record, dict):
+        raise IndependentAuditError(f"{session_id}: WP1 完成标记 labels 字段无效")
+    return record
+
+
+def _assemble_authoritative_labels(
+    path: Path,
+    session_id: str,
+    *,
+    expected_n_steps: int,
+    t1_delta_ms: int,
+) -> dict[str, np.ndarray]:
+    """从 WP1 权威 parquet 独立重建评估标签顺序。"""
+
+    try:
+        frame = pd.read_parquet(path)
+    except Exception as exc:
+        raise IndependentAuditError(f"{session_id}: 无法读取权威标签 parquet") from exc
+    required = {"target", "agent_channel", "step", "delta_ms", "label"}
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise IndependentAuditError(f"{session_id}: 权威标签缺列 {missing}")
+
+    assembled: dict[str, np.ndarray] = {}
+    for target in FROZEN_G1_TARGETS:
+        parts: list[np.ndarray] = []
+        for channel in (0, 1):
+            mask = (frame["target"] == target) & (frame["agent_channel"] == channel)
+            if target == "T1":
+                mask &= frame["delta_ms"] == t1_delta_ms
+            rows = frame.loc[mask, ["step", "label"]].copy()
+            if rows.empty:
+                parts.append(np.empty(0, dtype=np.int8))
+                continue
+            steps_numeric = pd.to_numeric(rows["step"], errors="coerce").to_numpy(dtype=np.float64)
+            if (
+                not np.isfinite(steps_numeric).all()
+                or not np.equal(steps_numeric, np.floor(steps_numeric)).all()
+                or (steps_numeric < 0).any()
+            ):
+                raise IndependentAuditError(f"{session_id}/{target}/agent{channel}: step 不是非负整数")
+            rows = rows.loc[steps_numeric < expected_n_steps]
+            rows = rows.sort_values("step", kind="stable")
+            steps = rows["step"].to_numpy(dtype=np.int64)
+            if len(steps) != len(np.unique(steps)):
+                raise IndependentAuditError(f"{session_id}/{target}/agent{channel}: 评估步号重复")
+            labels = rows["label"].to_numpy()
+            if not np.isin(labels, (0, 1)).all():
+                raise IndependentAuditError(f"{session_id}/{target}/agent{channel}: 标签不是二值")
+            parts.append(labels.astype(np.int8, copy=False))
+        assembled[target] = np.concatenate(parts)
+    return assembled
+
+
+def _verify_authoritative_labels(
+    manifest: dict[str, Any],
+    snapshot: dict[str, Any],
+    *,
+    split_path: Path,
+    data_root_path: Path,
+    mve: dict[str, Any],
+    expected_n_steps: int,
+) -> tuple[dict[str, Any], AuthoritativeLabels]:
+    """四方核对权威标签、完成标记、平铺副本和清单摘要。"""
+
+    n_train = int(mve["n_sessions_train"])
+    n_eval = int(mve["n_sessions_eval"])
+    train, evals = _load_frozen_sessions(
+        split_path,
+        n_train=n_train,
+        n_eval=n_eval,
+    )
+    if manifest["eval_session_order"] != evals:
+        raise IndependentAuditError("manifest.eval_session_order 与冻结 probe_val 前 40 会话顺序不全等")
+    expected_sessions = [*train, *evals]
+    expected_set = set(expected_sessions)
+    manifest_hashes = manifest["label_sha256"]
+    snapshot_hashes = snapshot.get("label_sha256")
+    if set(manifest_hashes) != expected_set or len(manifest_hashes) != n_train + n_eval:
+        raise IndependentAuditError("manifest.label_sha256 键集合不等于冻结 160+40 会话")
+    if not isinstance(snapshot_hashes, dict) or snapshot_hashes != manifest_hashes:
+        raise IndependentAuditError("预检快照与 manifest 的标签哈希不全等")
+
+    source_root = data_root_path / "events" / "candor"
+    flat_root = data_root_path / "events" / "candor_labels_flat"
+    eval_set = set(evals)
+    actual_hashes: dict[str, str] = {}
+    authoritative: AuthoritativeLabels = {}
+    for session_id in expected_sessions:
+        source = source_root / f"{session_id}.labels.parquet"
+        marker_path = source_root / f"{session_id}.complete.json"
+        flat = flat_root / f"{session_id}.parquet"
+        source_sha256 = _sha256_path(source)
+        flat_sha256 = _sha256_path(flat)
+        try:
+            source_size = source.stat().st_size
+        except OSError as exc:
+            raise IndependentAuditError(f"{session_id}: 无法读取权威标签大小") from exc
+        marker = _load_json_object(marker_path, f"{session_id} WP1 完成标记")
+        record = _marker_label_record(marker, session_id)
+        marker_ok = (
+            marker.get("schema_version") == 1
+            and marker.get("session") == session_id
+            and record.get("name") == source.name
+            and record.get("size") == source_size
+            and record.get("sha256") == source_sha256
+        )
+        if not marker_ok:
+            raise IndependentAuditError(f"{session_id}: WP1 完成标记与权威标签不一致")
+        if (
+            flat_sha256 != source_sha256
+            or manifest_hashes[session_id] != source_sha256
+            or snapshot_hashes[session_id] != source_sha256
+        ):
+            raise IndependentAuditError(f"{session_id}: 权威标签、平铺副本、manifest、预检快照四方哈希不一致")
+        actual_hashes[session_id] = source_sha256
+        if session_id in eval_set:
+            authoritative[session_id] = _assemble_authoritative_labels(
+                source,
+                session_id,
+                expected_n_steps=expected_n_steps,
+                t1_delta_ms=int(mve["t1_delta_ms"]),
+            )
+    return {
+        "split_path": str(split_path.resolve()),
+        "source_root": str(source_root.resolve()),
+        "flat_root": str(flat_root.resolve()),
+        "n_train_sessions": len(train),
+        "n_eval_sessions": len(evals),
+        "n_label_hashes": len(actual_hashes),
+        "eval_order_exact": True,
+        "label_hashes_four_way_exact": True,
+    }, authoritative
+
+
 def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str, Any]:
     """独立核对冻结配置、分析代码指纹与预检快照。"""
 
@@ -147,6 +407,11 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
         "n_train_sessions": int(mve["n_sessions_train"]) == 160,
         "n_eval_sessions": int(mve["n_sessions_eval"]) == len(manifest["eval_session_order"]),
     }
+    c_grid = {float(value) for value in mve["probe_c_grid"]}
+    config_checks["best_c_grid"] = all(
+        (item["best_c"] is None if item["kind"] in {"hazard", "acoustic_gru"} else float(item["best_c"]) in c_grid)
+        for item in manifest["items"]
+    )
     failed_config = [name for name, passed in config_checks.items() if not passed]
     if failed_config:
         raise IndependentAuditError(f"当前冻结配置校验失败：{failed_config}")
@@ -167,6 +432,7 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
     current_commits = {relative: _source_commit(relative) for relative in sources}
     if code["source_commits"] != current_commits:
         raise IndependentAuditError("manifest 分析源码逐文件提交记录与仓库不一致")
+    repository_sources = _verify_repository_sources(analysis)
 
     snapshot_path = manifest_path.parent / manifest["preflight_report_path"]
     snapshot = _load_json_object(snapshot_path, "预检快照")
@@ -182,14 +448,10 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
         "expected_n_steps": snapshot.get("expected_n_steps")
         == round(float(mve["max_minutes_per_session"]) * 60.0 * expected_clock_hz),
         "expected_clock_hz": snapshot.get("expected_clock_hz") == expected_clock_hz,
-        "expected_max_seconds": snapshot.get("expected_max_seconds")
-        == float(mve["max_minutes_per_session"]) * 60.0,
-        "expected_mimi_chunk_seconds": snapshot.get("expected_mimi_chunk_seconds")
-        == float(mve["mimi_chunk_seconds"]),
-        "expected_forward_chunk_steps": snapshot.get("expected_forward_chunk_steps")
-        == int(mve["forward_chunk_steps"]),
-        "runner_code_version": snapshot.get("expected_code_version")
-        == manifest["runner_code_version"],
+        "expected_max_seconds": snapshot.get("expected_max_seconds") == float(mve["max_minutes_per_session"]) * 60.0,
+        "expected_mimi_chunk_seconds": snapshot.get("expected_mimi_chunk_seconds") == float(mve["mimi_chunk_seconds"]),
+        "expected_forward_chunk_steps": snapshot.get("expected_forward_chunk_steps") == int(mve["forward_chunk_steps"]),
+        "runner_code_version": snapshot.get("expected_code_version") == manifest["runner_code_version"],
         "label_sha256": snapshot.get("label_sha256") == manifest["label_sha256"],
     }
     failed_preflight = [name for name, passed in preflight_checks.items() if not passed]
@@ -203,6 +465,7 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
         "config": config_checks,
         "analysis_code_content_sha256": content_sha256,
         "analysis_source_commits": current_commits,
+        "repository_sources": repository_sources,
         "preflight": preflight_checks,
         "preflight_status": snapshot["status"],
     }
@@ -211,16 +474,27 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
 def _load_and_align_items(
     manifest: dict[str, Any],
     manifest_path: Path,
+    authoritative: AuthoritativeLabels | None = None,
 ) -> tuple[dict[ItemKey, PerSession], dict[str, Any]]:
-    """读取 34 个 NPZ，并核对同一目标的会话顺序与标签逐项全等。"""
+    """读取 34 个 NPZ，并核对权威标签与同目标各项逐项全等。"""
 
     expected_sessions = sorted(str(value) for value in manifest["eval_session_order"])
     loaded: dict[ItemKey, PerSession] = {}
+    authoritative_comparisons = 0
     for item in manifest["items"]:
         key = _item_key(item)
         per_session = read_per_session_npz(manifest_path.parent / item["path"])
         if list(per_session) != expected_sessions:
             raise IndependentAuditError(f"{key}: NPZ 会话顺序与排序后的评估会话不一致")
+        if authoritative is not None:
+            if set(authoritative) != set(expected_sessions):
+                raise IndependentAuditError("权威评估标签的会话集合与 manifest 不一致")
+            for session_id in expected_sessions:
+                expected_labels = authoritative[session_id][key[0]]
+                actual_labels = per_session[session_id][0]
+                if expected_labels.shape != actual_labels.shape or not np.array_equal(expected_labels, actual_labels):
+                    raise IndependentAuditError(f"{key}: 会话 {session_id} 的 NPZ 标签与 WP1 权威标签不全等")
+                authoritative_comparisons += 1
         loaded[key] = per_session
     if len(loaded) != FROZEN_G1_ITEM_COUNT:
         raise IndependentAuditError(f"独立读取到 {len(loaded)} 项，期望 {FROZEN_G1_ITEM_COUNT}")
@@ -247,14 +521,13 @@ def _load_and_align_items(
                     or expected_labels.shape != actual_labels.shape
                     or not np.array_equal(expected_labels, actual_labels)
                 ):
-                    raise IndependentAuditError(
-                        f"{key}: 会话 {session_id} 的标签与 {reference_key} 不完全一致"
-                    )
+                    raise IndependentAuditError(f"{key}: 会话 {session_id} 的标签与 {reference_key} 不完全一致")
                 comparisons += 1
     return loaded, {
         "n_items": len(loaded),
         "n_eval_sessions": len(expected_sessions),
         "label_array_comparisons": comparisons,
+        "authoritative_label_comparisons": authoritative_comparisons,
         "rows_by_target": rows_by_target,
     }
 
@@ -292,9 +565,7 @@ def _seed_mean_metrics(scores: SeededPerSession) -> dict[str, Any]:
     by_seed = {seed: _metrics(scores[seed]) for seed in sorted(scores)}
     auc_mean, auc_sd = _mean_and_sd([value["auc"] for value in by_seed.values()])
     auprc_mean, auprc_sd = _mean_and_sd([value["auprc"] for value in by_seed.values()])
-    balanced_mean, balanced_sd = _mean_and_sd(
-        [value["balanced_acc"] for value in by_seed.values()]
-    )
+    balanced_mean, balanced_sd = _mean_and_sd([value["balanced_acc"] for value in by_seed.values()])
     first = next(iter(by_seed.values()))
     return {
         "n_seeds": len(by_seed),
@@ -384,10 +655,7 @@ def _bootstrap_advantage(
     for _ in range(n_boot):
         take = _resample_sessions(session_ids, rng)
         probe_auc = _seed_mean_auc(probe, take)
-        baseline_aucs = {
-            name: _seed_mean_auc(scores, take)
-            for name, scores in baselines.items()
-        }
+        baseline_aucs = {name: _seed_mean_auc(scores, take) for name, scores in baselines.items()}
         if probe_auc is None or any(value is None for value in baseline_aucs.values()):
             continue
         samples.append(probe_auc - max(baseline_aucs.values()))
@@ -395,10 +663,7 @@ def _bootstrap_advantage(
         raise IndependentAuditError("成对优势 bootstrap 没有有效双类样本")
     array = np.asarray(samples, dtype=np.float64)
     point_probe = _seed_mean_auc(probe, session_ids)
-    point_baselines = {
-        name: _seed_mean_auc(scores, session_ids)
-        for name, scores in baselines.items()
-    }
+    point_baselines = {name: _seed_mean_auc(scores, session_ids) for name, scores in baselines.items()}
     if point_probe is None or any(value is None for value in point_baselines.values()):
         raise IndependentAuditError("完整评估集无法计算探针或基线 AUC")
     return {
@@ -409,10 +674,7 @@ def _bootstrap_advantage(
         "baseline_aucs": point_baselines,
         "n_boot_effective": len(array),
         "probe_n_seeds": len(probe),
-        "baseline_n_seeds": {
-            name: len(scores)
-            for name, scores in baselines.items()
-        },
+        "baseline_n_seeds": {name: len(scores) for name, scores in baselines.items()},
     }
 
 
@@ -467,21 +729,12 @@ def recompute_summary(
         layer_summary: dict[str, Any] = {}
         probes_by_layer: dict[int, SeededPerSession] = {}
         for layer in FROZEN_G1_LAYERS:
-            probes = {
-                seed: loaded[(target, "probe", layer, seed)]
-                for seed in FROZEN_G1_SEEDS
-            }
+            probes = {seed: loaded[(target, "probe", layer, seed)] for seed in FROZEN_G1_SEEDS}
             probes_by_layer[layer] = probes
             per_seed = {seed: _metrics(probes[seed]) for seed in FROZEN_G1_SEEDS}
-            auc_mean, auc_sd = _mean_and_sd(
-                [per_seed[seed]["auc"] for seed in FROZEN_G1_SEEDS]
-            )
-            auprc_mean, auprc_sd = _mean_and_sd(
-                [per_seed[seed]["auprc"] for seed in FROZEN_G1_SEEDS]
-            )
-            balanced_mean, balanced_sd = _mean_and_sd(
-                [per_seed[seed]["balanced_acc"] for seed in FROZEN_G1_SEEDS]
-            )
+            auc_mean, auc_sd = _mean_and_sd([per_seed[seed]["auc"] for seed in FROZEN_G1_SEEDS])
+            auprc_mean, auprc_sd = _mean_and_sd([per_seed[seed]["auprc"] for seed in FROZEN_G1_SEEDS])
+            balanced_mean, balanced_sd = _mean_and_sd([per_seed[seed]["balanced_acc"] for seed in FROZEN_G1_SEEDS])
             layer_summary[str(layer)] = {
                 "n_seeds": len(FROZEN_G1_SEEDS),
                 "auc_mean": auc_mean,
@@ -490,14 +743,9 @@ def recompute_summary(
                 "auprc_sd": auprc_sd,
                 "balanced_acc_mean": balanced_mean,
                 "balanced_acc_sd": balanced_sd,
-                "auc_by_seed": {
-                    str(seed): per_seed[seed]["auc"]
-                    for seed in FROZEN_G1_SEEDS
-                },
+                "auc_by_seed": {str(seed): per_seed[seed]["auc"] for seed in FROZEN_G1_SEEDS},
                 "best_c_by_seed": {
-                    str(seed): float(
-                        item_metadata[(target, "probe", layer, seed)]["best_c"]
-                    )
+                    str(seed): float(item_metadata[(target, "probe", layer, seed)]["best_c"])
                     for seed in FROZEN_G1_SEEDS
                 },
             }
@@ -509,10 +757,7 @@ def recompute_summary(
         selected_probe = probes_by_layer[best_layer]
         baselines: dict[str, SeededPerSession] = {
             "hazard": {0: loaded[(target, "hazard", None, 0)]},
-            "mimi": {
-                seed: loaded[(target, "mimi", None, seed)]
-                for seed in FROZEN_G1_SEEDS
-            },
+            "mimi": {seed: loaded[(target, "mimi", None, seed)] for seed in FROZEN_G1_SEEDS},
             "acoustic_gru": {0: loaded[(target, "acoustic_gru", None, 0)]},
         }
         advantage = _bootstrap_advantage(
@@ -540,10 +785,7 @@ def recompute_summary(
             "best_layer": best_layer,
             "layer_summary": layer_summary,
             "advantage": advantage,
-            "baseline_metrics": {
-                name: _seed_mean_metrics(scores)
-                for name, scores in baselines.items()
-            },
+            "baseline_metrics": {name: _seed_mean_metrics(scores) for name, scores in baselines.items()},
             "probe_ci": probe_ci,
             "shuffled_auc": shuffled_metrics["auc_mean"],
             "shuffled_auc_sd": shuffled_metrics["auc_sd"],
@@ -667,9 +909,7 @@ def _resolve_manifest(
     if set(score_bundle) != required:
         raise IndependentAuditError("summary.score_bundle 字段集合不完整")
     manifest_path = (
-        Path(manifest_override)
-        if manifest_override is not None
-        else Path(str(score_bundle["manifest_path"]))
+        Path(manifest_override) if manifest_override is not None else Path(str(score_bundle["manifest_path"]))
     ).resolve()
     actual_sha256 = sha256_file(manifest_path)
     if actual_sha256 != score_bundle["manifest_sha256"]:
@@ -688,6 +928,9 @@ def _resolve_manifest(
 def audit_summary(
     summary_path: str | Path = DEFAULT_SUMMARY,
     manifest_path: str | Path | None = None,
+    *,
+    data_root_path: str | Path | None = None,
+    split_path: str | Path = DEFAULT_SPLIT,
 ) -> dict[str, Any]:
     """执行独立审计；校验失败时抛出异常，summary 数值差异写入返回值。"""
 
@@ -696,15 +939,37 @@ def audit_summary(
     _validate_generated_at(summary)
     expected_top_keys = {"generated_at", "overall", "per_target", "score_bundle"}
     if set(summary) != expected_top_keys:
-        raise IndependentAuditError(
-            f"summary 顶层字段集合不一致：{sorted(summary)}"
-        )
+        raise IndependentAuditError(f"summary 顶层字段集合不一致：{sorted(summary)}")
     resolved_manifest, manifest, manifest_sha256, expected_bundle = _resolve_manifest(
         summary,
         manifest_path,
     )
     metadata_checks = _verify_metadata(manifest, resolved_manifest)
-    loaded, alignment_checks = _load_and_align_items(manifest, resolved_manifest)
+    authoritative_root = Path(data_root_path).resolve() if data_root_path is not None else data_root().resolve()
+    if Path(manifest["bundle_path"]["relative_base"]).resolve() != authoritative_root:
+        raise IndependentAuditError("manifest.bundle_path.relative_base 与权威 data_root 不一致")
+    snapshot = _load_json_object(
+        resolved_manifest.parent / manifest["preflight_report_path"],
+        "预检快照",
+    )
+    mve = load_config("grids")["mve"]
+    expected_n_steps = round(
+        float(mve["max_minutes_per_session"]) * 60.0 * float(load_config("grids")["clocks"]["moshi"]["hz"])
+    )
+    frozen_checks, authoritative = _verify_authoritative_labels(
+        manifest,
+        snapshot,
+        split_path=Path(split_path),
+        data_root_path=authoritative_root,
+        mve=mve,
+        expected_n_steps=expected_n_steps,
+    )
+    metadata_checks["frozen_inputs"] = frozen_checks
+    loaded, alignment_checks = _load_and_align_items(
+        manifest,
+        resolved_manifest,
+        authoritative,
+    )
     recomputed, bootstrap_checks = recompute_summary(manifest, loaded)
     expected_summary = {
         **recomputed,
@@ -740,13 +1005,20 @@ def run_audit(
     manifest_path: str | Path | None = None,
     *,
     output_path: str | Path = DEFAULT_OUTPUT,
+    data_root_path: str | Path | None = None,
+    split_path: str | Path = DEFAULT_SPLIT,
 ) -> dict[str, Any]:
     """成功或失败均原子发布独立审计报告。"""
 
     output = Path(output_path)
     generated_at = datetime.now(UTC).isoformat()
     try:
-        details = audit_summary(summary_path, manifest_path)
+        details = audit_summary(
+            summary_path,
+            manifest_path,
+            data_root_path=data_root_path,
+            split_path=split_path,
+        )
         differences = details["differences"]
         payload = {
             "schema": AUDIT_SCHEMA,
@@ -762,9 +1034,7 @@ def run_audit(
             "generated_at": generated_at,
             "status": "failed",
             "summary_path": str(Path(summary_path).resolve()),
-            "manifest_path": (
-                None if manifest_path is None else str(Path(manifest_path).resolve())
-            ),
+            "manifest_path": (None if manifest_path is None else str(Path(manifest_path).resolve())),
             "error_type": type(exc).__name__,
             "error": str(exc),
             "differences": [],
@@ -790,9 +1060,7 @@ def main() -> None:
     if result["status"] == "passed":
         overall = result["recomputed"]["overall"]
         print(
-            "独立复算通过："
-            f"{overall['verdict']}，{overall['decisive_target']} 优势 "
-            f"{overall['advantage_point']:+.6f}"
+            f"独立复算通过：{overall['verdict']}，{overall['decisive_target']} 优势 {overall['advantage_point']:+.6f}"
         )
         return
     print(f"独立复算失败：{result.get('error', '未知错误')}", file=sys.stderr)
