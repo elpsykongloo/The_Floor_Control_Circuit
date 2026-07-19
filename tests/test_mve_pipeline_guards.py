@@ -469,6 +469,25 @@ class _StreamingFakeMimi:
         ).reshape(1, 1, n_steps)
 
 
+def test_mimi_stream_geometry_derives_missing_personaplex_frame_size():
+    """PersonaPlex Mimi 未暴露 frame_size 时，应从两个时钟量精确推导。"""
+    module = _load_moshi_family()
+    mimi = SimpleNamespace(sample_rate=24000, frame_rate=12.5)
+    wav = np.zeros(2000, dtype=np.float32)
+
+    assert module._stream_geometry(mimi, wav, 0.08) == (1, 1920, 2)
+
+
+def test_mimi_stream_geometry_rejects_ambiguous_derived_frame_size():
+    """采样率与帧率无法整除时不得静默四舍五入。"""
+    module = _load_moshi_family()
+    mimi = SimpleNamespace(sample_rate=24000, frame_rate=13.0)
+    wav = np.zeros(2000, dtype=np.float32)
+
+    with pytest.raises(module.AdapterError, match="无法从 sample_rate/frame_rate 精确推导"):
+        module._stream_geometry(mimi, wav, 1.0 / 13.0)
+
+
 def test_mimi_stream_pads_trims_and_resets_state_between_calls():
     """末块补零只能用于计算，导出的码和潜表征应裁回有效帧。"""
     module = _load_moshi_family()

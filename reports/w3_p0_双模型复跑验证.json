@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-07-20T01:50:00.8391928+08:00",
+  "base_commit": "743f21196bc5061fe27102a36288af47847b4a71",
+  "result": "passed",
+  "minicpm_o": {
+    "result": "passed",
+    "root_cause": "纯读出加载使用 init_tts=false，但 MiniCPM-o 4.5 上游 as_duplex() 仍无条件调用 init_tts()，导致模型缺少 tts 属性时中止",
+    "fix": [
+      "核验已有无点别名与原模型目录指向同一目录，拒绝复用指向错误的别名",
+      "generate_audio=false 且模型未加载 TTS 时，仅在创建 duplex 包装期间跳过无用的 init_tts()，随后恢复原方法",
+      "清单显式记录 tts_loaded"
+    ],
+    "environment": {
+      "python": "3.10.20",
+      "torch": "2.8.0+cu128",
+      "transformers": "4.51.0"
+    },
+    "junction": {
+      "path": "C:\\artificial_intelligence\\models\\Full-Duplex\\MiniCPM-o-4_5_nodot",
+      "link_type": "Junction",
+      "target": "C:\\artificial_intelligence\\models\\Full-Duplex\\MiniCPM-o-4.5",
+      "samefile_verified": true
+    },
+    "input": {
+      "path": "C:\\artificial_intelligence\\models\\Full-Duplex\\MiniCPM-o-4.5\\assets\\HT_ref_audio.wav",
+      "sha256": "cb8f06ba5080cdf548969138881fb8ad8b04e2516108f4e08ba0363b68b613ea",
+      "duration_seconds": 6.016
+    },
+    "output": {
+      "root": "D:\\data_storage\\The_Floor_Control_Circuit\\validation\\minicpm_o_junction_rerun",
+      "clock_hz": 1.0,
+      "n_steps": 7,
+      "prefill_success": 7,
+      "current_time_sequence": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "n_listen": 7,
+      "n_speak": 0,
+      "generate_audio": false,
+      "tts_loaded": false,
+      "error_pattern_matches": 0
+    }
+  },
+  "personaplex": {
+    "result": "passed",
+    "root_cause": "PersonaPlex Mimi 暴露 sample_rate=24000 与 frame_rate=12.5，但没有 frame_size 属性，共用 runner 原先因此在流式编码前中止",
+    "fix": "frame_size 缺失时仅接受 sample_rate/frame_rate 的精确整数推导，本机结果为 1920；无法精确推导时硬失败",
+    "environment": {
+      "python": "3.12.13",
+      "torch": "2.9.1+cu128",
+      "moshi": "0.1.0"
+    },
+    "official_end_to_end": {
+      "root": "D:\\data_storage\\The_Floor_Control_Circuit\\validation\\personaplex_official_rerun",
+      "passed": true,
+      "input_seconds": 3.2,
+      "audio_duration_seconds": 3.2,
+      "audio_rms": 0.03110861749672461,
+      "audio_has_signal": true,
+      "semantic_text": "Hey, let me know if you have any questions.",
+      "elapsed_seconds": 40.76
+    },
+    "r1_runner": {
+      "root": "D:\\data_storage\\The_Floor_Control_Circuit\\validation\\personaplex_runner_rerun",
+      "text_mode": "greedy",
+      "clock_hz": 12.5,
+      "n_steps": 25,
+      "hidden_dim": 4096,
+      "transformer_context_steps": 3000,
+      "source_audio_count": 2,
+      "activation": {
+        "shape": [
+          25,
+          4096
+        ],
+        "dtype": "float16",
+        "all_finite": true
+      },
+      "mimi_latent": {
+        "shape": [
+          25,
+          512
+        ],
+        "dtype": "float16",
+        "all_finite": true,
+        "kind": "pre_quantization_continuous"
+      },
+      "text_tokens": {
+        "shape": [
+          25
+        ],
+        "dtype": "int64"
+      }
+    }
+  },
+  "validation": {
+    "targeted_pytest": {
+      "passed": 22,
+      "failed": 0
+    },
+    "full_pytest": {
+      "passed": 246,
+      "failed": 0,
+      "elapsed_seconds": 291.25
+    },
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "large_artifact_root": "D:\\data_storage\\The_Floor_Control_Circuit\\validation"
+}

@@ -286,10 +286,23 @@ def _stream_geometry(mimi, wav: np.ndarray, chunk_seconds: float) -> tuple[int, 
         raise AdapterError("输入音频为空")
     frame_size = int(getattr(mimi, "frame_size", 0))
     frame_rate = float(getattr(mimi, "frame_rate", 0.0))
-    if frame_size <= 0 or frame_rate <= 0:
+    if frame_rate <= 0:
         raise AdapterError(
-            f"Mimi 缺少有效 frame_size/frame_rate：{frame_size}/{frame_rate}"
+            f"Mimi 缺少有效 frame_rate：{frame_rate}"
         )
+    if frame_size <= 0:
+        sample_rate = float(getattr(mimi, "sample_rate", 0.0))
+        exact_frame_size = sample_rate / frame_rate
+        frame_size = round(exact_frame_size)
+        if (
+            sample_rate <= 0
+            or frame_size <= 0
+            or abs(exact_frame_size - frame_size) > 1e-6
+        ):
+            raise AdapterError(
+                "Mimi 未暴露 frame_size，且无法从 sample_rate/frame_rate "
+                f"精确推导：{sample_rate}/{frame_rate}={exact_frame_size}"
+            )
     exact_steps = float(chunk_seconds) * frame_rate
     chunk_steps = round(exact_steps)
     if chunk_seconds <= 0 or chunk_steps <= 0 or abs(exact_steps - chunk_steps) > 1e-6:

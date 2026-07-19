@@ -37,7 +37,18 @@ def _sanitize_model_root(root: str) -> str:
     if "." not in p.name:
         return str(p)
     alias = p.parent / (p.name.replace(".", "_") + "_nodot")
-    if not alias.exists():
+    if alias.exists():
+        try:
+            points_to_model = alias.samefile(p)
+        except OSError as exc:
+            raise SystemExit(f"无法核验模型目录别名 {alias}：{exc}") from exc
+        if not points_to_model:
+            raise SystemExit(
+                f"模型目录别名已存在但指向错误：{alias}；"
+                f"请人工核对后移除该别名，再重新运行"
+            )
+        print(f"[minicpm-runner] 目录名含点号，已核验并复用无点别名：{alias}")
+    else:
         try:
             if os.name == "nt":
                 subprocess.run(
@@ -55,6 +66,30 @@ def _sanitize_model_root(root: str) -> str:
             ) from e
         print(f"[minicpm-runner] 目录名含点号，已创建无点别名并改用：{alias}")
     return str(alias)
+
+
+def _as_duplex_without_unused_tts(model, *, generate_audio: bool, **kwargs):
+    """创建 duplex 包装；纯读出模式规避上游无条件 TTS 初始化。
+
+    MiniCPM-o 4.5 的 ``from_existing_model`` 当前无论 ``generate_audio`` 为何，
+    都会调用 ``model.init_tts()``。当加载时使用 ``init_tts=False``，模型没有
+    ``tts`` 属性，原调用会在任何流式决策产生前失败。纯读出分支不会访问 TTS，
+    因此只在创建包装的瞬间将该初始化替换为空操作，并在返回前恢复原方法。
+    """
+    if generate_audio or hasattr(model, "tts"):
+        return model.as_duplex(generate_audio=generate_audio, **kwargs)
+
+    instance_attrs = getattr(model, "__dict__", {})
+    had_instance_override = "init_tts" in instance_attrs
+    original_instance_value = instance_attrs.get("init_tts")
+    model.init_tts = lambda *args, **call_kwargs: None
+    try:
+        return model.as_duplex(generate_audio=False, **kwargs)
+    finally:
+        if had_instance_override:
+            model.init_tts = original_instance_value
+        else:
+            del model.init_tts
 
 
 def load_audio_16k(path: str) -> np.ndarray:
@@ -79,7 +114,8 @@ def collect_stream(args) -> Iterator[dict]:
         init_tts=args.generate_audio,
         device_map=args.device_map,
     ).eval()
-    duplex = model.as_duplex(
+    duplex = _as_duplex_without_unused_tts(
+        model,
         generate_audio=args.generate_audio,
         chunk_ms=CHUNK_MS,
         first_chunk_ms=args.first_chunk_ms,
@@ -187,6 +223,7 @@ def main() -> None:
         "source_audio": {args.audio: hashlib.sha256(Path(args.audio).read_bytes()).hexdigest()},
         "extra": {
             "generate_audio": args.generate_audio,
+            "tts_loaded": args.generate_audio,
             "n_listen": sum(1 for r in rows if r.get("is_listen")),
             "n_speak": sum(1 for r in rows if r.get("prefill_success") and not r.get("is_listen")),
             "note": "readout 接线自 reference_smoke.py（V1）；逐层缓存待 E1 接入",
