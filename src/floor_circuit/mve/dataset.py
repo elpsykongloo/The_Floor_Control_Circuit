@@ -5,7 +5,8 @@ bootstrap 的 cluster 单位始终是会话（两份角色数据并入同一 sid
 
 时间对齐（PREREG #7/#8）：标签步 s 的观测截止为 (s+1)·τ（在线：刚接收完对方帧 s）；
 acts 读行 s+1、mimi/hazard/声学读行 s（见 mve/alignment.py）。acts[0]（initial）
-永不使用，末标签步（无对应 acts 行）丢弃：可用步 0..n_steps−2。
+永不使用，末标签步（无对应 acts 行）丢弃；上下文截断（PREREG #11）后可用步
+0..min(n_steps−2, 2998)。mimi_prev（#11 描述性变体）读行 s−1，最小合法步为 1。
 """
 
 from __future__ import annotations
@@ -98,11 +99,13 @@ def build_training_sample_plan(
     delta_ms: int | None,
     neg_ratio: int,
     seed: int,
+    min_step: int = MIN_ELIGIBLE_STEP,
 ) -> TrainingSamplePlan:
     """先在低维标签域完成全局确定性负类抽样。
 
     全局行序严格保持“会话列表 → agent0/agent1 → step”的既有顺序，因此抽样结果与
     ``fit_probe`` 先拼接再抽样的旧实现一致，同时避免先读取全部高维激活。
+    min_step 仅供 mimi_prev（#11 描述性变体，需 s ≥ 1）覆盖，正式路径用默认值。
     """
 
     if neg_ratio < 0:
@@ -121,7 +124,7 @@ def build_training_sample_plan(
                 delta_ms,
                 channel,
                 max_steps=usable_label_steps(int(spec.n_steps)),
-                min_step=MIN_ELIGIBLE_STEP,
+                min_step=min_step,
             )
             steps = rows["step"].to_numpy(dtype=np.int64)
             values = rows["label"].to_numpy(dtype=np.int64)
@@ -184,7 +187,7 @@ def build_training_sample_plan(
 def _feature_name(layer: int, feature: str) -> str:
     if feature == "acts":
         return f"acts_L{layer}"
-    if feature == "mimi":
+    if feature in ("mimi", "mimi_prev"):
         return "mimi_latent"
     raise ValueError(f"未知特征类型：{feature}")
 
@@ -220,7 +223,7 @@ def _role_feature_arrays(
     own = _feature_array(runs_root, session_id, agent_channel, layer, feature)
     if feature == "acts":
         return (own,)
-    if feature == "mimi":
+    if feature in ("mimi", "mimi_prev"):
         other = _feature_array(
             runs_root,
             session_id,
@@ -249,11 +252,11 @@ def _validate_role_feature_arrays(
             f"{role.session_id}/agent{role.agent_channel}/{feature} 时间长度 {shapes}，"
             f"期望每路 {role.n_steps} 步"
         )
-    if feature == "mimi" and (
+    if feature in ("mimi", "mimi_prev") and (
         len(shapes) != 2 or shapes[0][0] != shapes[1][0] or shapes[0][1] != shapes[1][1]
     ):
         raise ValueError(
-            f"{role.session_id}/agent{role.agent_channel}/mimi 双通道形状不一致：{shapes}"
+            f"{role.session_id}/agent{role.agent_channel}/{feature} 双通道形状不一致：{shapes}"
         )
     if len(role.steps):
         rows = feature_row_indices(feature, role.steps)
@@ -371,6 +374,7 @@ def load_session_feature(
     delta_ms: int | None,
     feature: str = "acts",
     max_bytes: int = MAX_SESSION_FEATURE_BYTES,
+    min_step: int = MIN_ELIGIBLE_STEP,
 ) -> tuple[np.ndarray, np.ndarray]:
     """只装配一个评估会话；超过显式内存上限时硬失败，不裁剪冻结样本。"""
 
@@ -384,7 +388,7 @@ def load_session_feature(
             delta_ms,
             channel,
             max_steps=usable_label_steps(int(spec.n_steps)),
-            min_step=MIN_ELIGIBLE_STEP,
+            min_step=min_step,
         )
         roles.append(
             RoleSampleSelection(

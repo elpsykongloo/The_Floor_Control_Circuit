@@ -172,7 +172,7 @@ def _official_summary() -> dict[str, Any]:
         "overall": overall_g1(per_target, full_thr=0.05, backup_thr=0.02),
         "per_target": per_target,
         "descriptive": {
-            "note": "描述性附表（PREREG #8 δ 读法裁决）：非 G1 判据，无分数包条目，独立审计不复算",
+            "note": "描述性附表（PREREG #8/#11）：非 G1 判据，无分数包条目，独立审计不复算",
             "T1": {
                 "240": {
                     "delta_ms": 240,
@@ -186,6 +186,24 @@ def _official_summary() -> dict[str, Any]:
                     },
                 }
             },
+            "matched_mimi": {
+                target: {
+                    "note": "信息下括号变体（PREREG #11，非判据）",
+                    "feature": "mimi_prev",
+                    "min_eligible_step": 1,
+                    "n_seeds": 3,
+                    "auc_mean": 0.62,
+                    "auc_sd": 0.001,
+                    "probe_auc_mean": 0.70,
+                    "official_mimi_auc_mean": 0.64,
+                    "probe_minus_matched": {
+                        "advantage_point": 0.08,
+                        "ci_lo": 0.05,
+                        "ci_hi": 0.11,
+                    },
+                }
+                for target in TARGETS
+            },
         },
         "protocol": {
             "text_mode": "greedy",
@@ -198,6 +216,11 @@ def _official_summary() -> dict[str, Any]:
                 "baseline_row_for_step": "s",
                 "min_eligible_step": 0,
                 "last_label_step_dropped": True,
+            },
+            "context_truncation": {
+                "context_steps": 3000,
+                "analysis_max_label_step": 2998,
+                "prereg": "#11",
             },
             "nested_selection": {
                 "inner_val_sessions": TRAIN_SESSIONS[:32],
@@ -227,6 +250,9 @@ def _preflight_payload(label_hashes: dict[str, str], runner_version: str) -> dic
         "enforce_code_version": True,
         "require_time_alignment": True,
         "expected_code_version": runner_version,
+        "expected_code_versions": [runner_version],
+        "observed_code_versions": [runner_version],
+        "runner_code_version_set_id": runner_version,
         "expected_max_seconds": 600.0,
         "expected_mimi_chunk_seconds": 0.08,
         "expected_forward_chunk_steps": 128,
@@ -335,6 +361,7 @@ def _write_package(
             best_c=0.1 if kind in {"probe", "mimi"} else None,
             per_session=_scores_for_item(target, kind, layer, seed),
         )
+    runner_version = "951e839+runner." + "a" * 64
     runs_root = root / "runs"
     for session_id in [*TRAIN_SESSIONS, *reversed(EVAL_SESSIONS)]:
         for channel in (0, 1):
@@ -344,6 +371,7 @@ def _write_package(
                 json.dumps(
                     {
                         "text_mode": "greedy",
+                        "code_version": runner_version,
                         "extra": {
                             "execution": {
                                 "time_alignment": {
@@ -356,7 +384,6 @@ def _write_package(
                 ),
                 encoding="utf-8",
             )
-    runner_version = "951e839+runner." + "a" * 64
     preflight = root / "mve_preflight.json"
     preflight.write_text(
         json.dumps(

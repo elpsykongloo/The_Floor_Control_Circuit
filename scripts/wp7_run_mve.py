@@ -30,9 +30,13 @@ from _bootstrap import REPO_ROOT, REPORTS_DIR
 
 from floor_circuit.config import data_root, load_config
 from floor_circuit.mve.alignment import (
+    ANALYSIS_MAX_LABEL_STEP,
     ANALYSIS_TIME_ALIGNMENT,
+    CONTEXT_TRUNCATION,
     MIN_ELIGIBLE_STEP,
+    MODEL_CONTEXT_STEPS,
     feature_row_indices,
+    min_eligible_step_for,
     usable_label_steps,
 )
 from floor_circuit.mve.artifacts import (
@@ -68,7 +72,9 @@ from floor_circuit.probes.stats import (
     PerSession,
     ScoreCollection,
     SeededPerSession,
+    paired_seed_mean_advantage_bootstrap,
     pooled_metrics,
+    seed_mean_metrics,
 )
 
 ACOUSTIC_FEATURE_DIM = 8
@@ -372,12 +378,14 @@ def linear_feature_cells(
     plans: dict[int, TrainingSamplePlan],
     inner_plans: dict[int, TrainingSamplePlan],
     sessions_inner_val: list[str],
+    min_step: int = MIN_ELIGIBLE_STEP,
 ) -> list[ProbeCell]:
     """两阶段嵌套拟合（PREREG #7）。
 
     阶段 1：inner_train 抽样上拟合全部 C，在 inner_val 上选 best_c（选择证据记入
     metrics.selection_*）；阶段 2：以 best_c 在全量 probe_train 抽样上重训，
     在 probe_val 一次性评估。probe_val 分数不参与任何选择。
+    min_step 仅供 mimi_prev（#11 描述性变体）覆盖，须与传入 plans 的构建口径一致。
     """
 
     cells: list[ProbeCell] = []
@@ -393,6 +401,7 @@ def linear_feature_cells(
                 target,
                 delta_ms,
                 feature=feature,
+                min_step=min_step,
             )
 
         X_inner, y_inner = load_training_sample(
@@ -700,6 +709,13 @@ def main() -> None:
     bootstrap_n = int(mve_cfg["bootstrap_n"])
     if bootstrap_n != FROZEN_G1_BOOTSTRAP_N:
         raise RuntimeError("G1 bootstrap 次数与冻结协议不一致")
+    if (
+        int(mve_cfg["context_steps"]) != MODEL_CONTEXT_STEPS
+        or int(mve_cfg["analysis_max_label_step"]) != ANALYSIS_MAX_LABEL_STEP
+    ):
+        raise RuntimeError(
+            "grids.yaml 的上下文截断镜像与 mve/alignment.py 权威值不一致（PREREG #11）"
+        )
     frozen_text_mode = str(mve_cfg["text_mode"])
     if frozen_text_mode != "greedy":
         raise RuntimeError(f"冻结的正式文本流协议必须为 greedy，配置为 {frozen_text_mode!r}")
@@ -770,11 +786,19 @@ def main() -> None:
         seeds=probe_seeds,
     )
 
-    def _target_analysis(target: str, delta: int | None, writer: ScoreBundleWriter | None) -> dict:
+    def _target_analysis(
+        target: str,
+        delta: int | None,
+        writer: ScoreBundleWriter | None,
+        *,
+        with_matched_mimi: bool = False,
+    ) -> dict:
         """单目标全协议分析（嵌套选择 + 三基线 + bootstrap）。
 
         writer 非空 = 正式路径（分数落冻结 34 项分数包）；writer=None = 描述性路径
         （PREREG #8 附表：同协议计算，无分数包条目、无裁决效力）。
+        with_matched_mimi = 附带计算 #11 信息下括号 Mimi 变体（读行 s−1，仅描述性；
+        其条目由调用方从结果中弹出并放入 descriptive，不进入 per_target）。
         """
         plans = {
             seed: build_training_sample_plan(
@@ -912,17 +936,104 @@ def main() -> None:
                 for layer in sorted(summary)
             },
         }
+        if with_matched_mimi:
+            # PREREG #11 描述性"信息下括号"变体：Mimi 双通道潜表征读行 s−1（少看当前帧），
+            # 嵌套选择协议与官方 Mimi 基线完全相同；行集少每角色 step 0 一行（占比 <0.04%）。
+            prev_min_step = min_eligible_step_for("mimi_prev")
+            prev_plans = {
+                seed: build_training_sample_plan(
+                    _labels_root(),
+                    train,
+                    run_specs,
+                    target,
+                    delta,
+                    int(mve_cfg["neg_downsample_ratio"]),
+                    seed,
+                    min_step=prev_min_step,
+                )
+                for seed in probe_seeds
+            }
+            prev_inner_plans = {
+                seed: build_training_sample_plan(
+                    _labels_root(),
+                    inner_train,
+                    run_specs,
+                    target,
+                    delta,
+                    int(mve_cfg["neg_downsample_ratio"]),
+                    seed,
+                    min_step=prev_min_step,
+                )
+                for seed in probe_seeds
+            }
+            prev_cells = linear_feature_cells(
+                sessions_eval=evals,
+                target=target,
+                delta_ms=delta,
+                layer=-1,
+                feature="mimi_prev",
+                seeds=probe_seeds,
+                c_grid=list(mve_cfg["probe_c_grid"]),
+                runs_root=runs_root,
+                run_specs=run_specs,
+                plans=prev_plans,
+                inner_plans=prev_inner_plans,
+                sessions_inner_val=inner_val,
+                min_step=prev_min_step,
+            )
+            prev_scores = {cell.seed: cell.per_session for cell in prev_cells}
+            prev_metrics = seed_mean_metrics(prev_scores)
+            probe_vs_prev = paired_seed_mean_advantage_bootstrap(
+                summary[best_layer]["per_seed"],
+                {"matched_mimi": prev_scores},
+                n_boot=bootstrap_n,
+                seed=FROZEN_G1_BOOTSTRAP_SEED,
+            )
+            result["matched_mimi_descriptive"] = {
+                "note": (
+                    "信息下括号变体（PREREG #11，非判据）：Mimi 双通道潜表征读行 s−1"
+                    "（观测截止 s·τ）；若探针明显高于本变体而不高于官方 Mimi，"
+                    "则官方基线的优势主要来自同帧连续潜表征的输入特权"
+                ),
+                "feature": "mimi_prev",
+                "min_eligible_step": prev_min_step,
+                "n_seeds": prev_metrics["n_seeds"],
+                "auc_mean": prev_metrics["auc_mean"],
+                "auc_sd": prev_metrics["auc_sd"],
+                "best_c_by_seed": {
+                    cell.seed: float(cell.metrics["best_c"]) for cell in prev_cells
+                },
+                "probe_auc_mean": result["advantage"]["probe_auc"],
+                "official_mimi_auc_mean": result["baseline_metrics"]["mimi"]["auc_mean"],
+                "probe_minus_matched": {
+                    "advantage_point": probe_vs_prev["advantage_point"],
+                    "ci_lo": probe_vs_prev["ci_lo"],
+                    "ci_hi": probe_vs_prev["ci_hi"],
+                },
+            }
         return result
 
+    matched_mimi_by_target: dict[str, dict] = {}
     for target in mve_cfg["targets"]:
         delta = int(mve_cfg["t1_delta_ms"]) if target == "T1" else None
-        per_target[target] = _target_analysis(str(target), delta, score_writer)
+        result = _target_analysis(
+            str(target),
+            delta,
+            score_writer,
+            with_matched_mimi=not ablation_tag,
+        )
+        matched = result.pop("matched_mimi_descriptive", None)
+        if matched is not None:
+            matched_mimi_by_target[str(target)] = matched
+        per_target[target] = result
 
-    # 描述性附表（PREREG #8 δ 读法裁决）：同协议计算，剥离裁决字段，无分数包条目
+    # 描述性附表（PREREG #8/#11）：同协议计算，剥离裁决字段，无分数包条目
     descriptive: dict = {
-        "note": "描述性附表（PREREG #8 δ 读法裁决）：非 G1 判据，无分数包条目，独立审计不复算",
+        "note": "描述性附表（PREREG #8/#11）：非 G1 判据，无分数包条目，独立审计不复算",
         "T1": {},
     }
+    if matched_mimi_by_target:
+        descriptive["matched_mimi"] = matched_mimi_by_target
     if not ablation_tag:
         for delta_value in mve_cfg.get("t1_descriptive_deltas_ms", []):
             delta = int(delta_value)
@@ -951,12 +1062,14 @@ def main() -> None:
         "text_mode": expected_text_mode,
         "ablation": ablation_tag,
         "t1_delta_ms": int(mve_cfg["t1_delta_ms"]),
+        "context_truncation": dict(CONTEXT_TRUNCATION),
         "descriptive": descriptive,
     }
     protocol = {
         "text_mode": expected_text_mode,
         "ablation": ablation_tag,
         "time_alignment": dict(ANALYSIS_TIME_ALIGNMENT),
+        "context_truncation": dict(CONTEXT_TRUNCATION),
         "nested_selection": {
             "inner_val_sessions": inner_val,
             "n_inner_train": len(inner_train),

@@ -11,12 +11,16 @@ import numpy as np
 import pytest
 
 from floor_circuit.mve.alignment import (
+    ANALYSIS_MAX_LABEL_STEP,
     ANALYSIS_TIME_ALIGNMENT,
+    CONTEXT_TRUNCATION,
     FEATURE_OBSERVED_THROUGH_OFFSET,
     LABEL_STEP_OBSERVED_THROUGH_OFFSET,
     MIN_ELIGIBLE_STEP,
+    MODEL_CONTEXT_STEPS,
     RUNNER_TIME_ALIGNMENT,
     feature_row_indices,
+    min_eligible_step_for,
     usable_label_steps,
 )
 from floor_circuit.probes.baselines import hazard_features
@@ -31,6 +35,7 @@ class TestRowMapping:
             "mimi": 1,
             "hazard": 1,
             "acoustic": 1,
+            "mimi_prev": 2,
         }
         assert MIN_ELIGIBLE_STEP == 0
         assert RUNNER_TIME_ALIGNMENT == {
@@ -40,6 +45,34 @@ class TestRowMapping:
         assert ANALYSIS_TIME_ALIGNMENT["acts_row_for_step"] == "s+1"
         assert ANALYSIS_TIME_ALIGNMENT["baseline_row_for_step"] == "s"
         assert ANALYSIS_TIME_ALIGNMENT["last_label_step_dropped"] is True
+
+    def test_context_truncation_is_frozen(self):
+        # PREREG #11：Moshi 官方 context=3000；主判据窗标签步 ≤ 2998（acts 行 ≤ 2999）
+        assert MODEL_CONTEXT_STEPS == 3000
+        assert ANALYSIS_MAX_LABEL_STEP == 2998
+        assert CONTEXT_TRUNCATION == {
+            "context_steps": 3000,
+            "analysis_max_label_step": 2998,
+            "prereg": "#11",
+        }
+
+    def test_spike_row_3000_is_never_selected(self):
+        # 全窗 7500 步缓存：可用步 0..2998 → acts 行 1..2999；行 3000（淘汰尖峰）不可达
+        usable = usable_label_steps(7500)
+        assert usable == 2999
+        steps = np.arange(0, usable, dtype=np.int64)
+        rows = feature_row_indices("acts", steps)
+        assert int(rows.max()) == 2999
+        assert int(rows.max()) < MODEL_CONTEXT_STEPS
+
+    def test_mimi_prev_reads_row_s_minus_1(self):
+        steps = np.array([1, 4, 9], dtype=np.int64)
+        np.testing.assert_array_equal(feature_row_indices("mimi_prev", steps), [0, 3, 8])
+        assert min_eligible_step_for("mimi_prev") == 1
+        assert min_eligible_step_for("acts") == 0
+        assert min_eligible_step_for("mimi") == 0
+        with pytest.raises(ValueError, match="最小合法步"):
+            feature_row_indices("mimi_prev", np.array([0, 1], dtype=np.int64))
 
     def test_acts_reads_row_s_plus_1_and_baselines_read_row_s(self):
         steps = np.array([0, 4, 9], dtype=np.int64)
@@ -53,13 +86,18 @@ class TestRowMapping:
         steps = np.arange(0, 50, dtype=np.int64)
         assert int(feature_row_indices("acts", steps).min()) == 1
 
-    def test_last_label_step_is_dropped(self):
-        assert usable_label_steps(7500) == 7499  # 可用步 0..7498；acts 行最大 7499
+    def test_last_label_step_is_dropped_and_window_is_capped(self):
+        # #8 末步丢弃 + #11 截断：可用步数 = min(n−1, 2999)
+        assert usable_label_steps(7500) == 2999  # 全窗缓存截到规格内（步 0..2998）
+        assert usable_label_steps(3001) == 2999
+        assert usable_label_steps(3000) == 2999
+        assert usable_label_steps(2999) == 2998  # 短于截断窗时仍是末步丢弃
+        assert usable_label_steps(100) == 99
         assert usable_label_steps(1) == 0
         assert usable_label_steps(0) == 0
 
     def test_negative_step_is_rejected(self):
-        with pytest.raises(ValueError, match="MIN_ELIGIBLE_STEP"):
+        with pytest.raises(ValueError, match="最小合法步"):
             feature_row_indices("mimi", np.array([-1, 1], dtype=np.int64))
 
     def test_unknown_feature_is_rejected(self):
@@ -219,3 +257,62 @@ class TestRowShiftEndToEnd:
         X_mimi, _ = load_role_xy(runs, labels, "s0", 0, -1, "T1", 240, feature="mimi")
         np.testing.assert_array_equal(X_mimi[:, 0], [0, 1, 2, 3, 4])  # 自通道行 = s
         np.testing.assert_array_equal(X_mimi[:, 1], [100, 101, 102, 103, 104])  # 对方通道同行
+
+    def test_context_truncation_and_mimi_prev_end_to_end(self, tmp_path):
+        """n_steps>3000 的世界：#11 截断到步 2998；mimi_prev 读行 s−1、步域 1 起。"""
+        from types import SimpleNamespace
+
+        import pandas as pd
+        import zarr
+
+        from floor_circuit.mve.dataset import load_role_xy, load_session_feature, run_dir_for
+
+        n_steps = 3005
+        runs = tmp_path / "runs"
+        for channel in (0, 1):
+            run_dir = run_dir_for(runs, "s0", channel)
+            run_dir.mkdir(parents=True)
+            group = zarr.open_group(str(run_dir), mode="w")
+            ramp = (np.arange(n_steps, dtype=np.float32) % 1000).reshape(-1, 1)
+            for name in ("acts_L4", "mimi_latent"):
+                array = group.create_array(
+                    name,
+                    shape=(n_steps, 1),
+                    dtype="float32",
+                    chunks=(n_steps, 1),
+                )
+                array[:] = ramp + (0.5 if channel == 1 else 0.0)
+        labels = pd.DataFrame(
+            {
+                "target": ["T4"] * n_steps,
+                "agent_channel": [0] * n_steps,
+                "step": list(range(n_steps)),
+                "label": [i % 2 for i in range(n_steps)],
+                "delta_ms": [-1] * n_steps,
+            }
+        )
+
+        X_acts, y = load_role_xy(runs, labels, "s0", 0, 4, "T4", None, feature="acts")
+        assert len(y) == 2999  # 步 0..2998（#11：行 3000 尖峰及其后不可达）
+        assert float(X_acts[0, 0]) == 1.0  # 步 0 → acts 行 1
+        assert float(X_acts[-1, 0]) == float(2999 % 1000)  # 步 2998 → acts 行 2999
+
+        labels_root = tmp_path / "labels"
+        labels_root.mkdir()
+        labels.to_parquet(labels_root / "s0.parquet")
+        specs = {
+            ("s0", 0): SimpleNamespace(n_steps=n_steps),
+            ("s0", 1): SimpleNamespace(n_steps=n_steps),
+        }
+        X_mimi, y_mimi = load_session_feature(
+            runs, labels_root, "s0", specs, -1, "T4", None, feature="mimi"
+        )
+        assert len(y_mimi) == 2999
+        assert float(X_mimi[0, 0]) == 0.0  # 步 0 → mimi 行 0
+        X_prev, y_prev = load_session_feature(
+            runs, labels_root, "s0", specs, -1, "T4", None, feature="mimi_prev", min_step=1
+        )
+        assert len(y_prev) == 2998  # 步 1..2998（mimi_prev 无步 0）
+        assert float(X_prev[0, 0]) == 0.0  # 步 1 → mimi 行 0
+        assert float(X_prev[0, 1]) == 0.5  # 对方通道同行
+        assert float(X_prev[-1, 0]) == float(2997 % 1000)  # 步 2998 → 行 2997

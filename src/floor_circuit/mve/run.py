@@ -195,6 +195,15 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
         f"内层选择划分 inner_train {meta.get('n_inner_train_sessions')} / inner_val {meta.get('n_inner_val_sessions')}",
         "- 时间对齐（PREREG #8）：标签步 s 的观测截止统一为 (s+1)·τ；"
         "acts 读行 s+1，Mimi/hazard/声学读行 s；acts[0] 弃用，末标签步丢弃。",
+    ]
+    truncation = meta.get("context_truncation")
+    if truncation:
+        lines += [
+            f"- 上下文截断（PREREG #11）：分析窗冻结为模型规格内——可用标签步 0.."
+            f"{truncation['analysis_max_label_step']}（context={truncation['context_steps']} 步；"
+            "acts 行 ≤2999，排除行 3000 淘汰尖峰及其后全部行；缓存不变，仅分析侧截断）。",
+        ]
+    lines += [
         "- 置信区间口径：层与各种子 C 在 probe_train 内层划分上选择，probe_val 只用于最终报告；"
         "会话级 bootstrap CI 对选定模型无报告集选择泄漏（目标间取优为冻结决策规则）。",
         "",
@@ -275,6 +284,27 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
         lines += [
             "",
             f"> {descriptive.get('note', '')}",
+            "",
+        ]
+    matched = descriptive.get("matched_mimi") or {}
+    if matched:
+        lines += [
+            "## 描述性附表：信息下括号 Mimi 变体（非判据，PREREG #11）",
+            "",
+            "| 目标 | matched-Mimi AUC（读行 s−1） | 官方 Mimi AUC（读行 s） | 探针 AUC | 探针 − matched（95% CI） |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for target in sorted(matched):
+            entry = matched[target]
+            gap = entry["probe_minus_matched"]
+            lines.append(
+                f"| {target} | {entry['auc_mean']:.4f} ± {entry['auc_sd']:.4f} "
+                f"| {entry['official_mimi_auc_mean']:.4f} | {entry['probe_auc_mean']:.4f} "
+                f"| {gap['advantage_point']:+.4f} [{gap['ci_lo']:+.4f}, {gap['ci_hi']:+.4f}] |"
+            )
+        lines += [
+            "",
+            f"> {next(iter(matched.values()))['note']}",
             "",
         ]
     heading = "## G1 总裁决" if not meta.get("ablation") else "## 消融结论（不构成 G1 裁决）"

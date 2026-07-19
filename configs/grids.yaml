@@ -31,6 +31,13 @@ mve:
   # δ=240（净 [160,240) ms，晚期整合区间）降级为描述性附表，不入 G1 判据。
   t1_delta_ms: 400
   t1_descriptive_deltas_ms: [240] # 描述性附表：同协议全量计算，无分数包条目、无裁决
+  # PREREG #11（2026-07-19 用户批准）：Moshi 官方滚动缓存 context=3000 步（240 s）；
+  # 全窗 7500 步运行在 3000/6000 步处出现初始 token / 替代 sink 淘汰引发的表征塌缩
+  # （80/80 运行尖峰、跨会话公共方向占比 0.50→0.85、分段优势反转）。G1 分析冻结截断
+  # 到规格内窗口：可用标签步 0..2998（acts 行 ≤2999，排除行 3000 尖峰）。缓存不变，
+  # 仅分析侧截断；数值权威 = mve/alignment.py（本处冻结镜像，运行时强制一致性校验）。
+  context_steps: 3000
+  analysis_max_label_step: 2998
   n_sessions_train: 160 # 自 CANDOR 探针训练划分（60% 侧）
   n_sessions_eval: 40 # 自 CANDOR 验证划分（15% 侧）；25% 因果评估侧绝不触碰
   max_minutes_per_session: 10
@@ -40,7 +47,9 @@ mve:
   inner_val_sessions: 32 # probe_train 前 32 会话为嵌套选择的 inner_val（PREREG #7）
   seeds: [0, 1, 2]
   neg_downsample_ratio: 5 # 负类:正类 = 5:1（文档/00 §8）
-  probe_c_grid: [0.01, 0.1, 1.0]
+  # PREREG #11：全窗正式运行中 24/24 个（层×种子）格子及 Mimi 基线全部选中旧下界
+  # 0.01——网格未包住最优点，向下扩展两档；选择规则（inner_val 嵌套）不变。
+  probe_c_grid: [0.0001, 0.001, 0.01, 0.1, 1.0]
   bootstrap_n: 1000 # 会话级 cluster bootstrap
   g1_full_threshold: 0.05 # ≥ +0.05 → 全量 E1
   g1_backup_threshold: 0.02 # +0.02~0.05 → 备胎 MVE；全部 < +0.02 → N1

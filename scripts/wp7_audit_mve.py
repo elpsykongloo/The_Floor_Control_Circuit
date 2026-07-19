@@ -54,6 +54,15 @@ CI_SCOPE = (
     "会话级 bootstrap CI 对选定模型无报告集选择泄漏（目标间取优仍为冻结决策规则）"
 )
 MIN_ELIGIBLE_STEP = 0  # 与 mve/alignment.py 一致（本脚本独立复算，不 import 正式链）
+# PREREG #11 上下文截断（独立字面量）：可用标签步 ≤ 2998（acts 行 ≤ 2999，
+# 排除行 3000 淘汰尖峰及其后全部行）；缓存不变，仅分析窗截断
+MODEL_CONTEXT_STEPS = 3000
+ANALYSIS_MAX_LABEL_STEP = 2998
+EXPECTED_CONTEXT_TRUNCATION = {
+    "context_steps": MODEL_CONTEXT_STEPS,
+    "analysis_max_label_step": ANALYSIS_MAX_LABEL_STEP,
+    "prereg": "#11",
+}
 # PREREG #8 锚定：标签步 s 观测截止 (s+1)·τ；acts 读行 s+1、基线读行 s；末标签步丢弃
 EXPECTED_TIME_ALIGNMENT = {
     "initial_token_position": 0,
@@ -303,9 +312,12 @@ def _assemble_authoritative_labels(
                 or (steps_numeric < 0).any()
             ):
                 raise IndependentAuditError(f"{session_id}/{target}/agent{channel}: step 不是非负整数")
-            # 时间对齐（PREREG #7/#8）：与正式链一致——末标签步（无对应 acts 行）丢弃
+            # 时间对齐（PREREG #7/#8）：末标签步（无对应 acts 行）丢弃；
+            # 上下文截断（PREREG #11）：标签步 ≤ 2998（模型规格内窗口）
             rows = rows.loc[
-                (steps_numeric < expected_n_steps - 1) & (steps_numeric >= MIN_ELIGIBLE_STEP)
+                (steps_numeric < expected_n_steps - 1)
+                & (steps_numeric <= ANALYSIS_MAX_LABEL_STEP)
+                & (steps_numeric >= MIN_ELIGIBLE_STEP)
             ]
             rows = rows.sort_values("step", kind="stable")
             steps = rows["step"].to_numpy(dtype=np.int64)
@@ -417,6 +429,11 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
     config_checks = {
         "targets": list(mve["targets"]) == expected_contract["targets"],
         "t1_delta_ms": int(mve["t1_delta_ms"]) == 400,  # PREREG #8 δ 读法裁决
+        # PREREG #11 上下文截断镜像
+        "context_steps": int(mve["context_steps"]) == MODEL_CONTEXT_STEPS,
+        "analysis_max_label_step": int(mve["analysis_max_label_step"]) == ANALYSIS_MAX_LABEL_STEP,
+        "probe_c_grid": [float(value) for value in mve["probe_c_grid"]]
+        == [0.0001, 0.001, 0.01, 0.1, 1.0],  # PREREG #11 下扩网格
         "layers": [int(value) for value in mve["layers"]] == expected_contract["layers"],
         "seeds": [int(value) for value in mve["seeds"]] == expected_contract["seeds"],
         "bootstrap_n": int(mve["bootstrap_n"]) == FROZEN_G1_BOOTSTRAP_N,
@@ -852,7 +869,31 @@ def _verify_descriptive(summary: dict[str, Any]) -> dict[str, Any]:
     for delta_key, entry in entries.items():
         if not isinstance(entry, dict) or int(entry.get("delta_ms", -1)) != int(delta_key):
             raise IndependentAuditError(f"descriptive.T1[{delta_key}] 的 delta_ms 不一致")
-    return {"n_entries": len(entries), "non_decisional": True}
+    # PREREG #11：信息下括号 Mimi 变体的形状核验（数值不复算，其分数不进分数包）
+    matched = descriptive.get("matched_mimi")
+    if not isinstance(matched, dict) or sorted(matched) != sorted(FROZEN_G1_TARGETS):
+        raise IndependentAuditError("descriptive.matched_mimi 必须覆盖冻结目标集合")
+    for target, entry in matched.items():
+        if not isinstance(entry, dict) or entry.get("feature") != "mimi_prev":
+            raise IndependentAuditError(f"descriptive.matched_mimi[{target}] 的 feature 必须为 mimi_prev")
+        if int(entry.get("min_eligible_step", -1)) != 1:
+            raise IndependentAuditError(f"descriptive.matched_mimi[{target}] 的最小合法步必须为 1")
+        gap = entry.get("probe_minus_matched")
+        required_numeric = [entry.get("auc_mean"), entry.get("probe_auc_mean")]
+        if isinstance(gap, dict):
+            required_numeric += [gap.get("advantage_point"), gap.get("ci_lo"), gap.get("ci_hi")]
+        else:
+            raise IndependentAuditError(f"descriptive.matched_mimi[{target}] 缺少 probe_minus_matched")
+        if any(
+            isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value)
+            for value in required_numeric
+        ):
+            raise IndependentAuditError(f"descriptive.matched_mimi[{target}] 含非法数值")
+    return {
+        "n_entries": len(entries),
+        "matched_mimi_targets": sorted(matched),
+        "non_decisional": True,
+    }
 
 
 def _declared_selection(summary: dict[str, Any]) -> dict[str, int]:
@@ -937,6 +978,7 @@ def _verify_protocol(
     checks: dict[str, bool] = {
         "text_mode": protocol.get("text_mode") == str(mve["text_mode"]) == "greedy",
         "time_alignment": protocol.get("time_alignment") == EXPECTED_TIME_ALIGNMENT,
+        "context_truncation": protocol.get("context_truncation") == EXPECTED_CONTEXT_TRUNCATION,
     }
     split = _load_json_object(split_path, "冻结划分")
     train = [str(value) for value in split["splits"]["probe_train"][: int(mve["n_sessions_train"])]]
