@@ -336,7 +336,7 @@ def _validate_run(
     layers: list[int],
     expected_n_steps: int,
     expected_clock_hz: float,
-    expected_code_version: str,
+    expected_code_versions: set[str],
     expected_max_seconds: float,
     expected_mimi_chunk_seconds: float,
     expected_forward_chunk_steps: int,
@@ -370,9 +370,10 @@ def _validate_run(
         issues.append(
             f"{prefix}: text_mode={manifest.text_mode!r}，冻结协议要求 {expected_text_mode!r}"
         )
-    if enforce_code_version and manifest.code_version != expected_code_version:
+    if enforce_code_version and manifest.code_version not in expected_code_versions:
         issues.append(
-            f"{prefix}: code_version={manifest.code_version!r}，期望 {expected_code_version!r}"
+            f"{prefix}: code_version={manifest.code_version!r}，"
+            f"期望属于 {sorted(expected_code_versions)!r}"
         )
     if len(manifest.source_audio) != 2 or any(len(str(digest)) != 64 for digest in manifest.source_audio.values()):
         issues.append(f"{prefix}: source_audio 应含两条 SHA-256")
@@ -472,7 +473,7 @@ def preflight_mve_inputs(
     expected_n_steps: int,
     expected_clock_hz: float,
     t1_delta_ms: int,
-    expected_code_version: str,
+    expected_code_version: str | list[str] | set[str] | tuple[str, ...],
     expected_max_seconds: float,
     expected_mimi_chunk_seconds: float,
     expected_forward_chunk_steps: int,
@@ -489,6 +490,13 @@ def preflight_mve_inputs(
     """
 
     runs_root, labels_root, audio_root = Path(runs_root), Path(labels_root), Path(audio_root)
+    expected_code_versions = (
+        {expected_code_version}
+        if isinstance(expected_code_version, str)
+        else {str(value) for value in expected_code_version}
+    )
+    if enforce_code_version and not expected_code_versions:
+        raise MvePreflightError("正式预检至少需要一个允许的 runner 代码版本")
     if len(session_ids) != len(set(session_ids)):
         raise MvePreflightError("MVE 会话列表含重复项")
     if set(session_pools) != {"train", "val"}:
@@ -522,7 +530,7 @@ def preflight_mve_inputs(
                 layers,
                 expected_n_steps,
                 expected_clock_hz,
-                expected_code_version,
+                expected_code_versions,
                 expected_max_seconds,
                 expected_mimi_chunk_seconds,
                 expected_forward_chunk_steps,
@@ -578,7 +586,12 @@ def preflight_mve_inputs(
         "observed_code_versions": sorted(
             {str(spec.code_version) for spec in specs.values()}
         ),
-        "expected_code_version": expected_code_version,
+        "expected_code_version": (
+            next(iter(expected_code_versions))
+            if len(expected_code_versions) == 1
+            else None
+        ),
+        "expected_code_versions": sorted(expected_code_versions),
         "expected_max_seconds": expected_max_seconds,
         "expected_mimi_chunk_seconds": expected_mimi_chunk_seconds,
         "expected_forward_chunk_steps": expected_forward_chunk_steps,

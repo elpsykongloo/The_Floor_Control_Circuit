@@ -76,12 +76,14 @@ ACOUSTIC_TRAIN_MAX_BYTES = 4 * 1024**3
 ACOUSTIC_EVAL_MAX_BYTES = 2 * 1024**3
 
 
-def _runner_code_version() -> str:
+def _runner_code_version(entry: Path | None = None) -> str:
     """按缓存计划同一算法绑定当前 Moshi runner 的提交与内容。"""
 
+    if entry is None:
+        entry = REPO_ROOT / "runners" / "moshi" / "run.py"
     sources = (
         ("shared", REPO_ROOT / "runners" / "_shared" / "moshi_family.py"),
-        ("entry", REPO_ROOT / "runners" / "moshi" / "run.py"),
+        ("entry", entry),
     )
     content = hashlib.sha256()
     for label, path in sources:
@@ -107,6 +109,38 @@ def _runner_code_version() -> str:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError("无法读取 runner 最近提交，拒绝生成 G1 裁决") from exc
     return f"{source_commit[:7]}+runner.{content.hexdigest()}"
+
+
+def _accepted_runner_code_versions() -> list[str]:
+    """读取持久批处理计划登记的当前实现与可续跑历史实现。"""
+    batch_entry = REPO_ROOT / "runners" / "moshi" / "run_batch.py"
+    current = _runner_code_version(batch_entry)
+    plan_path = REPORTS_DIR / "wp7_cache_plan.json"
+    if not plan_path.is_file():
+        return [current]
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    planned = str(plan.get("batch_code_version", ""))
+    planned_digest = planned.partition("+runner.")[2]
+    current_digest = current.partition("+runner.")[2]
+    if (
+        len(planned_digest) != 64
+        or len(current_digest) != 64
+        or planned_digest != current_digest
+    ):
+        raise RuntimeError("缓存计划与当前持久 runner 不一致，请重新生成批处理计划")
+    versions = {str(value) for value in plan.get("accepted_code_versions", [])}
+    versions.add(current)
+    return sorted(versions)
+
+
+def _runner_code_version_set_id(versions: list[str]) -> str:
+    """把多实现但同协议的缓存版本集合绑定为单一分数包标识。"""
+    if len(versions) == 1:
+        return versions[0]
+    digest = hashlib.sha256(
+        json.dumps(sorted(versions), ensure_ascii=True).encode("utf-8")
+    ).hexdigest()
+    return f"runner-set.{digest}"
 
 
 def _analysis_code_provenance() -> dict:
@@ -685,7 +719,11 @@ def main() -> None:
         runs_root = data_root() / "activations" / "moshi" / f"{cache_name}_zarr"
     clock_hz = float(grids["clocks"]["moshi"]["hz"])
     expected_n_steps = round(float(mve_cfg["max_minutes_per_session"]) * 60.0 * clock_hz)
-    runner_code_version = _runner_code_version()
+    accepted_runner_versions = (
+        [_runner_code_version()]
+        if args.ablation_text_pad
+        else _accepted_runner_code_versions()
+    )
     run_specs, preflight = preflight_mve_inputs(
         runs_root,
         _labels_root(),
@@ -696,7 +734,7 @@ def main() -> None:
         expected_n_steps,
         clock_hz,
         int(mve_cfg["t1_delta_ms"]),
-        runner_code_version,
+        accepted_runner_versions,
         float(mve_cfg["max_minutes_per_session"]) * 60.0,
         float(mve_cfg["mimi_chunk_seconds"]),
         int(mve_cfg["forward_chunk_steps"]),
@@ -704,17 +742,19 @@ def main() -> None:
         enforce_code_version=not args.ablation_text_pad,
         require_time_alignment=not args.ablation_text_pad,
     )
+    observed_versions = preflight["observed_code_versions"]
+    if args.ablation_text_pad and len(observed_versions) != 1:
+        raise RuntimeError(f"PAD 消融缓存含多个 runner 版本：{observed_versions}")
+    # 允许集合可以含尚未产生缓存的当前提交版本；分数包只绑定实际观测集合。
+    runner_code_version = _runner_code_version_set_id(observed_versions)
     preflight["label_sha256"] = label_hashes
+    preflight["runner_code_version_set_id"] = runner_code_version
     preflight_name = (
         "mve_preflight.json" if not ablation_tag else f"mve_preflight_ablation_{ablation_tag}.json"
     )
     preflight_report_path = _write_report_json_atomic(preflight_name, preflight)
-    if args.ablation_text_pad:
-        # 消融分数包的 runner 溯源必须记缓存的实测版本，而非当前（greedy）runner 版本
-        observed_versions = preflight["observed_code_versions"]
-        if len(observed_versions) != 1:
-            raise RuntimeError(f"PAD 消融缓存含多个 runner 版本：{observed_versions}")
-        runner_code_version = observed_versions[0]
+    analysis_protocol["runner_code_versions"] = observed_versions
+    analysis_protocol["runner_code_version_set_id"] = runner_code_version
 
     per_target: dict[str, dict] = {}
     raw_dir = data_root() / "mve"

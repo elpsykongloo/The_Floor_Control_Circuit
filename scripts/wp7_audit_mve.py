@@ -458,6 +458,35 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
         raise IndependentAuditError("预检快照 status 未通过")
     expected_n_sessions = int(mve["n_sessions_train"]) + int(mve["n_sessions_eval"])
     expected_clock_hz = float(clocks["moshi"]["hz"])
+    expected_versions = sorted(
+        str(value)
+        for value in snapshot.get(
+            "expected_code_versions",
+            [snapshot.get("expected_code_version")],
+        )
+        if value
+    )
+    observed_versions = sorted(
+        str(value) for value in snapshot.get("observed_code_versions", [])
+    )
+    if len(observed_versions) == 1:
+        version_set_id = observed_versions[0]
+    else:
+        version_set_id = "runner-set." + hashlib.sha256(
+            json.dumps(observed_versions, ensure_ascii=True).encode("utf-8")
+        ).hexdigest()
+    declared_snapshot_set_id = snapshot.get(
+        "runner_code_version_set_id",
+        snapshot.get("expected_code_version"),
+    )
+    declared_analysis_versions = analysis.get("runner_code_versions")
+    analysis_versions_ok = (
+        declared_analysis_versions == observed_versions
+        and analysis.get("runner_code_version_set_id") == version_set_id
+        if declared_analysis_versions is not None
+        else len(observed_versions) == 1
+        and manifest["runner_code_version"] == observed_versions[0]
+    )
     preflight_checks = {
         "n_sessions": snapshot.get("n_sessions") == expected_n_sessions,
         "n_runs": snapshot.get("n_runs") == expected_n_sessions * 2,
@@ -472,7 +501,15 @@ def _verify_metadata(manifest: dict[str, Any], manifest_path: Path) -> dict[str,
         "expected_text_mode": snapshot.get("expected_text_mode") == str(mve["text_mode"]),
         "enforce_code_version": snapshot.get("enforce_code_version") is True,
         "require_time_alignment": snapshot.get("require_time_alignment") is True,
-        "runner_code_version": snapshot.get("expected_code_version") == manifest["runner_code_version"],
+        "runner_code_versions_allowed": set(observed_versions).issubset(
+            set(expected_versions)
+        ),
+        "runner_code_version_set_id": (
+            declared_snapshot_set_id
+            == manifest["runner_code_version"]
+            == version_set_id
+        ),
+        "analysis_runner_versions": analysis_versions_ok,
         "label_sha256": snapshot.get("label_sha256") == manifest["label_sha256"],
     }
     failed_preflight = [name for name, passed in preflight_checks.items() if not passed]
@@ -746,7 +783,17 @@ def _verify_runner_manifests(manifest: dict[str, Any]) -> dict[str, Any]:
         "initial_token_position": 0,
         "acts_observed_through_offset_steps": 0,
     }
+    allowed_versions = {
+        str(value)
+        for value in manifest.get("analysis_protocol", {}).get(
+            "runner_code_versions",
+            [],
+        )
+    }
+    if not allowed_versions:
+        allowed_versions = {str(manifest["runner_code_version"])}
     n_verified = 0
+    version_counts: dict[str, int] = {}
     for session_id in sessions:
         for channel in (0, 1):
             path = runs_root / f"{session_id}_agent{channel}" / "manifest.json"
@@ -756,17 +803,25 @@ def _verify_runner_manifests(manifest: dict[str, Any]) -> dict[str, Any]:
                     f"{session_id}/agent{channel}: 缓存 text_mode={payload.get('text_mode')!r}，"
                     "冻结协议要求 greedy"
                 )
+            code_version = str(payload.get("code_version", ""))
+            if code_version not in allowed_versions:
+                raise IndependentAuditError(
+                    f"{session_id}/agent{channel}: 缓存 code_version={code_version!r}，"
+                    f"未登记在 {sorted(allowed_versions)!r}"
+                )
             declared = payload.get("extra", {}).get("execution", {}).get("time_alignment")
             if declared != expected_alignment:
                 raise IndependentAuditError(
                     f"{session_id}/agent{channel}: 缓存 time_alignment={declared!r}，"
                     f"期望 {expected_alignment!r}"
                 )
+            version_counts[code_version] = version_counts.get(code_version, 0) + 1
             n_verified += 1
     return {
         "n_manifests": n_verified,
         "text_mode": "greedy",
         "time_alignment_verified": True,
+        "runner_code_version_counts": dict(sorted(version_counts.items())),
     }
 
 

@@ -1,11 +1,11 @@
 {
- "generated_at": "2026-07-17T17:59:44.260277+00:00",
+ "generated_at": "2026-07-19T11:28:21.861030+00:00",
  "n_sessions": 200,
  "n_runs": 400,
  "train": 160,
  "eval": 40,
- "code_version": "951e839+runner.ae1e6082430b997e1c23a943b43a96bad2b8f67bb0cd8d8da9c0c2e4726ad3eb",
- "git_commit": "951e839c04519271988a3cc926b3035ad0ac5ee7",
+ "code_version": "68294af+runner.917704561b25285f3459d8b684963bb98487c93e13a2d6bb3602a1875ad9486a",
+ "git_commit": "243b1e38ecd92a41180555b3a7a1998c7d05c1f2",
  "layers": [
   4,
   12,
@@ -15,14 +15,25 @@
  "max_seconds": 600.0,
  "mimi_chunk_seconds": 0.08,
  "forward_chunk_steps": 128,
+ "text_mode": "greedy",
+ "out_root": "D:\\data_storage\\The_Floor_Control_Circuit\\activations\\moshi\\mve_r1_greedy",
  "input_validation": {
   "n_audio_files": 400,
   "n_output_dirs": 400,
   "n_sessions": 200
  },
- "num_shards": 1,
- "shard_id": 0,
- "cuda_visible_devices": "0",
- "emitted": 400,
+ "num_shards": 2,
+ "shard_id": 1,
+ "cuda_visible_devices": "1",
+ "persistent_worker": true,
+ "session_pair_reuse": true,
+ "accepted_code_versions": [
+  "68294af+runner.33cd3f04532ac86817633f1ef530b5624b9e373e8b405e1438f69d7149037d05",
+  "68294af+runner.6df0c17cea89b9a2a4c7f2574f55c0ecc95cf7a0ad0edb9b8a932eaf1608ce4f",
+  "68294af+runner.adf9704cee6f1363de9685e89c7e81b07b914fd81a4bd2d9509ffd0b148c3289"
+ ],
+ "batch_code_version": "68294af+runner.6df0c17cea89b9a2a4c7f2574f55c0ecc95cf7a0ad0edb9b8a932eaf1608ce4f",
+ "emitted_sessions": 100,
+ "emitted": 200,
  "failures": []
 }

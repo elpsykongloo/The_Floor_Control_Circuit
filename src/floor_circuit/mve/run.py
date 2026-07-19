@@ -193,8 +193,8 @@ def render_report(per_target: dict[str, dict], overall: dict, meta: dict) -> str
         f"T1 判据点 δ={meta.get('t1_delta_ms')} ms（PREREG #8 净毫秒读法）",
         f"- 数据：训练 {meta.get('n_train_sessions')} 会话 / 评估 {meta.get('n_eval_sessions')} 会话；"
         f"内层选择划分 inner_train {meta.get('n_inner_train_sessions')} / inner_val {meta.get('n_inner_val_sessions')}",
-        "- 时间对齐（PREREG #7）：标签步 s 的观测截止统一为 s·τ；acts 读行 s、"
-        "Mimi/hazard/声学读行 s−1，step 0 全表征剔除。",
+        "- 时间对齐（PREREG #8）：标签步 s 的观测截止统一为 (s+1)·τ；"
+        "acts 读行 s+1，Mimi/hazard/声学读行 s；acts[0] 弃用，末标签步丢弃。",
         "- 置信区间口径：层与各种子 C 在 probe_train 内层划分上选择，probe_val 只用于最终报告；"
         "会话级 bootstrap CI 对选定模型无报告集选择泄漏（目标间取优为冻结决策规则）。",
         "",

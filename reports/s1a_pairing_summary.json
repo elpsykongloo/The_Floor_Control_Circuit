@@ -1,0 +1,17 @@
+{
+ "generated_at": "2026-07-19T09:45:23.359787+00:00",
+ "en": {
+  "n_completes": 300,
+  "n_incompletes": 300,
+  "n_pairs": 75,
+  "n_speech_dropped": 112,
+  "tol_pct": 5.0
+ },
+ "zh": {
+  "n_completes": 300,
+  "n_incompletes": 300,
+  "n_pairs": 61,
+  "n_speech_dropped": 167,
+  "tol_pct": 5.0
+ }
+}

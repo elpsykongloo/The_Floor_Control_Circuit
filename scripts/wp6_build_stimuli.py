@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -65,6 +66,23 @@ def stage_post() -> None:
 
     from floor_circuit.stimuli.audio_ops import f0_flatten, normalize_lufs
 
+    def write_wav_atomic(path: Path, wav, sr: int) -> None:
+        """先写同目录临时 WAV，再原子替换，避免中断留下截断文件。"""
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent,
+            prefix=f".{path.stem}.",
+            suffix=path.suffix,
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+        try:
+            sf.write(temporary, wav, sr)
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
     cfg = load_config("stimuli")
     sr_expect = int(cfg["delivery_sample_rate"])
     target = float(cfg["qc"]["target_lufs"])
@@ -79,10 +97,14 @@ def stage_post() -> None:
                     continue
                 wav, sr = load_wav(src)
                 wav = normalize_lufs(wav, sr, target)
-                sf.write(src, wav, sr)
+                write_wav_atomic(src, wav, sr)
                 flat_path = Path(getattr(r, f"wav_{kind}_f0flat"))
                 if cfg["s1"]["f0_flatten"] and not flat_path.exists():
-                    sf.write(flat_path, normalize_lufs(f0_flatten(wav, sr), sr, target), sr)
+                    write_wav_atomic(
+                        flat_path,
+                        normalize_lufs(f0_flatten(wav, sr), sr, target),
+                        sr,
+                    )
                 n += 1
     _ = sr_expect
     print(f"后处理完成 {n} 条")

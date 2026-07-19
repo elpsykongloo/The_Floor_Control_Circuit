@@ -1,7 +1,9 @@
-"""WP7：MVE 缓存排程 —— 生成（或直接执行）Moshi runner 命令序列。
+"""WP7：MVE 缓存排程 —— 生成 Moshi 单路或持久会话计划。
 
 默认生成 PowerShell 批处理（在 Moshi venv 中跑），便于断点续跑：
   uv run python scripts/wp7_cache_mve.py --emit-ps1 <data_root>/mve/cache_mve.ps1
+正式长跑优先生成会话级持久计划：
+  uv run python scripts/wp7_cache_mve.py --emit-batch-plan <data_root>/mve/cache_batch.json
 或串行直跑：--exec
 每会话跑两个角色（agent=ch0/ch1）。文本流模式取自 configs/grids.yaml 的
 mve.text_mode（冻结为 greedy，PREREG #7）；输出目录按模式隔离：
@@ -127,13 +129,13 @@ def validate_audio_inputs(commands: list[list[str]]) -> dict:
     }
 
 
-def select_shard(commands: list[list[str]], num_shards: int, shard_id: int) -> list[list[str]]:
+def select_shard(items: list, num_shards: int, shard_id: int) -> list:
     """按稳定步长切片；不同 shard_id 的输出集合互斥。"""
     if num_shards < 1:
         raise ValueError("--num-shards 必须至少为 1")
     if shard_id < 0 or shard_id >= num_shards:
         raise ValueError(f"--shard-id 必须满足 0 <= shard_id < {num_shards}")
-    return commands[shard_id::num_shards]
+    return items[shard_id::num_shards]
 
 
 def _powershell_quote(value: str | Path) -> str:
@@ -302,10 +304,126 @@ def build_commands() -> tuple[list[list[str]], dict]:
     return cmds, meta
 
 
+def _session_records(commands: list[list[str]]) -> list[dict]:
+    """把相邻的 agent0/agent1 单路命令合并为会话级记录。"""
+    if len(commands) % 2:
+        raise ValueError("单路命令数量必须为偶数")
+    records = []
+    for index in range(0, len(commands), 2):
+        first, second = commands[index : index + 2]
+        sid0 = _option_value(first, "--session-id")
+        sid1 = _option_value(second, "--session-id")
+        if sid0 != sid1:
+            raise ValueError(f"会话配对错位：{sid0} / {sid1}")
+        records.append(
+            {
+                "session_id": sid0,
+                "audio_ch0": _option_value(first, "--audio-agent"),
+                "audio_ch1": _option_value(second, "--audio-agent"),
+                "out_agent0": _option_value(first, "--out"),
+                "out_agent1": _option_value(second, "--out"),
+            }
+        )
+    return records
+
+
+def _valid_existing_version(command: list[str]) -> str | None:
+    """提取符合冻结协议且文件完整的历史缓存版本。"""
+    out_dir = Path(_option_value(command, "--out"))
+    manifest_path = out_dir / "manifest.json"
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        execution = payload["extra"]["execution"]
+        output_files = payload["extra"]["output_files"]
+        if payload.get("text_mode") != _option_value(command, "--text-mode"):
+            return None
+        if payload.get("layers") != [
+            int(value) for value in _option_value(command, "--layers").split(",")
+        ]:
+            return None
+        if payload.get("mimi_latent") is not True:
+            return None
+        if execution.get("time_alignment") != {
+            "initial_token_position": 0,
+            "acts_observed_through_offset_steps": 0,
+        }:
+            return None
+        if execution.get("latent_kind") != "pre_quantization_continuous":
+            return None
+        if float(execution.get("max_seconds")) != float(
+            _option_value(command, "--max-seconds")
+        ):
+            return None
+        if float(execution.get("mimi_chunk_seconds")) != float(
+            _option_value(command, "--mimi-chunk-seconds")
+        ):
+            return None
+        if int(execution.get("forward_chunk_steps")) != int(
+            _option_value(command, "--forward-chunk-steps")
+        ):
+            return None
+        if not isinstance(output_files, dict) or not output_files:
+            return None
+        for name, expected_size in output_files.items():
+            path = out_dir / name
+            if not path.is_file() or path.stat().st_size != int(expected_size):
+                return None
+        version = str(payload.get("code_version", ""))
+        return version or None
+    except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError):
+        return None
+
+
+def build_batch_plan(commands: list[list[str]], sessions: list[dict]) -> dict:
+    """生成单卡一次加载模型的会话级持久计划。"""
+    if not commands:
+        raise ValueError("持久计划不能为空")
+    batch_runner = REPO_ROOT / "runners" / "moshi" / "run_batch.py"
+    code_version = _runner_code_version(batch_runner)
+    existing_versions = {
+        version
+        for command in commands
+        if (version := _valid_existing_version(command)) is not None
+    }
+    accepted_versions = sorted(existing_versions | {code_version})
+    first = commands[0]
+    model_root = _option_value(first, "--model-root")
+    return {
+        "schema_version": 1,
+        "model_name": "moshi",
+        "model_root": model_root,
+        "runner": str(batch_runner),
+        "venv_python": first[0],
+        "code_version": code_version,
+        "accepted_code_versions": accepted_versions,
+        "settings": {
+            "n_codebooks": 8,
+            "layers": [
+                int(value)
+                for value in _option_value(first, "--layers").split(",")
+            ],
+            "max_seconds": float(_option_value(first, "--max-seconds")),
+            "mimi_chunk_seconds": float(
+                _option_value(first, "--mimi-chunk-seconds")
+            ),
+            "forward_chunk_steps": int(
+                _option_value(first, "--forward-chunk-steps")
+            ),
+            "text_mode": _option_value(first, "--text-mode"),
+            "text_temperature": 0.7,
+            "text_top_k": 25,
+            "stream_order": "self_first",
+            "seed": 0,
+        },
+        "sessions": sessions,
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     action = ap.add_mutually_exclusive_group(required=True)
     action.add_argument("--emit-ps1", help="写 PowerShell 批处理到该路径")
+    action.add_argument("--emit-batch-plan", help="写单卡持久会话 JSON 计划")
     action.add_argument("--exec", action="store_true", help="当场串行执行（长跑，建议先 --limit 2 冒烟）")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--num-shards", type=int, default=1, help="静态互斥分片总数")
@@ -315,15 +433,41 @@ def main() -> None:
     all_cmds, meta = build_commands()
     try:
         input_meta = validate_audio_inputs(all_cmds)
-        cmds = select_shard(all_cmds, args.num_shards, args.shard_id)
+        if args.emit_batch_plan:
+            all_sessions = _session_records(all_cmds)
+            sessions = select_shard(
+                all_sessions,
+                args.num_shards,
+                args.shard_id,
+            )
+            cmds = all_cmds
+        else:
+            sessions = []
+            cmds = select_shard(all_cmds, args.num_shards, args.shard_id)
     except ValueError as exc:
         ap.error(str(exc))
     if args.limit is not None:
         if args.limit < 1:
             ap.error("--limit 必须至少为 1")
-        cmds = cmds[: args.limit]
+        if args.emit_batch_plan:
+            sessions = sessions[: args.limit]
+        else:
+            cmds = cmds[: args.limit]
     failures = []
-    if args.emit_ps1:
+    batch_plan = None
+    if args.emit_batch_plan:
+        batch_plan = build_batch_plan(all_cmds, sessions)
+        path = Path(args.emit_batch_plan)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(batch_plan, ensure_ascii=False, indent=1),
+            encoding="utf-8",
+        )
+        print(
+            f"已写 {len(sessions)} 个会话、{len(sessions) * 2} 路 → {path}"
+            "（每张卡只加载一次模型，复用完整历史缓存）"
+        )
+    elif args.emit_ps1:
         Path(args.emit_ps1).parent.mkdir(parents=True, exist_ok=True)
         Path(args.emit_ps1).write_text(
             render_ps1(cmds, args.cuda_visible_devices),
@@ -355,7 +499,18 @@ def main() -> None:
             "num_shards": args.num_shards,
             "shard_id": args.shard_id,
             "cuda_visible_devices": args.cuda_visible_devices,
-            "emitted": len(cmds),
+            "persistent_worker": bool(args.emit_batch_plan),
+            "session_pair_reuse": bool(args.emit_batch_plan),
+            "accepted_code_versions": (
+                batch_plan["accepted_code_versions"]
+                if batch_plan is not None
+                else [meta["code_version"]]
+            ),
+            "batch_code_version": (
+                batch_plan["code_version"] if batch_plan is not None else None
+            ),
+            "emitted_sessions": len(sessions) if args.emit_batch_plan else None,
+            "emitted": len(sessions) * 2 if args.emit_batch_plan else len(cmds),
             "failures": failures,
         },
     )

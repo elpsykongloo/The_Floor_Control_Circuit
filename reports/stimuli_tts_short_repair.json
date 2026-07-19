@@ -1,0 +1,380 @@
+{
+ "generated_at": "2026-07-19T09:36:18.423254+00:00",
+ "threshold_s": 1.0,
+ "max_attempts": 3,
+ "n_candidates": 41,
+ "n_repaired": 41,
+ "n_failed": 0,
+ "repaired": [
+  {
+   "id": "s1_en_01_02",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.08,
+   "new_duration_s": 1.36,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_01_02\\complete.wav"
+  },
+  {
+   "id": "s1_en_01_07",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 3.2,
+   "attempts": 2,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_01_07\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_02_01",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.04,
+   "attempts": 2,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_02_01\\complete.wav"
+  },
+  {
+   "id": "s1_en_02_06",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.72,
+   "new_duration_s": 3.04,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_02_06\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_03_07",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.08,
+   "new_duration_s": 2.4,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_03_07\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_04_01",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.88,
+   "new_duration_s": 3.36,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_04_01\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_04_02",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.88,
+   "new_duration_s": 3.44,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_04_02\\complete.wav"
+  },
+  {
+   "id": "s1_en_04_04",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.08,
+   "new_duration_s": 3.2,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_04_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_07_04",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.68,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_07_04\\complete.wav"
+  },
+  {
+   "id": "s1_en_07_08",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 2.24,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_07_08\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_08_04",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 1.36,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_08_04\\complete.wav"
+  },
+  {
+   "id": "s1_en_09_04",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 2.56,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_09_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_09_07",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 2.4,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_09_07\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_11_03",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 2.08,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_11_03\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_11_04",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 3.6,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_11_04\\complete.wav"
+  },
+  {
+   "id": "s1_en_12_10",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 3.28,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_12_10\\complete.wav"
+  },
+  {
+   "id": "s1_en_12_10",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 2.32,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_12_10\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_16_02",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.72,
+   "new_duration_s": 2.88,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_16_02\\complete.wav"
+  },
+  {
+   "id": "s1_en_16_03",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.28,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_16_03\\incomplete.wav"
+  },
+  {
+   "id": "s1_en_19_07",
+   "lang": "en",
+   "kind": "complete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 3.68,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_19_07\\complete.wav"
+  },
+  {
+   "id": "s1_en_22_04",
+   "lang": "en",
+   "kind": "incomplete",
+   "old_duration_s": 0.88,
+   "new_duration_s": 3.76,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\en\\s1_en_22_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_01_04",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.72,
+   "new_duration_s": 2.8,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_01_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_03_03",
+   "lang": "zh",
+   "kind": "complete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.68,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_03_03\\complete.wav"
+  },
+  {
+   "id": "s1_zh_04_02",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 3.2,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_04_02\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_07_04",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.52,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_07_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_09_04",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 2.8,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_09_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_09_06",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.72,
+   "new_duration_s": 3.92,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_09_06\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_13_10",
+   "lang": "zh",
+   "kind": "complete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.2,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_13_10\\complete.wav"
+  },
+  {
+   "id": "s1_zh_14_02",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 6.16,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_14_02\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_15_04",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.84,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_15_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_15_07",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.08,
+   "new_duration_s": 2.4,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_15_07\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_17_04",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 2.88,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_17_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_18_02",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.8,
+   "new_duration_s": 4.24,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_18_02\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_20_05",
+   "lang": "zh",
+   "kind": "complete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.52,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_20_05\\complete.wav"
+  },
+  {
+   "id": "s1_zh_21_02",
+   "lang": "zh",
+   "kind": "complete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 5.28,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_21_02\\complete.wav"
+  },
+  {
+   "id": "s1_zh_21_06",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.88,
+   "new_duration_s": 3.2,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_21_06\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_22_04",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.4,
+   "new_duration_s": 3.68,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_22_04\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_22_08",
+   "lang": "zh",
+   "kind": "complete",
+   "old_duration_s": 0.72,
+   "new_duration_s": 5.44,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_22_08\\complete.wav"
+  },
+  {
+   "id": "s1_zh_23_05",
+   "lang": "zh",
+   "kind": "complete",
+   "old_duration_s": 0.08,
+   "new_duration_s": 4.24,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_23_05\\complete.wav"
+  },
+  {
+   "id": "s1_zh_24_06",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.08,
+   "new_duration_s": 4.0,
+   "attempts": 1,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_24_06\\incomplete.wav"
+  },
+  {
+   "id": "s1_zh_24_08",
+   "lang": "zh",
+   "kind": "incomplete",
+   "old_duration_s": 0.56,
+   "new_duration_s": 3.6,
+   "attempts": 2,
+   "path": "D:\\data_storage\\The_Floor_Control_Circuit\\stimuli\\s1\\zh\\s1_zh_24_08\\incomplete.wav"
+  }
+ ],
+ "failed": []
+}

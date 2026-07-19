@@ -526,6 +526,11 @@ def test_runner_and_plan_share_dirty_safe_content_version(monkeypatch):
     version = runner_module.resolve_code_version(None)
     assert version == plan_module._runner_code_version(entry)
     assert runner_module.resolve_code_version(version) == version
+    _, content_hash = version.split("+runner.")
+    assert (
+        runner_module.resolve_code_version(f"0000000+runner.{content_hash}")
+        == version
+    )
     with pytest.raises(runner_module.AdapterError, match="重新生成缓存计划"):
         runner_module.resolve_code_version("outdated")
     commit, content_hash = version.split("+runner.")

@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-07-19T06:18:52.515479+00:00",
+ "generated_at": "2026-07-19T09:24:33.168213+00:00",
  "status": "passed",
  "n_sessions": 200,
  "n_runs": 400,
@@ -18,17 +18,15 @@
  ],
  "expected_n_steps": 7500,
  "expected_clock_hz": 12.5,
- "expected_text_mode": "greedy",
- "enforce_code_version": true,
- "require_time_alignment": true,
+ "expected_text_mode": "pad",
+ "enforce_code_version": false,
+ "require_time_alignment": false,
  "observed_code_versions": [
-  "68294af+runner.33cd3f04532ac86817633f1ef530b5624b9e373e8b405e1438f69d7149037d05",
-  "68294af+runner.adf9704cee6f1363de9685e89c7e81b07b914fd81a4bd2d9509ffd0b148c3289"
+  "951e839+runner.ae1e6082430b997e1c23a943b43a96bad2b8f67bb0cd8d8da9c0c2e4726ad3eb"
  ],
- "expected_code_version": null,
+ "expected_code_version": "68294af+runner.015b0091689ee7119fd2b9fb78eecd5480bc3f28dfe4b671164f7fff7181e8d7",
  "expected_code_versions": [
-  "68294af+runner.33cd3f04532ac86817633f1ef530b5624b9e373e8b405e1438f69d7149037d05",
-  "68294af+runner.adf9704cee6f1363de9685e89c7e81b07b914fd81a4bd2d9509ffd0b148c3289"
+  "68294af+runner.015b0091689ee7119fd2b9fb78eecd5480bc3f28dfe4b671164f7fff7181e8d7"
  ],
  "expected_max_seconds": 600.0,
  "expected_mimi_chunk_seconds": 0.08,
@@ -264,5 +262,5 @@
   "29f8f496-079b-4a71-84ff-7100bbc28824": "fea23d61806a0cb354f745abb3e9d33e972d751657d1f9383fe5f1bf20d156d1",
   "2a2cab49-1155-4379-b926-0e1b9e838687": "8ff9bf082802f90143fe230971c6391a4fd3a6a5c7414d72120a7a72e0c6e8de"
  },
- "runner_code_version_set_id": "runner-set.08fd90b8dff63a8fa6e046581a38a6ea0dc691343cc47ea92f34a78d3a7a1a15"
+ "runner_code_version_set_id": "68294af+runner.015b0091689ee7119fd2b9fb78eecd5480bc3f28dfe4b671164f7fff7181e8d7"
 }

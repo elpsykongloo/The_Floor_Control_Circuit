@@ -27,8 +27,9 @@
 - 五个受试模型各有独立 `.venv`（路径见 文档/01 §3），互不混装；跨环境协作只走"CLI 契约 + 磁盘 schema"（见 文档/02 附录 C），不做跨环境 import。
 - Windows 四个高频坑（①–③ 见 文档/00 §11；④ 为 2026-07-17 实测新增）：① HF 缓存符号链接 → 设 `HF_HUB_DISABLE_SYMLINKS=1` 并开 LongPathsEnabled；② DataLoader 多进程 → 脚本必须有 `if __name__ == "__main__":` 守卫；③ 音频 IO 统一用环境内 ffmpeg，避免 sox 链路；④ pytest 遇 `PermissionError: ...\Temp\pytest-of-<用户>` → 旧临时目录 ACL 损坏，用 `uv run pytest --basetemp=D:\data_storage\The_Floor_Control_Circuit\tmp\pytest`（或删除该旧目录）；⑤ transformers `trust_remote_code` 模型目录名含 `.`（如 `MiniCPM-o-4.5`）→ 动态模块名被点号切分报 `ModuleNotFoundError: transformers_modules.MiniCPM-o-4`，`runners/minicpm_o/run.py` 已内置自动创建无点 junction 别名规避。
 - 本机有双卡（24 GB+），长音频 KV cache 可跨卡；GPU 任务（TTS 合成 vs 激活缓存前向）应分卡或错峰。
-- GPU 长任务温度干预阈值固定为 **86°C**（用户 2026-07-18 指定）：低于 86°C 只记录；达到或超过 86°C 时立即停止对应任务，并保留温度、进程、终端与日志证据。
+- GPU 长任务温度干预阈值固定为 **95°C**（用户 2026-07-19 将原 90°C 调整为 95°C）：低于 95°C 只记录；达到或超过 95°C 时立即停止对应任务，并保留温度、进程、终端与日志证据。
 - Moshi 的 600 秒整段 `lm(codes)` 压力路径继续禁跑；长序列仅按 `PREREG.md` 变更记录 #3 的有状态分块方案执行。
+- Moshi 正式 greedy 缓存按 `PREREG.md` #10 使用双卡各一个持久会话进程：会话级分片、双声道编码复用、显卡驻留缓冲与单步 CUDA Graph；历史有效 greedy 缓存由版本集合护栏续用。
 
 ## 4. 文档地图
 
