@@ -1,0 +1,274 @@
+{
+ "generated_at": "2026-07-19T13:38:09.125906+00:00",
+ "note": "上下文分段诊断（PREREG #11 描述性登记）：非判据、无裁决字段；输入为被 #11 取代的全窗分数包，分段使用全窗训练的探针分数——正式裁决以截断窗重训重选的 G1 重跑为准",
+ "context_steps": 3000,
+ "full_window_n_steps": 7500,
+ "bundle_manifest_sha256": "951d66419edf4a2bd35ea0a47344395979702d374003a37d8dd5339fe79ebcc3",
+ "summary_path": "C:\\artificial_intelligence\\repos\\The_Floor_Control_Circuit\\reports\\mve_summary.json",
+ "n_boot": 1000,
+ "boot_seed": 0,
+ "per_target": {
+  "T1": {
+   "best_layer": 20,
+   "delta_ms": 400,
+   "full_window_matches_summary": true,
+   "segments": {
+    "in_context": {
+     "note": "规格内窗口（acts 行 1..2999；#11 主判据窗）",
+     "label_step_range": [
+      0,
+      2998
+     ],
+     "acts_row_range": [
+      1,
+      2999
+     ],
+     "n_rows": 196174,
+     "n_positive": 1591,
+     "probe_auc_seed_mean": 0.9066809664420369,
+     "baseline_auc_seed_mean": {
+      "mimi": 0.9000173329664337,
+      "hazard": 0.85022021483302,
+      "acoustic_gru": 0.8756812376995861
+     },
+     "advantage_vs_max_baseline": {
+      "point": 0.00666363347560317,
+      "ci_lo": 0.0024721893216203493,
+      "ci_hi": 0.011259201881866613,
+      "n_boot_effective": 1000
+     },
+     "advantage_vs_mimi": {
+      "point": 0.00666363347560317,
+      "ci_lo": 0.0024721893216203493,
+      "ci_hi": 0.011259201881866613,
+      "n_boot_effective": 1000
+     }
+    },
+    "post_first_eviction": {
+     "note": "初始 token 淘汰后（acts 行 3000..5999，含尖峰行与替代 sink 驻留期）",
+     "label_step_range": [
+      2999,
+      5998
+     ],
+     "acts_row_range": [
+      3000,
+      5999
+     ],
+     "n_rows": 148528,
+     "n_positive": 2606,
+     "probe_auc_seed_mean": 0.8365185341065512,
+     "baseline_auc_seed_mean": {
+      "mimi": 0.830473946525306,
+      "hazard": 0.7567742156700312,
+      "acoustic_gru": 0.7935012113884621
+     },
+     "advantage_vs_max_baseline": {
+      "point": 0.006044587581245153,
+      "ci_lo": 0.001300119688590637,
+      "ci_hi": 0.01084840859560755,
+      "n_boot_effective": 1000
+     },
+     "advantage_vs_mimi": {
+      "point": 0.006044587581245153,
+      "ci_lo": 0.001300119688590637,
+      "ci_hi": 0.01084840859560755,
+      "n_boot_effective": 1000
+     }
+    },
+    "post_second_eviction": {
+     "note": "替代 sink 淘汰后（acts 行 6000..7499，公共吸引态）",
+     "label_step_range": [
+      5999,
+      7498
+     ],
+     "acts_row_range": [
+      6000,
+      7499
+     ],
+     "n_rows": 72543,
+     "n_positive": 1193,
+     "probe_auc_seed_mean": 0.8094353713644943,
+     "baseline_auc_seed_mean": {
+      "mimi": 0.835616450238319,
+      "hazard": 0.761588969996082,
+      "acoustic_gru": 0.8056659408333241
+     },
+     "advantage_vs_max_baseline": {
+      "point": -0.026181078873824704,
+      "ci_lo": -0.03640430518179384,
+      "ci_hi": -0.017173396929438475,
+      "n_boot_effective": 1000
+     },
+     "advantage_vs_mimi": {
+      "point": -0.026181078873824704,
+      "ci_lo": -0.03640430518179384,
+      "ci_hi": -0.017173396929438475,
+      "n_boot_effective": 1000
+     }
+    },
+    "full_window": {
+     "note": "全窗（被取代协议的完整行集；用于与 summary 登记值对拍）",
+     "label_step_range": [
+      0,
+      7498
+     ],
+     "acts_row_range": [
+      1,
+      7499
+     ],
+     "n_rows": 417245,
+     "n_positive": 5390,
+     "probe_auc_seed_mean": 0.8658849778316061,
+     "baseline_auc_seed_mean": {
+      "mimi": 0.8651192262871303,
+      "hazard": 0.8034670797666443,
+      "acoustic_gru": 0.8365133362294117
+     },
+     "advantage_vs_max_baseline": {
+      "point": 0.000765751544475779,
+      "ci_lo": -0.0022099239504895533,
+      "ci_hi": 0.003355779715881013,
+      "n_boot_effective": 1000
+     },
+     "advantage_vs_mimi": {
+      "point": 0.000765751544475779,
+      "ci_lo": -0.0022099239504895533,
+      "ci_hi": 0.003355779715881013,
+      "n_boot_effective": 1000
+     }
+    }
+   }
+  },
+  "T4": {
+   "best_layer": 20,
+   "delta_ms": null,
+   "full_window_matches_summary": true,
+   "segments": {
+    "in_context": {
+     "note": "规格内窗口（acts 行 1..2999；#11 主判据窗）",
+     "label_step_range": [
+      0,
+      2998
+     ],
+     "acts_row_range": [
+      1,
+      2999
+     ],
+     "n_rows": 2010,
+     "n_positive": 1100,
+     "probe_auc_seed_mean": 0.8051338661338661,
+     "baseline_auc_seed_mean": {
+      "mimi": 0.7756453546453547,
+      "hazard": 0.608479020979021,
+      "acoustic_gru": 0.6544615384615384
+     },
+     "advantage_vs_max_baseline": {
+      "point": 0.029488511488511393,
+      "ci_lo": 0.007631279986070156,
+      "ci_hi": 0.05222160442829266,
+      "n_boot_effective": 1000
+     },
+     "advantage_vs_mimi": {
+      "point": 0.029488511488511393,
+      "ci_lo": 0.007631279986070156,
+      "ci_hi": 0.05222160442829266,
+      "n_boot_effective": 1000
+     }
+    },
+    "post_first_eviction": {
+     "note": "初始 token 淘汰后（acts 行 3000..5999，含尖峰行与替代 sink 驻留期）",
+     "label_step_range": [
+      2999,
+      5998
+     ],
+     "acts_row_range": [
+      3000,
+      5999
+     ],
+     "n_rows": 3613,
+     "n_positive": 1588,
+     "probe_auc_seed_mean": 0.836601362067357,
+     "baseline_auc_seed_mean": {
+      "mimi": 0.8146263643996642,
+      "hazard": 0.64147743881581,
+      "acoustic_gru": 0.6930281120751314
+     },
+     "advantage_vs_max_baseline": {
+      "point": 0.02197499766769284,
+      "ci_lo": 0.010809850448999153,
+      "ci_hi": 0.03360290468595544,
+      "n_boot_effective": 1000
+     },
+     "advantage_vs_mimi": {
+      "point": 0.02197499766769284,
+      "ci_lo": 0.010809850448999153,
+      "ci_hi": 0.03360290468595544,
+      "n_boot_effective": 1000
+     }
+    },
+    "post_second_eviction": {
+     "note": "替代 sink 淘汰后（acts 行 6000..7499，公共吸引态）",
+     "label_step_range": [
+      5999,
+      7498
+     ],
+     "acts_row_range": [
+      6000,
+      7499
+     ],
+     "n_rows": 1725,
+     "n_positive": 692,
+     "probe_auc_seed_mean": 0.75528932510394,
+     "baseline_auc_seed_mean": {
+      "mimi": 0.8152814072038902,
+      "hazard": 0.6762600092888439,
+      "acoustic_gru": 0.7041321366019618
+     },
+     "advantage_vs_max_baseline": {
+      "point": -0.05999208209995022,
+      "ci_lo": -0.0801845384934617,
+      "ci_hi": -0.037647148262556954,
+      "n_boot_effective": 1000
+     },
+     "advantage_vs_mimi": {
+      "point": -0.05999208209995022,
+      "ci_lo": -0.0801845384934617,
+      "ci_hi": -0.037647148262556954,
+      "n_boot_effective": 1000
+     }
+    },
+    "full_window": {
+     "note": "全窗（被取代协议的完整行集；用于与 summary 登记值对拍）",
+     "label_step_range": [
+      0,
+      7498
+     ],
+     "acts_row_range": [
+      1,
+      7499
+     ],
+     "n_rows": 7348,
+     "n_positive": 3380,
+     "probe_auc_seed_mean": 0.8149680431618629,
+     "baseline_auc_seed_mean": {
+      "mimi": 0.8083590692999619,
+      "hazard": 0.6438444314874022,
+      "acoustic_gru": 0.6886637105721511
+     },
+     "advantage_vs_max_baseline": {
+      "point": 0.0066089738619009575,
+      "ci_lo": -0.0016375471546196923,
+      "ci_hi": 0.015982847834208072,
+      "n_boot_effective": 1000
+     },
+     "advantage_vs_mimi": {
+      "point": 0.0066089738619009575,
+      "ci_lo": -0.0016375471546196923,
+      "ci_hi": 0.015982847834208072,
+      "n_boot_effective": 1000
+     }
+    }
+   }
+  }
+ }
+}

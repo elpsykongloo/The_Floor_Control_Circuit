@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-07-19T06:18:52.515479+00:00",
+ "generated_at": "2026-07-19T15:10:53.857837+00:00",
  "status": "passed",
  "n_sessions": 200,
  "n_runs": 400,
@@ -28,7 +28,9 @@
  "expected_code_version": null,
  "expected_code_versions": [
   "68294af+runner.33cd3f04532ac86817633f1ef530b5624b9e373e8b405e1438f69d7149037d05",
-  "68294af+runner.adf9704cee6f1363de9685e89c7e81b07b914fd81a4bd2d9509ffd0b148c3289"
+  "68294af+runner.6df0c17cea89b9a2a4c7f2574f55c0ecc95cf7a0ad0edb9b8a932eaf1608ce4f",
+  "68294af+runner.adf9704cee6f1363de9685e89c7e81b07b914fd81a4bd2d9509ffd0b148c3289",
+  "9386933+runner.6df0c17cea89b9a2a4c7f2574f55c0ecc95cf7a0ad0edb9b8a932eaf1608ce4f"
  ],
  "expected_max_seconds": 600.0,
  "expected_mimi_chunk_seconds": 0.08,
@@ -39,26 +41,26 @@
  "target_pools": {
   "train": {
    "T1": {
-    "n_rows": 1649598,
-    "n_positive": 21951,
-    "n_negative": 1627647
+    "n_rows": 753326,
+    "n_positive": 7028,
+    "n_negative": 746298
    },
    "T4": {
-    "n_rows": 30056,
-    "n_positive": 14077,
-    "n_negative": 15979
+    "n_rows": 9118,
+    "n_positive": 4875,
+    "n_negative": 4243
    }
   },
   "val": {
    "T1": {
-    "n_rows": 417245,
-    "n_positive": 5390,
-    "n_negative": 411855
+    "n_rows": 196174,
+    "n_positive": 1591,
+    "n_negative": 194583
    },
    "T4": {
-    "n_rows": 7348,
-    "n_positive": 3380,
-    "n_negative": 3968
+    "n_rows": 2010,
+    "n_positive": 1100,
+    "n_negative": 910
    }
   }
  },

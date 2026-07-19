@@ -1,0 +1,271 @@
+{
+ "generated_at": "2026-07-19T13:23:10.773959+00:00",
+ "decomposition": {
+  "n_sessions": 295,
+  "split": "val",
+  "frozen_vad": {
+   "backend": "silero-v5",
+   "sample_rate": 16000,
+   "threshold": 0.5,
+   "min_speech_ms": 120,
+   "min_silence_ms": 180
+  },
+  "layer2_decomposition": {
+   "ch0": {
+    "precision": 0.9818890855529996,
+    "recall": 0.8614313875076876,
+    "f1": 0.9177243889036195,
+    "fn": 76832,
+    "fp": 8810,
+    "tp": 477637,
+    "gold": 554469
+   },
+   "ch1": {
+    "precision": 0.9833246967758651,
+    "recall": 0.8616526896825735,
+    "f1": 0.918476698985071,
+    "fn": 77998,
+    "fp": 8238,
+    "tp": 485786,
+    "gold": 563784
+   }
+  },
+  "fn_run_types": {
+   "ch0": {
+    "onset_erosion": 9377,
+    "offset_erosion": 7763,
+    "mid_gap": 2720,
+    "whole_segment_missed": 3213
+   },
+   "ch1": {
+    "offset_erosion": 8043,
+    "onset_erosion": 9426,
+    "mid_gap": 2902,
+    "whole_segment_missed": 3075
+   }
+  },
+  "fn_run_duration_buckets": {
+   "ch0": {
+    "<=80ms": 10989,
+    "<=160ms": 3585,
+    "<=640ms": 2951,
+    ">640ms": 1646,
+    "<=320ms": 3902
+   },
+   "ch1": {
+    "<=80ms": 11352,
+    "<=320ms": 3899,
+    "<=160ms": 3617,
+    "<=640ms": 2940,
+    ">640ms": 1638
+   }
+  },
+  "fn_span_dbfs": {
+   "ch0": {
+    "n": 23073,
+    "p25": -64.09658114175484,
+    "p50": -55.114528157147745,
+    "p75": -45.38509845707977
+   },
+   "ch1": {
+    "n": 23446,
+    "p25": -63.668144360941184,
+    "p50": -55.4551330341529,
+    "p75": -45.657542448271315
+   }
+  },
+  "tp_span_dbfs": {
+   "ch0": {
+    "n": 20474,
+    "p25": -40.013450064465346,
+    "p50": -34.17762570862464,
+    "p75": -29.315710257798955
+   },
+   "ch1": {
+    "n": 20899,
+    "p25": -40.060286455525926,
+    "p50": -33.70194077053613,
+    "p75": -28.850966787458475
+   }
+  },
+  "boundary_impact": {
+   "eot": {
+    "affected": 6266,
+    "total": 10672,
+    "fraction": 0.587143928035982
+   },
+   "bot": {
+    "affected": 3495,
+    "total": 5445,
+    "fraction": 0.6418732782369146
+   },
+   "bc": {
+    "affected": 19872,
+    "total": 25737,
+    "fraction": 0.7721179624664879
+   }
+  },
+  "worst_sessions_by_fn": [
+   {
+    "session": "sw04179",
+    "fn_frames": 2233
+   },
+   {
+    "session": "sw04626",
+    "fn_frames": 2088
+   },
+   {
+    "session": "sw04519",
+    "fn_frames": 1903
+   },
+   {
+    "session": "sw04149",
+    "fn_frames": 1691
+   },
+   {
+    "session": "sw04448",
+    "fn_frames": 1673
+   },
+   {
+    "session": "sw04253",
+    "fn_frames": 1640
+   },
+   {
+    "session": "sw04368",
+    "fn_frames": 1527
+   },
+   {
+    "session": "sw04335",
+    "fn_frames": 1486
+   },
+   {
+    "session": "sw04178",
+    "fn_frames": 1421
+   },
+   {
+    "session": "sw04380",
+    "fn_frames": 1382
+   }
+  ]
+ },
+ "note": "G0 失败诊断（处置甲，PREREG #12）：诊断非判据；修复登记与 train 侧新确认见 PREREG",
+ "sweep": {
+  "note": "修复候选响应面（诊断集合内，非判据）：任何修复参数必须先登记 PREREG 变更，并在 train 侧全新一次性确认集上裁决；等价带须依修复后管线的 val 分布重推",
+  "n_sessions": 60,
+  "split": "val",
+  "cells": {
+   "thr0.4_normnone": {
+    "threshold": 0.4,
+    "loudnorm_lufs": null,
+    "layer2_vad": {
+     "ch0": {
+      "precision": 0.9761058802629241,
+      "recall": 0.8939395308898631,
+      "f1": 0.9332175865859585
+     },
+     "ch1": {
+      "precision": 0.9810467406649703,
+      "recall": 0.8957231840319855,
+      "f1": 0.936445430704055
+     }
+    },
+    "layer3_corpus_macro_f1": 0.5501910686894571
+   },
+   "thr0.45_normnone": {
+    "threshold": 0.45,
+    "loudnorm_lufs": null,
+    "layer2_vad": {
+     "ch0": {
+      "precision": 0.9791758528079528,
+      "recall": 0.8831744023139151,
+      "f1": 0.92870075989792
+     },
+     "ch1": {
+      "precision": 0.9842115193303832,
+      "recall": 0.8857972043624912,
+      "f1": 0.932414700828313
+     }
+    },
+    "layer3_corpus_macro_f1": 0.5308174911868372
+   },
+   "thr0.5_normnone": {
+    "threshold": 0.5,
+    "loudnorm_lufs": null,
+    "layer2_vad": {
+     "ch0": {
+      "precision": 0.9816051981330649,
+      "recall": 0.8725448547023997,
+      "f1": 0.9238675841476136
+     },
+     "ch1": {
+      "precision": 0.9865587889860368,
+      "recall": 0.8752769008714176,
+      "f1": 0.9275921866308935
+     }
+    },
+    "layer3_corpus_macro_f1": 0.5092189903867849
+   },
+   "thr0.4_norm-23lufs": {
+    "threshold": 0.4,
+    "loudnorm_lufs": -23.0,
+    "layer2_vad": {
+     "ch0": {
+      "precision": 0.9763988700004956,
+      "recall": 0.8903511546978804,
+      "f1": 0.931391830559758
+     },
+     "ch1": {
+      "precision": 0.9797287746634628,
+      "recall": 0.9094775353313934,
+      "f1": 0.9432969883279696
+     }
+    },
+    "layer3_corpus_macro_f1": 0.5450464947290401
+   },
+   "thr0.45_norm-23lufs": {
+    "threshold": 0.45,
+    "loudnorm_lufs": -23.0,
+    "layer2_vad": {
+     "ch0": {
+      "precision": 0.9793273836535068,
+      "recall": 0.8777963573914223,
+      "f1": 0.9257864632983794
+     },
+     "ch1": {
+      "precision": 0.9827283767372824,
+      "recall": 0.8994203413116804,
+      "f1": 0.9392306607290386
+     }
+    },
+    "layer3_corpus_macro_f1": 0.524380970901591
+   },
+   "thr0.5_norm-23lufs": {
+    "threshold": 0.5,
+    "loudnorm_lufs": -23.0,
+    "layer2_vad": {
+     "ch0": {
+      "precision": 0.9818086731816364,
+      "recall": 0.8654132959732453,
+      "f1": 0.9199438876985309
+     },
+     "ch1": {
+      "precision": 0.9855493800769559,
+      "recall": 0.8896332944835943,
+      "f1": 0.9351382708136416
+     }
+    },
+    "layer3_corpus_macro_f1": 0.5038893908902775
+   }
+  }
+ },
+ "train_pool": {
+  "note": "train 侧从未被 G0 读取过（already_prepared 必须为空，否则该会话不再新鲜）",
+  "shard_glob": "train-*.parquet",
+  "n_train_split_ids": 2000,
+  "n_release_available": 1986,
+  "n_already_prepared": 0,
+  "already_prepared": [],
+  "n_missing_from_release": 14,
+  "n_declared_without_audio_in_train": 1
+ }
+}
