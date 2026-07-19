@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -688,6 +689,26 @@ def _resample_sessions(
     return [sorted_sessions[index] for index in indices]
 
 
+def _ordered_bootstrap_map(function, draws: list[list[str]]) -> list[float | None]:
+    """使用独立实现的有序线程映射；默认串行，环境变量显式开启。"""
+
+    try:
+        jobs = int(os.environ.get("FLOOR_CIRCUIT_BOOTSTRAP_JOBS", "1"))
+    except ValueError as exc:
+        raise IndependentAuditError(
+            "FLOOR_CIRCUIT_BOOTSTRAP_JOBS 必须为正整数"
+        ) from exc
+    if jobs < 1:
+        raise IndependentAuditError("FLOOR_CIRCUIT_BOOTSTRAP_JOBS 必须为正整数")
+    if jobs == 1:
+        return [function(draw) for draw in draws]
+    with ThreadPoolExecutor(
+        max_workers=min(jobs, len(draws)),
+        thread_name_prefix="mve-audit-bootstrap",
+    ) as executor:
+        return list(executor.map(function, draws))
+
+
 def _bootstrap_seed_mean_auc(
     probe: SeededPerSession,
     *,
@@ -698,11 +719,15 @@ def _bootstrap_seed_mean_auc(
 
     session_ids = sorted(next(iter(probe.values())))
     rng = np.random.default_rng(seed)
-    samples: list[float] = []
-    for _ in range(n_boot):
-        value = _seed_mean_auc(probe, _resample_sessions(session_ids, rng))
-        if value is not None:
-            samples.append(value)
+    draws = [_resample_sessions(session_ids, rng) for _ in range(n_boot)]
+    samples = [
+        value
+        for value in _ordered_bootstrap_map(
+            lambda take: _seed_mean_auc(probe, take),
+            draws,
+        )
+        if value is not None
+    ]
     if not samples:
         raise IndependentAuditError("探针会话级 bootstrap 没有有效双类样本")
     array = np.asarray(samples, dtype=np.float64)
@@ -726,14 +751,20 @@ def _bootstrap_advantage(
 
     session_ids = sorted(next(iter(probe.values())))
     rng = np.random.default_rng(seed)
-    samples: list[float] = []
-    for _ in range(n_boot):
-        take = _resample_sessions(session_ids, rng)
+
+    def evaluate(take: list[str]) -> float | None:
         probe_auc = _seed_mean_auc(probe, take)
         baseline_aucs = {name: _seed_mean_auc(scores, take) for name, scores in baselines.items()}
         if probe_auc is None or any(value is None for value in baseline_aucs.values()):
-            continue
-        samples.append(probe_auc - max(baseline_aucs.values()))
+            return None
+        return probe_auc - max(baseline_aucs.values())
+
+    draws = [_resample_sessions(session_ids, rng) for _ in range(n_boot)]
+    samples = [
+        value
+        for value in _ordered_bootstrap_map(evaluate, draws)
+        if value is not None
+    ]
     if not samples:
         raise IndependentAuditError("成对优势 bootstrap 没有有效双类样本")
     array = np.asarray(samples, dtype=np.float64)

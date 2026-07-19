@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -388,9 +389,7 @@ def linear_feature_cells(
     min_step 仅供 mimi_prev（#11 描述性变体）覆盖，须与传入 plans 的构建口径一致。
     """
 
-    cells: list[ProbeCell] = []
-    for seed in seeds:
-
+    def fit_seed(seed: int) -> ProbeCell:
         def provide_session(sid: str) -> tuple[np.ndarray, np.ndarray]:
             return load_session_feature(
                 runs_root,
@@ -445,17 +444,30 @@ def linear_feature_cells(
         metrics["best_c"] = best_c
         metrics["selection_auc"] = selection_auc_by_c[best_c]
         metrics["selection_auc_by_c"] = selection_auc_by_c
-        cells.append(
-            ProbeCell(
-                layer=layer,
-                target=target,
-                seed=seed,
-                metrics=metrics,
-                per_session=per_session,
-            )
+        cell = ProbeCell(
+            layer=layer,
+            target=target,
+            seed=seed,
+            metrics=metrics,
+            per_session=per_session,
         )
         del X_train, y_train, fit
-    return cells
+        return cell
+
+    try:
+        seed_jobs = int(os.environ.get("FLOOR_CIRCUIT_SEED_JOBS", "1"))
+    except ValueError as exc:
+        raise ValueError("FLOOR_CIRCUIT_SEED_JOBS 必须为正整数") from exc
+    if seed_jobs < 1:
+        raise ValueError("FLOOR_CIRCUIT_SEED_JOBS 必须为正整数")
+    worker_count = min(seed_jobs, max(1, len(seeds)))
+    if worker_count == 1:
+        return [fit_seed(seed) for seed in seeds]
+    with ThreadPoolExecutor(
+        max_workers=worker_count,
+        thread_name_prefix="mve-probe-seed",
+    ) as executor:
+        return list(executor.map(fit_seed, seeds))
 
 
 def hazard_baseline(

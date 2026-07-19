@@ -11,6 +11,8 @@ acts 读行 s+1、mimi/hazard/声学读行 s（见 mve/alignment.py）。acts[0]
 
 from __future__ import annotations
 
+import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,6 +31,18 @@ from floor_circuit.probes.linear import SessionData
 
 MAX_TRAIN_FEATURE_BYTES = 8 * 1024**3
 MAX_SESSION_FEATURE_BYTES = 1024**3
+
+
+def _io_jobs(n_tasks: int) -> int:
+    """读取显式 I/O 并发度；默认串行，防止无意改变既有资源占用。"""
+
+    try:
+        jobs = int(os.environ.get("FLOOR_CIRCUIT_IO_JOBS", "1"))
+    except ValueError as exc:
+        raise ValueError("FLOOR_CIRCUIT_IO_JOBS 必须为正整数") from exc
+    if jobs < 1:
+        raise ValueError("FLOOR_CIRCUIT_IO_JOBS 必须为正整数")
+    return min(jobs, max(1, n_tasks))
 
 
 @dataclass(frozen=True)
@@ -328,10 +342,14 @@ def load_training_sample(
     feature: str = "acts",
     max_bytes: int = MAX_TRAIN_FEATURE_BYTES,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """按抽样计划读取单层训练矩阵，峰值仅为结果矩阵加一个角色的小块。"""
+    """按抽样计划读取单层训练矩阵；角色只写各自互不重叠的预分配切片。"""
 
     dim, max_role_rows = _checked_feature_dim(runs_root, plan.roles, layer, feature)
-    estimated_peak = (plan.n_selected + max_role_rows) * dim * np.dtype(np.float32).itemsize
+    active_roles = [role for role in plan.roles if len(role.steps)]
+    worker_count = _io_jobs(len(active_roles))
+    estimated_peak = (
+        plan.n_selected + worker_count * max_role_rows
+    ) * dim * np.dtype(np.float32).itemsize
     if estimated_peak > max_bytes:
         raise MemoryError(
             f"{plan.target} 单层训练特征预计峰值 {estimated_peak / 1024**3:.2f} GiB，"
@@ -339,11 +357,21 @@ def load_training_sample(
         )
     features = np.empty((plan.n_selected, dim), dtype=np.float32)
     labels = np.empty(plan.n_selected, dtype=np.int64)
+    assignments: list[tuple[RoleSampleSelection, int, int]] = []
     offset = 0
     for role in plan.roles:
         n_rows = len(role.steps)
         if not n_rows:
             continue
+        stop = offset + n_rows
+        labels[offset:stop] = role.labels
+        assignments.append((role, offset, stop))
+        offset = stop
+    if offset != plan.n_selected:
+        raise RuntimeError(f"训练标签只写入 {offset}/{plan.n_selected} 行")
+
+    def read_role(assignment: tuple[RoleSampleSelection, int, int]) -> None:
+        role, start, stop = assignment
         arrays = _role_feature_arrays(
             runs_root,
             role.session_id,
@@ -352,15 +380,21 @@ def load_training_sample(
             feature,
         )
         _write_role_feature_rows(
-            features[offset : offset + n_rows],
+            features[start:stop],
             arrays,
             role.steps,
             feature,
         )
-        labels[offset : offset + n_rows] = role.labels
-        offset += n_rows
-    if offset != plan.n_selected:
-        raise RuntimeError(f"训练特征只写入 {offset}/{plan.n_selected} 行")
+
+    if worker_count == 1:
+        for assignment in assignments:
+            read_role(assignment)
+    else:
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="mve-training-io",
+        ) as executor:
+            list(executor.map(read_role, assignments))
     return features, labels
 
 
@@ -402,7 +436,11 @@ def load_session_feature(
     role_tuple = tuple(roles)
     dim, max_role_rows = _checked_feature_dim(runs_root, role_tuple, layer, feature)
     n_rows = sum(len(role.steps) for role in roles)
-    estimated_peak = (n_rows + max_role_rows) * dim * np.dtype(np.float32).itemsize
+    active_roles = [role for role in roles if len(role.steps)]
+    worker_count = _io_jobs(len(active_roles))
+    estimated_peak = (
+        n_rows + worker_count * max_role_rows
+    ) * dim * np.dtype(np.float32).itemsize
     if estimated_peak > max_bytes:
         raise MemoryError(
             f"{session_id}/{target} 评估特征预计峰值 {estimated_peak / 1024**3:.2f} GiB，"
@@ -410,11 +448,21 @@ def load_session_feature(
         )
     features = np.empty((n_rows, dim), dtype=np.float32)
     values = np.empty(n_rows, dtype=np.int64)
+    assignments: list[tuple[RoleSampleSelection, int, int]] = []
     offset = 0
     for role in roles:
         count = len(role.steps)
         if not count:
             continue
+        stop = offset + count
+        values[offset:stop] = role.labels
+        assignments.append((role, offset, stop))
+        offset = stop
+    if offset != n_rows:
+        raise RuntimeError(f"{session_id} 评估标签只写入 {offset}/{n_rows} 行")
+
+    def read_role(assignment: tuple[RoleSampleSelection, int, int]) -> None:
+        role, start, stop = assignment
         arrays = _role_feature_arrays(
             runs_root,
             session_id,
@@ -423,15 +471,21 @@ def load_session_feature(
             feature,
         )
         _write_role_feature_rows(
-            features[offset : offset + count],
+            features[start:stop],
             arrays,
             role.steps,
             feature,
         )
-        values[offset : offset + count] = role.labels
-        offset += count
-    if offset != n_rows:
-        raise RuntimeError(f"{session_id} 评估特征只写入 {offset}/{n_rows} 行")
+
+    if worker_count == 1:
+        for assignment in assignments:
+            read_role(assignment)
+    else:
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="mve-session-io",
+        ) as executor:
+            list(executor.map(read_role, assignments))
     return features, values
 
 

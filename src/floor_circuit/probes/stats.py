@@ -3,12 +3,44 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 from sklearn.metrics import average_precision_score, balanced_accuracy_score, roc_auc_score
 
 PerSession = dict[str, tuple[np.ndarray, np.ndarray]]  # sid -> (y_true, y_score)
 SeededPerSession = dict[int, PerSession]  # seed -> sid -> (y_true, y_score)
 ScoreCollection = PerSession | SeededPerSession
+
+
+def _bootstrap_jobs(n_tasks: int) -> int:
+    """读取 bootstrap 线程数；默认串行，显式启用时限制到任务数。"""
+
+    raw = os.environ.get("FLOOR_CIRCUIT_BOOTSTRAP_JOBS", "1")
+    try:
+        jobs = int(raw)
+    except ValueError as exc:
+        raise ValueError("FLOOR_CIRCUIT_BOOTSTRAP_JOBS 必须为正整数") from exc
+    if jobs < 1:
+        raise ValueError("FLOOR_CIRCUIT_BOOTSTRAP_JOBS 必须为正整数")
+    return min(jobs, max(1, n_tasks))
+
+
+def _ordered_map[T, R](
+    function: Callable[[T], R],
+    items: Iterable[T],
+    *,
+    n_tasks: int,
+) -> list[R]:
+    """按输入顺序返回结果；线程只并行无共享写入的单次 bootstrap 计算。"""
+
+    jobs = _bootstrap_jobs(n_tasks)
+    if jobs == 1:
+        return [function(item) for item in items]
+    with ThreadPoolExecutor(max_workers=jobs, thread_name_prefix="mve-bootstrap") as executor:
+        return list(executor.map(function, items))
 
 
 def _pooled(per_session: PerSession, sids: list[str]) -> tuple[np.ndarray, np.ndarray]:
@@ -98,13 +130,17 @@ def cluster_bootstrap_auc(
     """会话级有放回重采样的 AUC 95% CI。"""
     sids = sorted(per_session)
     rng = np.random.default_rng(seed)
-    samples = []
-    for _ in range(n_boot):
-        take = _resample_sids(sids, rng)
+    draws = [_resample_sids(sids, rng) for _ in range(n_boot)]
+
+    def evaluate(take: list[str]) -> float | None:
         y, p = _pooled(per_session, take)
-        auc = _safe_auc(y, p)
-        if auc is not None:
-            samples.append(auc)
+        return _safe_auc(y, p)
+
+    samples = [
+        auc
+        for auc in _ordered_map(evaluate, draws, n_tasks=n_boot)
+        if auc is not None
+    ]
     arr = np.asarray(samples)
     y, p = _pooled(per_session, sids)
     return {
@@ -141,11 +177,16 @@ def cluster_bootstrap_seed_mean_auc(
         if sorted(per_session) != sids:
             raise ValueError(f"种子 {score_seed} 的会话集合不一致")
     rng = np.random.default_rng(seed)
-    samples = []
-    for _ in range(n_boot):
-        auc = _seed_mean_auc(seeded, _resample_sids(sids, rng))
-        if auc is not None:
-            samples.append(auc)
+    draws = [_resample_sids(sids, rng) for _ in range(n_boot)]
+    samples = [
+        auc
+        for auc in _ordered_map(
+            lambda take: _seed_mean_auc(seeded, take),
+            draws,
+            n_tasks=n_boot,
+        )
+        if auc is not None
+    ]
     arr = np.asarray(samples)
     if not len(arr):
         raise ValueError("会话级 bootstrap 没有产生可用的双类样本")
@@ -170,13 +211,13 @@ def paired_advantage_bootstrap(
         if sorted(b) != sids:
             raise ValueError(f"基线 {name} 的会话集合与探针不一致")
     rng = np.random.default_rng(seed)
-    samples = []
-    for _ in range(n_boot):
-        take = _resample_sids(sids, rng)
+    draws = [_resample_sids(sids, rng) for _ in range(n_boot)]
+
+    def evaluate(take: list[str]) -> float | None:
         y_p, p_p = _pooled(probe, take)
         auc_p = _safe_auc(y_p, p_p)
         if auc_p is None:
-            continue
+            return None
         base_aucs = []
         for b in baselines.values():
             y_b, p_b = _pooled(b, take)
@@ -184,7 +225,14 @@ def paired_advantage_bootstrap(
             if auc_b is not None:
                 base_aucs.append(auc_b)
         if base_aucs:
-            samples.append(auc_p - max(base_aucs))
+            return auc_p - max(base_aucs)
+        return None
+
+    samples = [
+        value
+        for value in _ordered_map(evaluate, draws, n_tasks=n_boot)
+        if value is not None
+    ]
     arr = np.asarray(samples)
     y, p = _pooled(probe, sids)
     point_probe = _safe_auc(y, p)
@@ -226,17 +274,23 @@ def paired_seed_mean_advantage_bootstrap(
                 raise ValueError(f"基线 {name} 种子 {score_seed} 的会话集合与探针不一致")
 
     rng = np.random.default_rng(seed)
-    samples = []
-    for _ in range(n_boot):
-        take = _resample_sids(sids, rng)
+    draws = [_resample_sids(sids, rng) for _ in range(n_boot)]
+
+    def evaluate(take: list[str]) -> float | None:
         probe_auc = _seed_mean_auc(probe_seeded, take)
         baseline_aucs = [
             _seed_mean_auc(scores, take)
             for scores in baseline_seeded.values()
         ]
         if probe_auc is None or any(auc is None for auc in baseline_aucs):
-            continue
-        samples.append(probe_auc - max(baseline_aucs))
+            return None
+        return probe_auc - max(baseline_aucs)
+
+    samples = [
+        value
+        for value in _ordered_map(evaluate, draws, n_tasks=n_boot)
+        if value is not None
+    ]
     arr = np.asarray(samples)
     if not len(arr):
         raise ValueError("成对优势 bootstrap 没有产生可用的双类样本")

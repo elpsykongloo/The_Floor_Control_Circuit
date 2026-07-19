@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,6 +43,18 @@ class RunSpec:
 
 class MvePreflightError(RuntimeError):
     """MVE 输入无法支持正式 G1 裁决。"""
+
+
+def _preflight_io_jobs(n_tasks: int) -> int:
+    """读取大文件哈希并发度；与 zarr 小块读取分开调节。"""
+
+    try:
+        jobs = int(os.environ.get("FLOOR_CIRCUIT_PREFLIGHT_JOBS", "1"))
+    except ValueError as exc:
+        raise MvePreflightError("FLOOR_CIRCUIT_PREFLIGHT_JOBS 必须为正整数") from exc
+    if jobs < 1:
+        raise MvePreflightError("FLOOR_CIRCUIT_PREFLIGHT_JOBS 必须为正整数")
+    return min(jobs, max(1, n_tasks))
 
 
 def validate_baseline_alignment(
@@ -512,15 +525,35 @@ def preflight_mve_inputs(
     issues: list[str] = []
     specs: dict[tuple[str, int], RunSpec] = {}
     audio_hashes: dict[str, dict[str, str] | None] = {}
-    for sid in session_ids:
+
+    def hash_session_audio(sid: str) -> tuple[str, dict[str, str] | None, list[str]]:
         current: dict[str, str] = {}
+        session_issues: list[str] = []
         for channel in (0, 1):
             path = audio_root / sid / f"audio_ch{channel}.wav"
             if not path.is_file():
-                issues.append(f"{sid}: 缺少当前源音频 {path}")
+                session_issues.append(f"{sid}: 缺少当前源音频 {path}")
                 continue
             current[path.name] = sha256_file(path)
-        audio_hashes[sid] = current if len(current) == 2 else None
+        return sid, current if len(current) == 2 else None, session_issues
+
+    worker_count = _preflight_io_jobs(len(session_ids))
+    if worker_count == 1:
+        hash_results = map(hash_session_audio, session_ids)
+    else:
+        executor = ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="mve-preflight-io",
+        )
+        hash_results = executor.map(hash_session_audio, session_ids)
+    try:
+        for sid, current, session_issues in hash_results:
+            audio_hashes[sid] = current
+            issues.extend(session_issues)
+    finally:
+        if worker_count > 1:
+            executor.shutdown()
+
     for sid in session_ids:
         for channel in (0, 1):
             spec, run_issues = _validate_run(
