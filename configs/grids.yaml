@@ -53,3 +53,27 @@ mve:
   bootstrap_n: 1000 # 会话级 cluster bootstrap
   g1_full_threshold: 0.05 # ≥ +0.05 → 全量 E1
   g1_backup_threshold: 0.02 # +0.02~0.05 → 备胎 MVE；全部 < +0.02 → N1
+
+e1: # PREREG #15（2026-07-19 用户裁决 D1–D6）：E1 全量五模型设计冻结
+  # 每模型缓存/分析窗（秒）= min(600, context 规格)；依据 = 论文规定（moshi/personaplex/
+  # dgslm）与本机应力实测（minicpm_o 三角测量 512 s 后疑似退化、freeze_omni 富余 → 保守 300）
+  windows_s:
+    moshi: 240.0 # context=3000 步（PREREG #11）
+    personaplex: 240.0 # 论文规定与 Moshi 相同
+    minicpm_o: 300.0 # 有效上下文 >1000 s，但 512 s 后疑似退化 → 保守 300（用户 2026-07-19 裁决）
+    freeze_omni: 300.0 # 有效上下文 >1000 s → 与 minicpm_o 对齐取 300（用户裁决）
+    dgslm: 122.88 # 论文严格规定（四舍五入 123 s）
+  common_window_s: 122.88 # 跨模型组成匹配的公共窗描述性切片（= min(windows_s)，非判据）
+  # 会话集合（D2，用户 2026-07-19 裁决；冻结 candor.json 前缀切片，无新随机源）：
+  n_sessions_train: 400 # E1 训练集 = probe_train[0:400]
+  n_sessions_eval: 100 # E1 主评估集 = probe_val[40:140]（全新 100 会话）
+  eval_slice_start: 40 # probe_val[0:40] = MVE 历史评估集，仅作历史复现，不并入 E1 主置信区间
+  mve_hist_sessions: 40
+  # probe_val[140:248] 共 108 会话为后备池：任何使用必须先登记 PREREG 变更
+  r2: # 生成制式（D3）：主锚 = Moshi 官方音频温度；多温度/跨种子实验暂缓（用户裁决）
+    temperature: 0.8
+    seed: 0
+  g2: # Gate G2 判据解释冻结（00 §7 的操作化，PREREG #15）
+    top3_overlap_min: 2 # |∩_{3 种子} top-3 层集合| ≥ 2
+    effective_rank_max: 16 # rank-k 投影性能曲线的有效秩 ≤ 16
+    direction_cosine_min: 0.8 # 跨种子方向余弦（成对最小值，取绝对值）≥ 0.8

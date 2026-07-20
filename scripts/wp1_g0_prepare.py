@@ -53,10 +53,26 @@ def main() -> None:
     ap.add_argument("--all-sessions", action="store_true", help="绕过 splits.json，导出全部会话")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--dir", default=None)
+    ap.add_argument(
+        "--roster",
+        default=None,
+        help="PREREG #14 冻结 roster JSON：只导出其中会话（meta.split 记为 train_confirm）",
+    )
     args = ap.parse_args()
     root = Path(args.dir or load_paths()["datasets"]["dualturn"])
     out_root = data_root() / "dualturn_prep"
-    split_tag = "all" if args.all_sessions else args.split
+    if args.roster:
+        if args.all_sessions or args.limit:
+            ap.error("--roster 为冻结清单全量导出，不接受 --all-sessions/--limit")
+        roster_payload = json.loads(Path(args.roster).read_text(encoding="utf-8"))
+        roster_sessions = [str(value) for value in roster_payload["sessions"]]
+        if len(roster_sessions) != len(set(roster_sessions)) or not roster_sessions:
+            raise SystemExit("roster 会话列表为空或含重复")
+        args.split = "train"
+        split_tag = "train_confirm"
+    else:
+        roster_sessions = None
+        split_tag = "all" if args.all_sessions else args.split
     summary: dict = {"split": split_tag, "sessions": [], "n_ok": 0}
 
     readme = root / "README.md"
@@ -80,7 +96,13 @@ def main() -> None:
             )
         if not wanted:
             _fail(summary, f"划分 '{args.split}' 解析到 0 个会话：splits 元素结构异常，请回传 splits.json 顶层样例")
-        print(f"划分 {args.split}：{len(wanted)} 会话")
+        if roster_sessions is not None:
+            outside = sorted(set(roster_sessions) - wanted)
+            if outside:
+                _fail(summary, f"roster 有 {len(outside)} 个会话不在官方 train 划分内：{outside[:5]}")
+            wanted = set(roster_sessions)
+            summary["roster"] = {"path": args.roster, "n_sessions": len(wanted)}
+        print(f"划分 {split_tag}：{len(wanted)} 会话")
 
     shard_glob = "*.parquet"
     expected_available = len(wanted) if wanted is not None else None

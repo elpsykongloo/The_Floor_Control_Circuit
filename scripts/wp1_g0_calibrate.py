@@ -23,10 +23,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import re
 from pathlib import Path
 
 import numpy as np
-from _bootstrap import REPORTS_DIR, write_report_json
+from _bootstrap import REPO_ROOT, REPORTS_DIR, write_report_json
 
 from floor_circuit.config import data_root, load_config
 from floor_circuit.events.g0 import G0_CLASSES, accumulate_counts, finalize_counts, score_binary_tracks
@@ -111,6 +114,12 @@ def protocol_check(root: Path, limit: int | None, split: str | None) -> dict:
     return report
 
 
+def _decoded_vad(cfg: dict) -> tuple[SileroVad, float]:
+    """Mimi 解码域专用 VAD（PREREG #14：threshold 0.40，仅解码音频；原始音频链不受影响）。"""
+    threshold = float(cfg["g0"].get("decoded_vad_threshold", cfg["vad"]["threshold"]))
+    return SileroVad({**cfg, "vad": {**cfg["vad"], "threshold": threshold}}), threshold
+
+
 def calibrate(
     root: Path,
     limit: int | None,
@@ -120,7 +129,7 @@ def calibrate(
     cfg = load_config("events")
     hz = float(cfg["g0"]["frame_hz"])
     tol = int(cfg["g0"]["tolerance_frames"])
-    vad = SileroVad(cfg)
+    vad, decoded_threshold = _decoded_vad(cfg)
     from floor_circuit.stimuli.qc import load_wav
 
     dirs = session_dirs if session_dirs is not None else _session_dirs(root, need_audio=True, split=split, limit=limit)
@@ -190,6 +199,7 @@ def calibrate(
         per_session=per_session,
         errors=errors,
         split=split,
+        decoded_vad_threshold=decoded_threshold,
         gate_config=dict(cfg["g0"]["gate"]),
         layer1_protocol={"macro_f1": layer1_report["macro_f1"], "per_class": layer1_report["per_class"]},
         layer2_vad=vad_report,
@@ -302,10 +312,174 @@ def run_confirmation(root: Path) -> dict:
     return report
 
 
+def derive_gate(apply: bool) -> dict:
+    """按 PREREG #14 冻结配方从修复后的 val 295 重估结果重推层3 门槛。
+
+    配方：band = [语料级 − 0.04, 语料级 + 0.04]；p10_min = 会话级 P10 − 0.044；
+    均取 4 位小数（与 #9 同余量构造）。--apply 时原地改写 events.yaml gate 两行。
+    """
+    cfg = load_config("events")
+    expected_threshold = float(cfg["g0"]["decoded_vad_threshold"])
+    summary_path = REPORTS_DIR / "g0_summary.json"
+    report = json.loads(summary_path.read_text(encoding="utf-8"))
+    checks = {
+        "split_is_val": report.get("split") == "val",
+        "n_sessions_295": int(report.get("n_sessions", 0)) == 295,
+        "zero_errors": int(report.get("n_errors", 1)) == 0,
+        "decoded_threshold": float(report.get("decoded_vad_threshold", -1)) == expected_threshold,
+    }
+    failed = [name for name, ok in checks.items() if not ok]
+    if failed:
+        raise SystemExit(
+            f"g0_summary.json 不满足推导前提 {failed}——先用修复后管线跑 "
+            "`wp1_g0_calibrate.py --split val` 全量重估"
+        )
+    corpus = float(report["macro_f1"])
+    p10 = float(
+        np.percentile(
+            np.asarray([row["macro_f1_mean"] for row in report["per_session"]], dtype=np.float64),
+            10,
+            method="linear",
+        )
+    )
+    band = [round(corpus - 0.04, 4), round(corpus + 0.04, 4)]
+    p10_min = round(p10 - 0.044, 4)
+    derivation = {
+        "recipe": "PREREG #14：band = val点 ± 0.04；p10_min = val P10 − 0.044（4 位小数）",
+        "source_summary_sha256": hashlib.sha256(summary_path.read_bytes()).hexdigest(),
+        "decoded_vad_threshold": expected_threshold,
+        "inputs": {"corpus_macro_f1": corpus, "session_p10": p10, "n_sessions": 295},
+        "gate": {
+            "layer1_exact_macro_f1": 1.0,
+            "layer2_vad_f1_min": 0.90,
+            "layer3_corpus_band": band,
+            "layer3_session_p10_min": p10_min,
+        },
+        "applied": bool(apply),
+    }
+    write_report_json("g0_gate_derivation.json", derivation)
+    if apply:
+        events_path = REPO_ROOT / "configs" / "events.yaml"
+        text = events_path.read_text(encoding="utf-8")
+        text, n_band = re.subn(
+            r"(layer3_corpus_band: )\[[^\]]*\]",
+            rf"\g<1>[{band[0]:g}, {band[1]:g}]",
+            text,
+            count=1,
+        )
+        text, n_p10 = re.subn(
+            r"(layer3_session_p10_min: )[0-9.]+",
+            rf"\g<1>{p10_min:g}",
+            text,
+            count=1,
+        )
+        if n_band != 1 or n_p10 != 1:
+            raise SystemExit("events.yaml gate 行改写失败（band/p10 各须恰好命中一次），请人工核对")
+        events_path.write_text(text, encoding="utf-8")
+        print(f"events.yaml 已改写：band={band}，p10_min={p10_min}——请提交并本机重跑 prereg_fingerprint.py")
+    print(f"门槛推导：band={band}，p10_min={p10_min}（val 语料级 {corpus:.4f}，P10 {p10:.4f}）")
+    return derivation
+
+
+def run_train_confirmation(root: Path) -> dict:
+    """train 侧全新一次性确认（PREREG #14）：冻结 roster + 重推门槛下的四条件 Gate。"""
+    cfg = load_config("events")
+    gate_cfg = dict(cfg["g0"]["gate"])
+    tc = cfg["g0"]["train_confirm"]
+    expected = int(tc["expected_sessions"])
+    roster_path = REPO_ROOT / str(tc["roster"])
+    if not roster_path.is_file():
+        raise SystemExit(f"roster 未冻结：{roster_path}（先跑 wp1_g0_train_roster.py 并提交）")
+    roster = json.loads(roster_path.read_text(encoding="utf-8"))
+    sessions = [str(value) for value in roster["sessions"]]
+    if int(roster.get("seed", -1)) != int(tc["seed"]) or len(sessions) != expected:
+        raise SystemExit(
+            f"roster 与冻结配置不一致：seed {roster.get('seed')}≠{tc['seed']} 或 "
+            f"会话数 {len(sessions)}≠{expected}"
+        )
+    derivation_path = REPO_ROOT / str(tc["derivation_report"])
+    if not derivation_path.is_file():
+        raise SystemExit("缺少门槛推导报告——先完成修复后 val 重估并跑 --derive-gate --apply")
+    derivation = json.loads(derivation_path.read_text(encoding="utf-8"))
+    derived = derivation["gate"]
+    consistent = (
+        [float(v) for v in gate_cfg["layer3_corpus_band"]] == [float(v) for v in derived["layer3_corpus_band"]]
+        and float(gate_cfg["layer3_session_p10_min"]) == float(derived["layer3_session_p10_min"])
+        and float(derivation["decoded_vad_threshold"]) == float(cfg["g0"]["decoded_vad_threshold"])
+    )
+    if not consistent:
+        raise SystemExit("events.yaml gate 与推导报告不一致——须先 --derive-gate --apply 并提交")
+
+    dirs = [root / sid for sid in sessions]
+    missing = [d.name for d in dirs if not all((d / f).exists() for f in (*REQUIRED_GOLD, *REQUIRED_AUDIO))]
+    if missing:
+        raise SystemExit(
+            f"确认集有 {len(missing)} 个会话四文件不齐（一次性运行要求 {expected} 全齐）。"
+            f"样例：{missing[:5]}——先 prepare --roster + decode_mimi 补齐"
+        )
+    for d in dirs:
+        meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+        if meta.get("split") != "train_confirm":
+            raise SystemExit(f"{d.name}: meta.split={meta.get('split')!r}，期望 train_confirm（须经 --roster 导出）")
+
+    report = calibrate(root, limit=None, split=None, session_dirs=dirs)
+    report["split"] = "train_confirm"
+    if report["n_errors"]:
+        raise SystemExit(f"确认集有 {report['n_errors']} 个会话处理失败，一次性运行不允许缺失：{report['errors'][:3]}")
+    if report["n_sessions"] != expected:
+        raise SystemExit(f"确认集实跑 {report['n_sessions']} ≠ {expected}")
+    gate = evaluate_g0_gate(
+        layer1_macro_f1=report["layer1_protocol"]["macro_f1"],
+        layer1_per_class_f1={
+            cls: cell["f1"] for cls, cell in report["layer1_protocol"]["per_class"].items()
+        },
+        layer2_f1_by_channel={key: value["f1"] for key, value in report["layer2_vad"].items()},
+        layer3_corpus_macro_f1=report["macro_f1"],
+        layer3_session_macro_f1s=[row["macro_f1_mean"] for row in report["per_session"]],
+        gate_cfg=gate_cfg,
+    )
+    report.update(
+        gate=gate,
+        gate_frozen=True,
+        roster_path=str(roster_path),
+        roster_seed=int(tc["seed"]),
+        derivation=derivation,
+        confirmation_one_shot=True,
+    )
+    write_report_json("g0_train_confirmation.json", report)
+    conditions = gate["conditions"]
+    lines = [
+        f"# G0 train 侧一次性新确认报告（PREREG #14，{expected} 会话，解码域阈值 "
+        f"{report['decoded_vad_threshold']:g}）",
+        "",
+        f"- **Gate 裁决：`{gate['verdict']}`**",
+        f"- 层1 协议全等：macro-F1 = {conditions['layer1_exact']['macro_f1']:.4f} → "
+        + ("✅" if conditions["layer1_exact"]["passed"] else "❌"),
+        "- 层2 VAD F1："
+        + "，".join(f"{k} {v:.4f}" for k, v in conditions["layer2_vad_f1"]["by_channel"].items())
+        + f"（下限 {conditions['layer2_vad_f1']['required_min']}）→ "
+        + ("✅" if conditions["layer2_vad_f1"]["passed"] else "❌"),
+        f"- 层3 语料级 macro-F1 = {conditions['layer3_corpus_band']['corpus_macro_f1']:.4f}，"
+        f"等价带 {conditions['layer3_corpus_band']['band']} → {conditions['layer3_corpus_band']['status']}",
+        f"- 层3 会话级 P10 = {conditions['layer3_session_p10']['p10']:.4f}"
+        f"（下限 {conditions['layer3_session_p10']['required_min']}）→ "
+        + ("✅" if conditions["layer3_session_p10"]["passed"] else "❌"),
+        "",
+    ]
+    if gate["verdict"] == "red_flag_investigate":
+        lines += ["> ⚠️ 高出等价带：按冻结规则暂停 Gate、登记调查，不自动通过。", ""]
+    (REPORTS_DIR / "g0_train_确认报告.md").write_text("\n".join(lines), encoding="utf-8")
+    print(f"G0 train 确认裁决：{gate['verdict']}（G0 状态改判须经 PREREG 登记）")
+    return report
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--protocol-check", action="store_true", help="层 1：金标 VAD → 官方算法全等检验")
-    ap.add_argument("--confirmation", action="store_true", help="一次性确认集运行 + 冻结 Gate 裁决（PREREG #9）")
+    ap.add_argument("--confirmation", action="store_true", help="（历史，已启封）test 118 一次性确认（PREREG #9）")
+    ap.add_argument("--confirmation-train", action="store_true", help="train 300 全新一次性确认（PREREG #14）")
+    ap.add_argument("--derive-gate", action="store_true", help="按 #14 冻结配方从 val 重估结果重推门槛")
+    ap.add_argument("--apply", action="store_true", help="与 --derive-gate 连用：原地改写 events.yaml gate")
     ap.add_argument("--root", default=None)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--split", default=None, help="按 meta.json 划分溯源过滤（如 val/test）")
@@ -313,6 +487,16 @@ def main() -> None:
     root = Path(args.root) if args.root else data_root() / "dualturn_prep"
     if args.protocol_check:
         protocol_check(root, args.limit, args.split)
+        return
+    if args.derive_gate:
+        if args.limit or args.split or args.confirmation or args.confirmation_train:
+            ap.error("--derive-gate 不接受其他模式参数")
+        derive_gate(apply=args.apply)
+        return
+    if args.confirmation_train:
+        if args.limit or args.split:
+            ap.error("--confirmation-train 为一次性全量运行，不接受 --limit/--split")
+        run_train_confirmation(root)
         return
     if args.confirmation:
         if args.limit or args.split:

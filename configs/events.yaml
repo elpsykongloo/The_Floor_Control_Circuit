@@ -43,10 +43,22 @@ g0:
   gate:
     layer1_exact_macro_f1: 1.0 # 层1 协议全等（金标 VAD → 库版官方算法）
     layer2_vad_f1_min: 0.90 # 层2 双通道 VAD F1 下限（确认集重估）
-    layer3_corpus_band: [0.48, 0.56] # 层3 语料级 macro-F1 等价带（val 0.5209 ± 0.04）
-    layer3_session_p10_min: 0.30 # 会话级 macro-F1 P10 尾部护栏（numpy linear 分位）
+    layer3_corpus_band: [0.48, 0.56] # 层3 等价带（#14 修复后由 --derive-gate 按冻结配方重推）
+    layer3_session_p10_min: 0.30 # 会话级 P10 尾部护栏（#14 修复后同上重推）
     exploration_sessions: 20 # test 前 20 会话（目录序）= 已消耗探索集，确认集排除
-    confirmation_expected_sessions: 118 # 确认集会话数硬校验（不允许静默子集）
+    confirmation_expected_sessions: 118 # （历史）test 一次性确认集口径，已启封并裁决 fail
+  # PREREG #14（2026-07-19 用户批准，处置甲第二步）：G0 层2/3 的 Mimi 解码域 VAD 阈值
+  # 修复为 0.40（诊断响应面最优；无响度归一化）。**仅作用于解码音频**——顶层原始音频
+  # 事件本体继续用 vad.threshold 0.5，其他模型解码器不继承。修复后流程：val 295 重估 →
+  # --derive-gate 按冻结配方重推等价带与 P10（band = val点 ± 0.04；p10_min = val P10 − 0.044，
+  # 均取 4 位小数，与 #9 同余量构造）→ train 侧全新一次性确认（roster 冻结见 train_confirm）。
+  # 新确认完成前 G0 状态维持 fail。
+  decoded_vad_threshold: 0.40
+  train_confirm:
+    roster: configs/splits/dualturn_train_confirm.json # wp1_g0_train_roster.py 生成后冻结
+    expected_sessions: 300 # 从 1986 个从未读取的 train 会话抽取（与 val 295 规模相当）
+    seed: 20260717
+    derivation_report: reports/g0_gate_derivation.json # --derive-gate 产物；确认前必须存在且与本文件一致
   # DualTurn 官方标签算法：语义已定稿为官方源码逐句移植（2026-07-17，138/138 会话逐帧全等），
   # 常量硬编码于 src/floor_circuit/events/g0_official.py（min_turn=12、max_bc=12、
   # min_bc_silence=12、gap=50 帧），来源 commit 2d0db21e767b953f5017c1cc697928b54161d645。
