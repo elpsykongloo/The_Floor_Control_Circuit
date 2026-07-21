@@ -54,6 +54,10 @@ class AdapterError(RuntimeError):
     """本地 moshi 包 API 与预期不符：报错信息包含实测属性，供回传后修正适配。"""
 
 
+class ThermalLimitExceeded(AdapterError):
+    """GPU 温度达到冻结停止线（95°C）：立即中止当前任务并保留证据（PREREG #16(d)）。"""
+
+
 def log(msg: str) -> None:
     print(f"[moshi-runner] {msg}", flush=True)
 
@@ -75,6 +79,104 @@ def sha256_file(path: str | Path, chunk: int = 1 << 20) -> str:
                 break
             h.update(b)
     return h.hexdigest()
+
+
+def pcm_prefix_digest(path: str | Path, seconds: float) -> dict:
+    """对 WAV 前 N 秒原始 PCM 字节做 sha256——读库无关的输入前缀指纹（PREREG #16(d)）。
+
+    与仓库侧 src/floor_circuit/cachelib/audio_digest.py 逐字对齐（跨环境不 import，
+    以单元测试保证两实现在同一文件上输出一致）。
+    """
+    import wave
+
+    with wave.open(str(path), "rb") as reader:
+        sample_rate = reader.getframerate()
+        n_channels = reader.getnchannels()
+        sample_width = reader.getsampwidth()
+        compression = reader.getcomptype()
+        if compression != "NONE":
+            raise AdapterError(f"{path} 非 PCM WAV（压缩类型 {compression}），无法计算前缀指纹")
+        n_frames = min(int(reader.getnframes()), round(float(seconds) * sample_rate))
+        hasher = hashlib.sha256()
+        hasher.update(
+            f"pcm:{sample_rate}:{n_channels}:{sample_width}:{n_frames}".encode("ascii") + b"\0"
+        )
+        remaining = n_frames
+        while remaining > 0:
+            data = reader.readframes(min(remaining, 1 << 16))
+            if not data:
+                raise AdapterError(f"{path} PCM 数据提前结束：仍缺 {remaining} 帧")
+            got, tail = divmod(len(data), n_channels * sample_width)
+            if tail:
+                raise AdapterError(f"{path} PCM 块字节数 {len(data)} 不是整帧")
+            hasher.update(data)
+            remaining -= got
+    return {
+        "sha256": hasher.hexdigest(),
+        "n_frames": int(n_frames),
+        "sample_rate": int(sample_rate),
+        "seconds": float(seconds),
+    }
+
+
+def _physical_gpu_index(torch_index: int) -> int | None:
+    """把 torch 设备序号映射回 nvidia-smi 的物理序号（CUDA_VISIBLE_DEVICES 重映射）。"""
+    visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if visible is None or visible.strip() == "":
+        return torch_index
+    entries = [item.strip() for item in visible.split(",") if item.strip()]
+    if torch_index >= len(entries):
+        return None
+    try:
+        return int(entries[torch_index])
+    except ValueError:
+        return None  # UUID/MIG 形式：留给 torch.cuda.temperature 路径
+
+
+def read_gpu_temperature(torch, device_index: int) -> float | None:
+    """读当前设备温度（°C）；两条路径都不可用时返回 None（记录但不阻断）。"""
+    reader = getattr(torch.cuda, "temperature", None)
+    if callable(reader):
+        try:
+            return float(reader(device_index))
+        except Exception:
+            pass
+    physical = _physical_gpu_index(device_index)
+    if physical is None:
+        return None
+    try:
+        out = subprocess.check_output(
+            [
+                "nvidia-smi",
+                f"--id={physical}",
+                "--query-gpu=temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+        )
+        return float(out.strip().splitlines()[0])
+    except Exception:
+        return None
+
+
+def assert_free_disk(path: str | Path, min_free_bytes: int, *, what: str) -> int:
+    """输出卷剩余空间护栏：低于下限立即失败，避免长跑中途写穿磁盘。"""
+    import shutil
+
+    probe = Path(path)
+    while not probe.exists():
+        parent = probe.parent
+        if parent == probe:
+            break
+        probe = parent
+    free = int(shutil.disk_usage(probe).free)
+    if min_free_bytes > 0 and free < min_free_bytes:
+        raise AdapterError(
+            f"{what}：磁盘剩余 {free / 1e9:.1f} GB 低于护栏 {min_free_bytes / 1e9:.1f} GB（{probe}）"
+        )
+    return free
 
 
 def resolve_code_version(explicit: str | None) -> str:
@@ -153,7 +255,7 @@ def write_npy_atomic(path: str | Path, array: np.ndarray) -> None:
 def clear_run_outputs(out_dir: Path) -> None:
     """仅清理 runner 自己的旧产物；保留目录中的其他文件。"""
     paths = [out_dir / "manifest.json", out_dir / "text_tokens.npy"]
-    for pattern in ("acts_L*_part*.npy", "mimi_latent_part*.npy", ".*.tmp"):
+    for pattern in ("acts_L*_part*.npy", "acts_part*.npy", "mimi_latent_part*.npy", ".*.tmp"):
         paths.extend(out_dir.glob(pattern))
     removed = 0
     for path in paths:
@@ -603,7 +705,12 @@ def forward_capture(
 
 
 class _ActivationDoubleBufferWriter:
-    """以双缓冲异步回传激活，并由单线程保持分片写出顺序。"""
+    """以双缓冲异步回传激活，并由单线程保持分片写出顺序。
+
+    layout=per_layer_v1：每层每分片一个 ``acts_L{ell}_part*.npy``（MVE 历史契约）。
+    layout=stacked_tlh_v2：每分片一个 ``acts_part*.npy``，形状 [rows, L, H]，层轴顺序
+    与 ``layers`` 列表一致（PREREG #16(d)，机械盘小文件治理）。
+    """
 
     def __init__(
         self,
@@ -613,11 +720,15 @@ class _ActivationDoubleBufferWriter:
         hidden_dim: int,
         device,
         out_dir: Path,
+        layout: str = "per_layer_v1",
     ):
+        if layout not in ("per_layer_v1", "stacked_tlh_v2"):
+            raise AdapterError(f"未知激活布局：{layout!r}")
         self.torch = torch
         self.layers = layers
         self.chunk_steps = chunk_steps
         self.out_dir = out_dir
+        self.layout = layout
         self.gpu_buffers = [
             {
                 ell: torch.empty(
@@ -629,18 +740,30 @@ class _ActivationDoubleBufferWriter:
             }
             for _ in range(2)
         ]
-        self.cpu_buffers = [
-            {
-                ell: torch.empty(
-                    (chunk_steps, hidden_dim),
+        if layout == "per_layer_v1":
+            self.cpu_buffers = [
+                {
+                    ell: torch.empty(
+                        (chunk_steps, hidden_dim),
+                        dtype=torch.float16,
+                        device="cpu",
+                        pin_memory=True,
+                    )
+                    for ell in layers
+                }
+                for _ in range(2)
+            ]
+        else:
+            # 层主序 [L, chunk, H]：每层是连续切片，可安全 non_blocking 回传
+            self.cpu_buffers = [
+                torch.empty(
+                    (len(layers), chunk_steps, hidden_dim),
                     dtype=torch.float16,
                     device="cpu",
                     pin_memory=True,
                 )
-                for ell in layers
-            }
-            for _ in range(2)
-        ]
+                for _ in range(2)
+            ]
         self.transfer_stream = torch.cuda.Stream(device=device)
         self.executor = ThreadPoolExecutor(
             max_workers=1,
@@ -661,8 +784,12 @@ class _ActivationDoubleBufferWriter:
         current_stream = self.torch.cuda.current_stream()
         with self.torch.cuda.stream(self.transfer_stream):
             self.transfer_stream.wait_stream(current_stream)
-            for ell in self.layers:
-                self.cpu_buffers[slot][ell][:rows].copy_(
+            for layer_pos, ell in enumerate(self.layers):
+                if self.layout == "per_layer_v1":
+                    dst = self.cpu_buffers[slot][ell][:rows]
+                else:
+                    dst = self.cpu_buffers[slot][layer_pos, :rows]
+                dst.copy_(
                     self.gpu_buffers[slot][ell][:rows],
                     non_blocking=True,
                 )
@@ -684,11 +811,19 @@ class _ActivationDoubleBufferWriter:
         part_index: int,
     ) -> None:
         ready.synchronize()
-        for ell in self.layers:
-            values = self.cpu_buffers[slot][ell][:rows].numpy()
+        if self.layout == "per_layer_v1":
+            for ell in self.layers:
+                values = self.cpu_buffers[slot][ell][:rows].numpy()
+                write_npy_atomic(
+                    self.out_dir / f"acts_L{ell}_part{part_index:05d}.npy",
+                    values,
+                )
+        else:
+            stage = self.cpu_buffers[slot][:, :rows].numpy()  # [L, rows, H]
+            stacked = np.ascontiguousarray(np.transpose(stage, (1, 0, 2)))  # [rows, L, H]
             write_npy_atomic(
-                self.out_dir / f"acts_L{ell}_part{part_index:05d}.npy",
-                values,
+                self.out_dir / f"acts_part{part_index:05d}.npy",
+                stacked,
             )
 
     def close(self) -> None:
@@ -705,6 +840,10 @@ def _forward_capture_selftext_cuda(
     layers: list[int],
     out_dir: Path,
     chunk_steps: int,
+    *,
+    layout: str = "per_layer_v1",
+    thermal_limit_c: float | None = None,
+    thermal_check_interval: int = 128,
 ) -> dict:
     """CUDA 上保持单步贪心语义，并消除逐步主机同步。"""
     import torch
@@ -765,6 +904,16 @@ def _forward_capture_selftext_cuda(
     active_slot = 0
     row_in_part = 0
     prev_token = None
+    device_index = (
+        model_input.device.index
+        if model_input.device.index is not None
+        else torch.cuda.current_device()
+    )
+    if thermal_limit_c is not None and thermal_check_interval <= 0:
+        raise AdapterError(f"温度检查步距必须为正：{thermal_check_interval}")
+    temperature_max: float | None = None
+    temperature_samples = 0
+    temperature_unavailable_logged = False
     t0 = time.time()
 
     def graph_step(values):
@@ -800,6 +949,7 @@ def _forward_capture_selftext_cuda(
                         hidden_dim,
                         model_input.device,
                         out_dir,
+                        layout=layout,
                     )
                     writer.wait_slot(active_slot)
 
@@ -820,6 +970,24 @@ def _forward_capture_selftext_cuda(
                     if part_index % 10 == 0:
                         rate = (p + 1) / max(time.time() - t0, 1e-9)
                         log(f"自预测前向 {p + 1}/{n_steps} 步（{rate:.1f} 步/s）")
+                if thermal_limit_c is not None and (p + 1) % thermal_check_interval == 0:
+                    temperature = read_gpu_temperature(torch, device_index)
+                    if temperature is None:
+                        if not temperature_unavailable_logged:
+                            log(
+                                "警告：GPU 温度不可读（torch.cuda.temperature 与 "
+                                "nvidia-smi 均失败），热保护降级为不可用"
+                            )
+                            temperature_unavailable_logged = True
+                    else:
+                        temperature_samples += 1
+                        if temperature_max is None or temperature > temperature_max:
+                            temperature_max = temperature
+                        if temperature >= thermal_limit_c:
+                            raise ThermalLimitExceeded(
+                                f"GPU{device_index} 温度 {temperature:.0f}°C ≥ 停止线 "
+                                f"{thermal_limit_c:.0f}°C（步 {p + 1}/{n_steps}，{out_dir.name}）"
+                            )
         if writer is None or hidden_dim is None:
             raise AdapterError("CUDA Graph 前向没有产生激活")
         writer.close()
@@ -833,9 +1001,10 @@ def _forward_capture_selftext_cuda(
     text_tokens = text_tokens_device.cpu().numpy()
     write_npy_atomic(out_dir / "text_tokens.npy", text_tokens)
     pad_fraction = float(np.mean(text_tokens == int(pad_id)))
+    elapsed = time.time() - t0
     log(
         f"自预测前向完成：T={n_steps}，PAD 占比 {pad_fraction:.3f}，"
-        f"耗时 {time.time() - t0:.1f}s"
+        f"耗时 {elapsed:.1f}s"
     )
     return {
         "hidden_dim": hidden_dim,
@@ -848,6 +1017,18 @@ def _forward_capture_selftext_cuda(
         "activation_device_double_buffered": True,
         "greedy_token_device_resident": True,
         "cuda_graph": True,
+        "activation_layout": layout,
+        "telemetry": {
+            "forward_elapsed_s": round(elapsed, 3),
+            "steps_per_second": round(n_steps / max(elapsed, 1e-9), 3),
+            "temperature_max_c": temperature_max,
+            "temperature_samples": temperature_samples,
+            "temperature_limit_c": thermal_limit_c,
+            "temperature_check_interval_steps": (
+                thermal_check_interval if thermal_limit_c is not None else None
+            ),
+            "device_index": int(device_index),
+        },
     }
 
 
@@ -861,6 +1042,10 @@ def forward_capture_selftext(
     temperature: float | None,
     seed: int,
     top_k: int = DEFAULT_TEXT_TOP_K,
+    *,
+    layout: str = "per_layer_v1",
+    thermal_limit_c: float | None = None,
+    thermal_check_interval: int = 128,
 ) -> dict:
     """逐步自预测文本流的 teacher-forced 前向（PREREG #7 冻结协议）。
 
@@ -882,6 +1067,14 @@ def forward_capture_selftext(
             layers,
             out_dir,
             chunk_steps,
+            layout=layout,
+            thermal_limit_c=thermal_limit_c,
+            thermal_check_interval=thermal_check_interval,
+        )
+    if layout != "per_layer_v1":
+        raise AdapterError(
+            f"激活布局 {layout!r} 仅在 CUDA greedy 路径实现；当前 mode={mode!r}，"
+            f"device={codes.device.type!r}"
         )
     tf = lm.transformer
     if not hasattr(tf, "layers"):
@@ -1041,6 +1234,13 @@ def _write_encoded_run(
     out_dir.mkdir(parents=True, exist_ok=True)
     clear_run_outputs(out_dir)
     log(f"文本流模式：{args.text_mode}")
+    plan_v2 = getattr(args, "plan_v2", None)
+    if plan_v2 is not None:
+        if args.text_mode != "greedy":
+            raise AdapterError("计划 v2 只允许 greedy 文本流（PREREG #7/#16）")
+        import torch
+
+        torch.cuda.reset_peak_memory_stats()
     codes, build_meta = build_parallel_codes(lm, codes_agent, codes_other, args)
     if args.text_mode == "pad":
         stats = forward_capture(
@@ -1057,7 +1257,33 @@ def _write_encoded_run(
             args.text_temperature,
             args.seed,
             top_k=args.text_top_k,
+            layout=(
+                str(plan_v2["activation_layout"]) if plan_v2 is not None else "per_layer_v1"
+            ),
+            thermal_limit_c=(
+                float(plan_v2["temperature_limit_celsius"]) if plan_v2 is not None else None
+            ),
+            thermal_check_interval=(
+                int(plan_v2["temperature_check_interval_steps"]) if plan_v2 is not None else 128
+            ),
         )
+    if plan_v2 is not None:
+        expected_steps = int(plan_v2["expected_steps"])
+        if int(stats["n_steps"]) != expected_steps:
+            raise AdapterError(
+                f"步数 {stats['n_steps']} ≠ 计划 expected_steps={expected_steps}"
+                f"（会话 {args.session_id}）——输入窗口或音频异常，拒绝写出"
+            )
+        expected_hidden = plan_v2.get("expected_hidden_dim")
+        if expected_hidden is not None and int(stats["hidden_dim"]) != int(expected_hidden):
+            raise AdapterError(
+                f"隐藏维度 {stats['hidden_dim']} ≠ 计划 expected_hidden_dim={expected_hidden}"
+            )
+        expected_parts = int(plan_v2["expected_parts"])
+        if int(stats["n_parts"]) != expected_parts:
+            raise AdapterError(
+                f"分片数 {stats['n_parts']} ≠ 计划 expected_parts={expected_parts}"
+            )
     mimi_latent_ok = latent is not None
     if latent is not None:
         for pi, i0 in enumerate(range(0, latent.shape[0], BLOCK_STEPS)):
@@ -1104,7 +1330,7 @@ def _write_encoded_run(
             build_meta["execution"]["text_top_k"] = int(args.text_top_k)
             build_meta["execution"]["text_seed"] = int(args.seed)
     manifest = {
-        "schema_version": 1,
+        "schema_version": 1 if plan_v2 is None else 2,
         "model": args.model_name,
         "mode": "R1",
         "session_id": args.session_id,
@@ -1120,9 +1346,42 @@ def _write_encoded_run(
         "code_version": code_version,
         "extra": build_meta,
     }
+    if plan_v2 is not None:
+        import torch
+
+        device_props = torch.cuda.get_device_properties(torch.cuda.current_device())
+        telemetry = dict(stats.get("telemetry", {}))
+        telemetry.update(
+            {
+                "peak_memory_allocated_bytes": int(torch.cuda.max_memory_allocated()),
+                "peak_memory_reserved_bytes": int(torch.cuda.max_memory_reserved()),
+                "gpu_name": str(device_props.name),
+                "gpu_uuid": str(getattr(device_props, "uuid", "unknown")),
+                "gpu_total_memory_bytes": int(device_props.total_memory),
+            }
+        )
+        manifest["extra"]["e1"] = {
+            "plan_id": str(plan_v2["plan_id"]),
+            "prereg_tag": str(plan_v2.get("prereg_tag", "")),
+            "experiment": "E1",
+            "cohort": str(plan_v2["cohort"]),
+            "agent_channel": int(plan_v2["agent_channel"]),
+            "expected_steps": int(plan_v2["expected_steps"]),
+            "expected_parts": int(plan_v2["expected_parts"]),
+            "activation_layout": str(plan_v2["activation_layout"]),
+            "analysis_max_label_step": int(plan_v2["analysis_max_label_step"]),
+            "common_window_steps": int(plan_v2["common_window_steps"]),
+            "input_prefix": plan_v2["input_prefix"],
+            "shard_id": plan_v2.get("shard_id"),
+            "telemetry": telemetry,
+        }
     manifest["extra"]["output_files"] = {
         path.name: path.stat().st_size for path in sorted(out_dir.glob("*.npy"))
     }
+    if plan_v2 is not None:
+        manifest["extra"]["e1"]["telemetry"]["output_bytes"] = int(
+            sum(manifest["extra"]["output_files"].values())
+        )
     write_json_atomic(out_dir / "manifest.json", manifest)
     log(f"完成：{out_dir}（layers={args.layers}，T={stats['n_steps']}，H={stats['hidden_dim']}）")
 
@@ -1223,7 +1482,7 @@ def cached_run_is_valid(
     return True
 
 
-def _role_args(base_args, session: dict, channel: int):
+def _role_args(base_args, session: dict, channel: int, extra: dict | None = None):
     values = vars(base_args).copy()
     other = 1 - channel
     values.update(
@@ -1234,6 +1493,8 @@ def _role_args(base_args, session: dict, channel: int):
             "out": str(session[f"out_agent{channel}"]),
         }
     )
+    if extra:
+        values.update(extra)
     return SimpleNamespace(**values)
 
 
@@ -1246,6 +1507,8 @@ def run_session_pair(
     *,
     run_agent0: bool,
     run_agent1: bool,
+    role_extras: tuple[dict | None, dict | None] = (None, None),
+    engineering_mode: str = "persistent_session_pair_cuda_graph_v1",
 ) -> int:
     """一次读取并编码会话双声道，随后依次执行两个角色。"""
     if not run_agent0 and not run_agent1:
@@ -1283,14 +1546,14 @@ def run_session_pair(
         audio1: sha256_file(audio1),
     }
     engineering = {
-        "engineering_mode": "persistent_session_pair_cuda_graph_v1",
+        "engineering_mode": engineering_mode,
         "persistent_worker": True,
         "session_pair_reuse": True,
         "mimi_device_buffered": True,
     }
     completed = 0
     if run_agent0:
-        args0 = _role_args(base_args, session, 0)
+        args0 = _role_args(base_args, session, 0, role_extras[0])
         _write_encoded_run(
             args0,
             mimi,
@@ -1306,7 +1569,7 @@ def run_session_pair(
         _assert_streaming_idle(mimi, lm)
         completed += 1
     if run_agent1:
-        args1 = _role_args(base_args, session, 1)
+        args1 = _role_args(base_args, session, 1, role_extras[1])
         _write_encoded_run(
             args1,
             mimi,
@@ -1324,11 +1587,209 @@ def run_session_pair(
     return completed
 
 
+def cached_run_is_valid_v2(
+    out_dir: str | Path,
+    *,
+    plan: dict,
+    session: dict,
+    channel: int,
+    accepted_code_versions: set[str],
+) -> bool:
+    """E1 计划 v2 的断点续跑校验：契约、指纹、分片计数与文件完整性全对才复用。"""
+    out_dir = Path(out_dir)
+    settings = plan["settings"]
+    try:
+        payload = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        execution = payload["extra"]["execution"]
+        output_files = payload["extra"]["output_files"]
+        e1 = payload["extra"]["e1"]
+        if int(payload.get("schema_version", 0)) != 2:
+            return False
+        if payload.get("code_version") not in accepted_code_versions:
+            return False
+        if payload.get("text_mode") != "greedy" or payload.get("mimi_latent") is not True:
+            return False
+        if payload.get("layers") != [int(value) for value in settings["layers"]]:
+            return False
+        if int(payload.get("n_steps", -1)) != int(settings["expected_steps"]):
+            return False
+        if execution.get("time_alignment") != TIME_ALIGNMENT:
+            return False
+        if execution.get("latent_kind") != "pre_quantization_continuous":
+            return False
+        if float(execution.get("max_seconds")) != float(settings["window_seconds"]):
+            return False
+        if float(execution.get("mimi_chunk_seconds")) != float(settings["mimi_chunk_seconds"]):
+            return False
+        if int(execution.get("forward_chunk_steps")) != int(settings["forward_chunk_steps"]):
+            return False
+        if str(e1.get("plan_id")) != str(plan["plan_id"]):
+            return False
+        if str(e1.get("cohort")) != str(session["cohort"]):
+            return False
+        if int(e1.get("agent_channel", -1)) != int(channel):
+            return False
+        if str(e1.get("activation_layout")) != str(settings["activation_layout"]):
+            return False
+        if int(e1.get("expected_parts", -1)) != int(settings["expected_parts"]):
+            return False
+        expected_prefix = {
+            "ch0": dict(session["prefix_ch0"]),
+            "ch1": dict(session["prefix_ch1"]),
+        }
+        if e1.get("input_prefix") != expected_prefix:
+            return False
+        if not isinstance(output_files, dict) or not output_files:
+            return False
+        n_stacked = sum(
+            1 for name in output_files if name.startswith("acts_part") and name.endswith(".npy")
+        )
+        if n_stacked != int(settings["expected_parts"]):
+            return False
+        for name, expected_size in output_files.items():
+            path = out_dir / name
+            if not path.is_file() or path.stat().st_size != int(expected_size):
+                return False
+    except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError):
+        return False
+    return True
+
+
+def run_batch_plan_v2(plan: dict, device: str = "cuda") -> None:
+    """E1 缓存计划 v2（PREREG #16(d)）：单卡持久进程 + 堆叠分片 + 热保护 + 遥测。"""
+    import torch
+
+    if not torch.cuda.is_available():
+        raise AdapterError("计划 v2 需要 CUDA（CUDA Graph 贪心路径）")
+    torch_device = torch.device(device)
+    if torch_device.type != "cuda":
+        raise AdapterError(f"计划 v2 只支持 cuda 设备，收到 {device!r}")
+    torch.cuda.set_device(torch_device)
+    settings = dict(plan["settings"])
+    resources = dict(plan.get("resources", {}))
+    code_version = resolve_code_version(str(plan["code_version"]))
+    accepted = {str(value) for value in plan.get("accepted_code_versions", [])}
+    accepted.add(code_version)
+    if str(settings["text_mode"]) != "greedy":
+        raise AdapterError("计划 v2 只允许 greedy 文本流（PREREG #7/#16）")
+    if str(settings["activation_layout"]) != "stacked_tlh_v2":
+        raise AdapterError(f"计划 v2 未知激活布局：{settings['activation_layout']!r}")
+    layers = [int(value) for value in settings["layers"]]
+    if not layers or layers != sorted(set(layers)) or layers[0] < 0:
+        raise AdapterError(f"计划层号必须为严格递增的非负列表：{layers[:5]}…")
+    shard_id = (plan.get("sharding") or {}).get("shard_id")
+    base_args = SimpleNamespace(
+        model_root=str(plan["model_root"]),
+        lm_weight=plan.get("lm_weight"),
+        mimi_weight=plan.get("mimi_weight"),
+        device=device,
+        n_codebooks=int(settings["n_codebooks"]),
+        layers=layers,
+        max_seconds=float(settings["window_seconds"]),
+        mimi_chunk_seconds=float(settings["mimi_chunk_seconds"]),
+        forward_chunk_steps=int(settings["forward_chunk_steps"]),
+        text_mode="greedy",
+        text_temperature=DEFAULT_TEXT_TEMPERATURE,
+        text_top_k=DEFAULT_TEXT_TOP_K,
+        stream_order=str(settings["stream_order"]),
+        dump_mimi_latent=True,
+        seed=int(settings["seed"]),
+        model_name=str(plan.get("model_name", "moshi")),
+    )
+    mimi, lm = load_models(base_args)
+    n_layers_model = len(lm.transformer.layers)
+    if layers[-1] >= n_layers_model:
+        raise AdapterError(f"计划层号 {layers[-1]} 超出模型层数 {n_layers_model}")
+    min_free = int(resources.get("min_free_disk_bytes", 0))
+    window_seconds = float(settings["window_seconds"])
+    sessions = list(plan["sessions"])
+    log(
+        f"E1 计划 v2：{plan['plan_id']}，shard={shard_id}，会话 {len(sessions)}，"
+        f"层 {layers[0]}..{layers[-1]}，窗 {window_seconds:g}s"
+    )
+    completed = 0
+    skipped = 0
+    for index, session in enumerate(sessions, start=1):
+        valid = [
+            cached_run_is_valid_v2(
+                session[f"out_agent{ch}"],
+                plan=plan,
+                session=session,
+                channel=ch,
+                accepted_code_versions=accepted,
+            )
+            for ch in (0, 1)
+        ]
+        skipped += sum(valid)
+        if all(valid):
+            log(f"会话 {index}/{len(sessions)} 已完整，跳过 {session['session_id']}")
+            continue
+        assert_free_disk(
+            session["out_agent0"],
+            min_free,
+            what=f"会话 {session['session_id']} 开跑前",
+        )
+        input_prefix: dict[str, dict] = {}
+        for ch in (0, 1):
+            digest = pcm_prefix_digest(session[f"audio_ch{ch}"], window_seconds)
+            expected = dict(session[f"prefix_ch{ch}"])
+            if digest != expected:
+                raise AdapterError(
+                    f"会话 {session['session_id']} ch{ch} 输入前缀指纹与计划不符"
+                    f"（实测 {digest['sha256'][:12]}… vs 计划 {expected.get('sha256', '')[:12]}…）"
+                    "——音频文件在计划生成后被改动，拒绝执行"
+                )
+            input_prefix[f"ch{ch}"] = digest
+        role_extras = tuple(
+            {
+                "plan_v2": {
+                    "plan_id": plan["plan_id"],
+                    "prereg_tag": plan.get("prereg_tag", ""),
+                    "cohort": session["cohort"],
+                    "agent_channel": ch,
+                    "expected_steps": int(settings["expected_steps"]),
+                    "expected_parts": int(settings["expected_parts"]),
+                    "expected_hidden_dim": settings.get("expected_hidden_dim"),
+                    "activation_layout": str(settings["activation_layout"]),
+                    "analysis_max_label_step": int(settings["analysis_max_label_step"]),
+                    "common_window_steps": int(settings["common_window_steps"]),
+                    "temperature_limit_celsius": float(settings["temperature_limit_celsius"]),
+                    "temperature_check_interval_steps": int(
+                        settings["temperature_check_interval_steps"]
+                    ),
+                    "input_prefix": input_prefix,
+                    "shard_id": shard_id,
+                }
+            }
+            for ch in (0, 1)
+        )
+        completed += run_session_pair(
+            base_args,
+            session,
+            mimi,
+            lm,
+            code_version,
+            run_agent0=not valid[0],
+            run_agent1=not valid[1],
+            role_extras=role_extras,
+            engineering_mode="persistent_session_pair_cuda_graph_v2",
+        )
+        log(
+            f"E1 持久批处理进度：会话 {index}/{len(sessions)}，"
+            f"本进程新增 {completed} 路、复用 {skipped} 路"
+        )
+    log(f"E1 持久批处理完成：新增 {completed} 路，复用 {skipped} 路")
+
+
 def run_batch_plan(plan_path: str | Path, device: str = "cuda") -> None:
     """每张卡加载一次模型，并按会话级计划持续补齐缓存。"""
     plan_path = Path(plan_path)
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
-    if int(plan.get("schema_version", 0)) != 1:
+    schema_version = int(plan.get("schema_version", 0))
+    if schema_version == 2:
+        run_batch_plan_v2(plan, device)
+        return
+    if schema_version != 1:
         raise AdapterError(f"未知持久批处理计划版本：{plan.get('schema_version')}")
     code_version = resolve_code_version(str(plan["code_version"]))
     settings = dict(plan["settings"])

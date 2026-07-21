@@ -77,3 +77,17 @@ e1: # PREREG #15（2026-07-19 用户裁决 D1–D6）：E1 全量五模型设计
     top3_overlap_min: 2 # |∩_{3 种子} top-3 层集合| ≥ 2
     effective_rank_max: 16 # rank-k 投影性能曲线的有效秩 ≤ 16
     direction_cosine_min: 0.8 # 跨种子方向余弦（成对最小值，取绝对值）≥ 0.8
+  cache: # PREREG #16(c)(d)：E1 缓存工程规格 v2（工程参数，非科学判据；主 500 会话统一重跑）
+    model: moshi
+    n_layers: 32 # 层号严格 0..31（计划器展开为显式列表）
+    dtype: float16
+    activation_layout: stacked_tlh_v2 # 每分片 [T,L,H] 堆叠（取代逐层分片；机械盘小文件治理）
+    activation_chunk_steps: 128 # 与 MVE forward_chunk_steps 同步长：240 s → 24 个分片/角色
+    mimi_chunk_seconds: 0.08
+    text_mode: greedy # 冻结协议（PREREG #7）
+    out_group: e1_r1_greedy # 输出根 <data_root>/activations/moshi/e1_r1_greedy/
+    num_shards: 2 # 双卡各一个持久进程；会话按序号奇偶分片
+    temperature_limit_celsius: 95 # 用户 2026-07-19 冻结阈值
+    temperature_check_interval_steps: 128
+    min_free_disk_gb: 200 # 每会话开跑前的磁盘余量护栏
+    expected_hidden_dim: 4096 # Moshi 7B 残差流宽度；运行时不符即硬失败

@@ -28,12 +28,92 @@ def _part_files(run_dir: Path, stem: str) -> list[Path]:
     return [p for _, p in sorted(parts)]
 
 
+def _run_activation_layout(manifest: RunManifest) -> str:
+    """manifest 声明的激活布局；缺省即历史逐层布局。"""
+    extra = manifest.extra if isinstance(manifest.extra, dict) else {}
+    e1 = extra.get("e1")
+    if isinstance(e1, dict) and e1.get("activation_layout"):
+        return str(e1["activation_layout"])
+    return "per_layer_v1"
+
+
+def _ingest_stacked_acts(src_dir: Path, grp, manifest: RunManifest) -> int:
+    """stacked_tlh_v2：逐分片流式写入每层 zarr 数组，避免整段拼接驻留内存。"""
+    parts = _part_files(src_dir, "acts")
+    if not parts:
+        raise FileNotFoundError(f"{src_dir} 缺少 acts_part*.npy（stacked_tlh_v2）")
+    shapes = []
+    for path in parts:
+        header = np.load(path, allow_pickle=False, mmap_mode="r")
+        if header.ndim != 3:
+            raise ValueError(f"{path} 维度 {header.ndim} ≠ 3（期望 [T, L, H]）")
+        shapes.append(tuple(int(value) for value in header.shape))
+        del header
+    n_layers = shapes[0][1]
+    hidden = shapes[0][2]
+    for path, shape in zip(parts, shapes, strict=True):
+        if shape[1] != n_layers or shape[2] != hidden:
+            raise ValueError(f"{path} 形状 {shape} 与首分片 [*, {n_layers}, {hidden}] 不一致")
+    if len(manifest.layers) != n_layers:
+        raise ValueError(f"分片层轴 {n_layers} 与 manifest.layers（{len(manifest.layers)}）不符")
+    if manifest.hidden_dim not in (None, hidden):
+        raise ValueError(f"分片列数 {hidden} 与 manifest.hidden_dim 不符")
+    total = sum(shape[0] for shape in shapes)
+    arrays = {
+        layer: grp.create_array(
+            name=f"acts_L{layer}",
+            shape=(total, hidden),
+            dtype="float16",
+            chunks=(min(CHUNK_T, total), hidden),
+            overwrite=True,
+        )
+        for layer in manifest.layers
+    }
+    offset = 0
+    for path, shape in zip(parts, shapes, strict=True):
+        block = np.load(path, allow_pickle=False)
+        if block.dtype != np.float16:
+            block = block.astype(np.float16)
+        rows = shape[0]
+        for position, layer in enumerate(manifest.layers):
+            arrays[layer][offset : offset + rows] = block[:, position]
+        offset += rows
+    return total
+
+
 def ingest_npy_run(src_dir: str | Path, dest_dir: str | Path) -> RunManifest:
     """runner 输出目录 → zarr 组。校验 manifest、层齐全性与形状一致性。"""
     src_dir, dest_dir = Path(src_dir), Path(dest_dir)
     manifest = load_manifest(src_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
     grp = zarr.open_group(str(dest_dir), mode="a")
+    if _run_activation_layout(manifest) == "stacked_tlh_v2":
+        acts_steps_total = _ingest_stacked_acts(src_dir, grp, manifest)
+        if manifest.n_steps not in (None, acts_steps_total):
+            raise ValueError(
+                f"stacked 分片总步数 {acts_steps_total} 与 manifest.n_steps={manifest.n_steps} 不符"
+            )
+        stems = ["mimi_latent"] if manifest.mimi_latent else []
+        n_steps_seen: dict[str, int] = {"acts": acts_steps_total}
+        for stem in stems:
+            parts = _part_files(src_dir, stem)
+            if not parts:
+                raise FileNotFoundError(f"{src_dir} 缺少 {stem}_part*.npy")
+            full = np.concatenate([np.load(p, allow_pickle=False) for p in parts], axis=0)
+            if full.dtype != np.float16:
+                full = full.astype(np.float16)
+            arr = grp.create_array(
+                name=stem,
+                shape=full.shape,
+                dtype="float16",
+                chunks=(min(CHUNK_T, full.shape[0]), full.shape[1]),
+                overwrite=True,
+            )
+            arr[:] = full
+            n_steps_seen[stem] = int(full.shape[0])
+        manifest.n_steps = acts_steps_total
+        save_manifest(dest_dir, manifest)
+        return manifest
     stems = [f"acts_L{layer}" for layer in manifest.layers]
     if manifest.mimi_latent:
         stems.append("mimi_latent")
