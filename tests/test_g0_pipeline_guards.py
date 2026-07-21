@@ -82,3 +82,50 @@ def test_decode_cache_validates_wav_format_and_length(tmp_path, monkeypatch):
 
     out_path.write_bytes("截断".encode())
     assert module.validate_existing_wav(codes_path, out_path, 24_000, 12.5) is None
+
+
+def test_decode_shards_are_disjoint_and_complete(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "runners" / "_shared"))
+    module = _load_script(
+        "decode_mimi_shard_guard",
+        REPO_ROOT / "runners" / "moshi" / "decode_mimi.py",
+    )
+    dirs = [tmp_path / f"session_{index:03d}" for index in range(11)]
+    shards = [module.shard_batch_dirs(dirs, 3, index) for index in range(3)]
+
+    assert set().union(*(set(shard) for shard in shards)) == set(dirs)
+    assert all(set(shards[left]).isdisjoint(shards[right]) for left in range(3) for right in range(left + 1, 3))
+    assert [len(shard) for shard in shards] == [4, 4, 3]
+
+    with pytest.raises(module.AdapterError, match="至少为 1"):
+        module.shard_batch_dirs(dirs, 0, 0)
+    with pytest.raises(module.AdapterError, match="必须位于"):
+        module.shard_batch_dirs(dirs, 2, 2)
+
+
+def test_calibrate_parallelism_bounds_and_merges_integer_counts(monkeypatch):
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts"))
+    module = _load_script(
+        "wp1_g0_calibrate_parallel_guard",
+        REPO_ROOT / "scripts" / "wp1_g0_calibrate.py",
+    )
+
+    assert module._resolve_jobs(8, 3) == 3
+    assert 1 <= module._resolve_jobs(0, 100) <= 100
+    with pytest.raises(ValueError, match="非负整数"):
+        module._resolve_jobs(-1, 3)
+
+    first = {
+        cls: {"hits": 1, "n_pred": 2, "n_gold": 3}
+        for cls in module.G0_CLASSES
+    }
+    second = {
+        cls: {"hits": 4, "n_pred": 5, "n_gold": 6}
+        for cls in module.G0_CLASSES
+    }
+    merged = module._merge_counts(None, first)
+    merged = module._merge_counts(merged, second)
+    assert all(
+        merged[cls] == {"hits": 5, "n_pred": 7, "n_gold": 9}
+        for cls in module.G0_CLASSES
+    )

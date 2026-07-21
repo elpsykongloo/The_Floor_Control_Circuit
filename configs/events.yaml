@@ -43,8 +43,8 @@ g0:
   gate:
     layer1_exact_macro_f1: 1.0 # 层1 协议全等（金标 VAD → 库版官方算法）
     layer2_vad_f1_min: 0.90 # 层2 双通道 VAD F1 下限（确认集重估）
-    layer3_corpus_band: [0.48, 0.56] # 层3 等价带（#14 修复后由 --derive-gate 按冻结配方重推）
-    layer3_session_p10_min: 0.30 # 会话级 P10 尾部护栏（#14 修复后同上重推）
+    layer3_corpus_band: [0.5224, 0.6024] # 层3 等价带（#14 修复后由 --derive-gate 按冻结配方重推）
+    layer3_session_p10_min: 0.3395 # 会话级 P10 尾部护栏（#14 修复后同上重推）
     exploration_sessions: 20 # test 前 20 会话（目录序）= 已消耗探索集，确认集排除
     confirmation_expected_sessions: 118 # （历史）test 一次性确认集口径，已启封并裁决 fail
   # PREREG #14（2026-07-19 用户批准，处置甲第二步）：G0 层2/3 的 Mimi 解码域 VAD 阈值

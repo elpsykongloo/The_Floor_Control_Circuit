@@ -1,0 +1,21 @@
+{
+ "generated_at": "2026-07-21T07:12:49.941486+00:00",
+ "recipe": "PREREG #14：band = val点 ± 0.04；p10_min = val P10 − 0.044（4 位小数）",
+ "source_summary_sha256": "ccc717bc48b5752dda2bbcd253032aeacc92d177db8833d653bfcfe8406a159d",
+ "decoded_vad_threshold": 0.4,
+ "inputs": {
+  "corpus_macro_f1": 0.562387436450796,
+  "session_p10": 0.38352674509292617,
+  "n_sessions": 295
+ },
+ "gate": {
+  "layer1_exact_macro_f1": 1.0,
+  "layer2_vad_f1_min": 0.9,
+  "layer3_corpus_band": [
+   0.5224,
+   0.6024
+  ],
+  "layer3_session_p10_min": 0.3395
+ },
+ "applied": true
+}

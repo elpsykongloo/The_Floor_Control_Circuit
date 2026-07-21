@@ -7,6 +7,7 @@
 
 层 2+3 · VAD 一致性 + 端到端（需解码音频；层 1 全等后再跑）：
   uv run python scripts/wp1_g0_calibrate.py [--split val] [--limit N]
+  默认按会话自动使用“逻辑处理器数减 2”个工作进程；可用 --jobs N 显式覆盖。
   层 2：Silero(Mimi 解码音频) 12.5 Hz 帧化 vs 官方金标 VAD，逐通道 P/R/F1；
   层 3：Silero VAD → 官方算法 → vs 金标四类（±tolerance 稀疏匹配），报 macro-F1。
 
@@ -25,7 +26,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -45,6 +48,10 @@ from floor_circuit.events.vad import SileroVad
 
 REQUIRED_GOLD = ("gold_ch0.npz", "gold_ch1.npz")
 REQUIRED_AUDIO = ("audio_ch0.wav", "audio_ch1.wav")
+
+_CALIBRATE_WORKER_VAD: SileroVad | None = None
+_CALIBRATE_WORKER_HZ = 0.0
+_CALIBRATE_WORKER_TOL = 0
 
 
 def _session_dirs(root: Path, need_audio: bool, split: str | None, limit: int | None) -> list[Path]:
@@ -120,18 +127,124 @@ def _decoded_vad(cfg: dict) -> tuple[SileroVad, float]:
     return SileroVad({**cfg, "vad": {**cfg["vad"], "threshold": threshold}}), threshold
 
 
+def _resolve_jobs(requested: int, n_tasks: int) -> int:
+    """把 0 解释为自动并发，并避免创建没有任务的工作进程。"""
+
+    if requested < 0:
+        raise ValueError("--jobs 必须为非负整数（0 表示自动）")
+    available = max(1, (os.cpu_count() or 2) - 2)
+    jobs = available if requested == 0 else requested
+    return min(max(1, jobs), max(1, n_tasks))
+
+
+def _configure_process_worker() -> None:
+    """每个 VAD 子进程只用一个 Torch 线程，避免进程与线程相乘。"""
+
+    try:
+        import torch
+
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+    except (ImportError, RuntimeError):
+        pass
+
+
+def _merge_counts(
+    total: dict[str, dict[str, int]] | None,
+    partial: dict[str, dict[str, int]],
+) -> dict[str, dict[str, int]]:
+    """合并会话级整数计数；结果与原串行累计顺序无关。"""
+
+    if total is None:
+        total = {cls: {"hits": 0, "n_pred": 0, "n_gold": 0} for cls in G0_CLASSES}
+    for cls in G0_CLASSES:
+        for field in ("hits", "n_pred", "n_gold"):
+            total[cls][field] += int(partial[cls][field])
+    return total
+
+
+def _calibrate_session(sdir: Path, vad: SileroVad, hz: float, tol: int) -> dict:
+    """处理一个会话并返回可跨进程传输的整数充分统计量。"""
+
+    from floor_circuit.stimuli.qc import load_wav
+
+    gold = {ch: _load_gold(sdir, ch) for ch in (0, 1)}
+    wavs = {ch: load_wav(sdir / f"audio_ch{ch}.wav") for ch in (0, 1)}
+    n_frames = {ch: len(gold[ch]["vad"]) for ch in (0, 1)}
+    pred_vad = {}
+    for ch in (0, 1):
+        wav, sample_rate = wavs[ch]
+        segs = vad.segments(wav, sample_rate)
+        pred_vad[ch] = segments_to_frame_track(segs, n_frames[ch], hz, rule="majority")
+
+    layer1 = None
+    totals = None
+    vad_stats = {
+        "ch0": {"tp": 0, "n_pred": 0, "n_gold": 0},
+        "ch1": {"tp": 0, "n_pred": 0, "n_gold": 0},
+    }
+    session_macro = []
+    l1_pred = _predict_pair(gold[0]["vad"], gold[1]["vad"])
+    e2e_pred = _predict_pair(pred_vad[0], pred_vad[1])
+    for ch in (0, 1):
+        layer1 = accumulate_counts(layer1, l1_pred[ch], gold[ch], 0, sparse=())
+        prf = track_prf(pred_vad[ch], gold[ch]["vad"])
+        key = f"ch{ch}"
+        vad_stats[key]["tp"] += round(prf["precision"] * prf["n_pred"])
+        vad_stats[key]["n_pred"] += prf["n_pred"]
+        vad_stats[key]["n_gold"] += prf["n_gold"]
+        totals = accumulate_counts(totals, e2e_pred[ch], gold[ch], tol)
+        session_macro.append(score_binary_tracks(e2e_pred[ch], gold[ch], tol)["macro_f1"])
+
+    return {
+        "session": sdir.name,
+        "layer1": layer1,
+        "totals": totals,
+        "vad_stats": vad_stats,
+        "macro_f1_mean": float(np.mean(session_macro)),
+    }
+
+
+def _calibrate_session_safe(sdir: Path, vad: SileroVad, hz: float, tol: int) -> dict:
+    """把单会话异常转成结果记录，保持原有“记录后继续”语义。"""
+
+    try:
+        return _calibrate_session(sdir, vad, hz, tol)
+    except Exception as exc:
+        return {"session": sdir.name, "error": repr(exc)}
+
+
+def _init_calibrate_worker(cfg: dict, hz: float, tol: int) -> None:
+    global _CALIBRATE_WORKER_HZ, _CALIBRATE_WORKER_TOL, _CALIBRATE_WORKER_VAD
+
+    _configure_process_worker()
+    _CALIBRATE_WORKER_VAD = _decoded_vad(cfg)[0]
+    _CALIBRATE_WORKER_HZ = hz
+    _CALIBRATE_WORKER_TOL = tol
+
+
+def _calibrate_worker(path: str) -> dict:
+    if _CALIBRATE_WORKER_VAD is None:
+        raise RuntimeError("校准工作进程尚未初始化")
+    return _calibrate_session_safe(
+        Path(path),
+        _CALIBRATE_WORKER_VAD,
+        _CALIBRATE_WORKER_HZ,
+        _CALIBRATE_WORKER_TOL,
+    )
+
+
 def calibrate(
     root: Path,
     limit: int | None,
     split: str | None,
     session_dirs: list[Path] | None = None,
+    jobs: int = 0,
 ) -> dict:
     cfg = load_config("events")
     hz = float(cfg["g0"]["frame_hz"])
     tol = int(cfg["g0"]["tolerance_frames"])
     vad, decoded_threshold = _decoded_vad(cfg)
-    from floor_circuit.stimuli.qc import load_wav
-
     dirs = session_dirs if session_dirs is not None else _session_dirs(root, need_audio=True, split=split, limit=limit)
     n_incomplete = len(_session_dirs(root, need_audio=False, split=split, limit=None)) - len(
         _session_dirs(root, need_audio=True, split=split, limit=None)
@@ -141,43 +254,49 @@ def calibrate(
     if n_incomplete:
         print(f"警告：{n_incomplete} 个会话缺解码音频（已跳过）")
 
+    worker_count = _resolve_jobs(jobs, len(dirs))
+    print(f"G0 校准：{len(dirs)} 个会话，{worker_count} 个工作进程")
+    if worker_count == 1:
+        results = (_calibrate_session_safe(sdir, vad, hz, tol) for sdir in dirs)
+        executor = None
+    else:
+        del vad
+        executor = ProcessPoolExecutor(
+            max_workers=worker_count,
+            initializer=_init_calibrate_worker,
+            initargs=(cfg, hz, tol),
+        )
+        results = executor.map(_calibrate_worker, (str(sdir) for sdir in dirs), chunksize=1)
+
     layer1 = None
-    vad_stats: dict[str, dict] = {"ch0": None, "ch1": None}
+    vad_stats: dict[str, dict] = {
+        "ch0": {"tp": 0, "n_pred": 0, "n_gold": 0},
+        "ch1": {"tp": 0, "n_pred": 0, "n_gold": 0},
+    }
     totals = None
     per_session: list[dict] = []
     errors: list[dict] = []
-    for sdir in dirs:
-        try:
-            gold = {ch: _load_gold(sdir, ch) for ch in (0, 1)}
-            wavs = {ch: load_wav(sdir / f"audio_ch{ch}.wav") for ch in (0, 1)}
-            n_frames = {ch: len(gold[ch]["vad"]) for ch in (0, 1)}
-            pred_vad = {}
-            for ch in (0, 1):
-                w, sr = wavs[ch]
-                segs = vad.segments(w, sr)
-                pred_vad[ch] = segments_to_frame_track(segs, n_frames[ch], hz, rule="majority")
-            session_macro = []
-            # 层 1（顺带累计）：金标 VAD → 官方算法 vs 金标标签（逐帧严格）
-            l1_pred = _predict_pair(gold[0]["vad"], gold[1]["vad"])
-            # 层 3：端到端（Silero VAD → 官方算法）
-            e2e_pred = _predict_pair(pred_vad[0], pred_vad[1])
-            for ch in (0, 1):
-                layer1 = accumulate_counts(layer1, l1_pred[ch], gold[ch], 0, sparse=())
-                # 层 2：VAD 一致性
-                prf = track_prf(pred_vad[ch], gold[ch]["vad"])
-                key = f"ch{ch}"
-                if vad_stats[key] is None:
-                    vad_stats[key] = {"tp": 0, "n_pred": 0, "n_gold": 0}
-                vad_stats[key]["tp"] += round(prf["precision"] * prf["n_pred"])
-                vad_stats[key]["n_pred"] += prf["n_pred"]
-                vad_stats[key]["n_gold"] += prf["n_gold"]
-                totals = accumulate_counts(totals, e2e_pred[ch], gold[ch], tol)
-                session_macro.append(score_binary_tracks(e2e_pred[ch], gold[ch], tol)["macro_f1"])
-            per_session.append({"session": sdir.name, "macro_f1_mean": float(np.mean(session_macro))})
-            print(f"{sdir.name}: 端到端 macro-F1 ≈ {np.mean(session_macro):.3f}")
-        except Exception as e:
-            errors.append({"session": sdir.name, "error": repr(e)})
-            print(f"错误 {sdir.name}: {e!r}（已跳过，继续）")
+    try:
+        for index, result in enumerate(results, start=1):
+            if "error" in result:
+                errors.append({"session": result["session"], "error": result["error"]})
+                print(f"[{index}/{len(dirs)}] 错误 {result['session']}: {result['error']}（已跳过，继续）")
+                continue
+            layer1 = _merge_counts(layer1, result["layer1"])
+            totals = _merge_counts(totals, result["totals"])
+            for key in ("ch0", "ch1"):
+                for field in ("tp", "n_pred", "n_gold"):
+                    vad_stats[key][field] += int(result["vad_stats"][key][field])
+            per_session.append(
+                {"session": result["session"], "macro_f1_mean": result["macro_f1_mean"]}
+            )
+            print(
+                f"[{index}/{len(dirs)}] {result['session']}: "
+                f"端到端 macro-F1 ≈ {result['macro_f1_mean']:.3f}"
+            )
+    finally:
+        if executor is not None:
+            executor.shutdown()
     if totals is None:
         raise SystemExit(f"全部会话处理失败，样例：{errors[:3]}")
 
@@ -236,7 +355,7 @@ def write_markdown(report: dict) -> None:
     (REPORTS_DIR / "g0_校准报告.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run_confirmation(root: Path) -> dict:
+def run_confirmation(root: Path, jobs: int = 0) -> dict:
     """一次性确认集运行（PREREG #9）：118 会话 + 冻结四条件 Gate 裁决。"""
     cfg = load_config("events")
     gate_cfg = dict(cfg["g0"]["gate"])
@@ -258,7 +377,7 @@ def run_confirmation(root: Path) -> dict:
             f"样例：{missing_audio[:5]}——先对 test 补跑 decode_mimi"
         )
 
-    report = calibrate(root, limit=None, split="test", session_dirs=confirmation)
+    report = calibrate(root, limit=None, split="test", session_dirs=confirmation, jobs=jobs)
     if report["n_errors"]:
         raise SystemExit(
             f"确认集有 {report['n_errors']} 个会话处理失败，一次性运行不允许缺失：{report['errors'][:3]}"
@@ -381,7 +500,7 @@ def derive_gate(apply: bool) -> dict:
     return derivation
 
 
-def run_train_confirmation(root: Path) -> dict:
+def run_train_confirmation(root: Path, jobs: int = 0) -> dict:
     """train 侧全新一次性确认（PREREG #14）：冻结 roster + 重推门槛下的四条件 Gate。"""
     cfg = load_config("events")
     gate_cfg = dict(cfg["g0"]["gate"])
@@ -422,7 +541,7 @@ def run_train_confirmation(root: Path) -> dict:
         if meta.get("split") != "train_confirm":
             raise SystemExit(f"{d.name}: meta.split={meta.get('split')!r}，期望 train_confirm（须经 --roster 导出）")
 
-    report = calibrate(root, limit=None, split=None, session_dirs=dirs)
+    report = calibrate(root, limit=None, split=None, session_dirs=dirs, jobs=jobs)
     report["split"] = "train_confirm"
     if report["n_errors"]:
         raise SystemExit(f"确认集有 {report['n_errors']} 个会话处理失败，一次性运行不允许缺失：{report['errors'][:3]}")
@@ -483,6 +602,12 @@ def main() -> None:
     ap.add_argument("--root", default=None)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--split", default=None, help="按 meta.json 划分溯源过滤（如 val/test）")
+    ap.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        help="会话级工作进程数；0=自动使用逻辑处理器数减 2",
+    )
     args = ap.parse_args()
     root = Path(args.root) if args.root else data_root() / "dualturn_prep"
     if args.protocol_check:
@@ -496,14 +621,14 @@ def main() -> None:
     if args.confirmation_train:
         if args.limit or args.split:
             ap.error("--confirmation-train 为一次性全量运行，不接受 --limit/--split")
-        run_train_confirmation(root)
+        run_train_confirmation(root, jobs=args.jobs)
         return
     if args.confirmation:
         if args.limit or args.split:
             ap.error("--confirmation 为一次性全量运行，不接受 --limit/--split")
-        run_confirmation(root)
+        run_confirmation(root, jobs=args.jobs)
         return
-    report = calibrate(root, args.limit, args.split)
+    report = calibrate(root, args.limit, args.split, jobs=args.jobs)
     write_report_json("g0_summary.json", report)
     write_markdown(report)
     vad_str = "/".join(f"{v['f1']:.3f}" for v in report["layer2_vad"].values())

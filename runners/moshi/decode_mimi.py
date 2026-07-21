@@ -5,6 +5,7 @@
           --codes codes_ch0.npy --out audio_ch0.wav
   批量：  <moshi python> runners/moshi/decode_mimi.py --model-root <moshiko 目录> \
           --batch-root <data_root>/dualturn_prep [--split val]
+  双卡：  分别启动两个批量进程，并传 --shard-count 2 --shard-index 0/1 与对应 cuda:0/1。
 （批量模式对每个 <sid>/codes_ch{0,1}.npy 产出同目录 audio_ch{0,1}.wav，已存在则跳过。）
 
 校验点：codes npy 形状 [T, 8]（帧主序假定）；解码后时长应 ≈ T/12.5 s；
@@ -42,6 +43,18 @@ def select_batch_dirs(batch_root: str | Path, split: str | None) -> list[Path]:
         if split_name == split:
             selected.append(sdir)
     return selected
+
+
+def shard_batch_dirs(dirs: list[Path], shard_count: int, shard_index: int) -> list[Path]:
+    """按排序后位置做互斥步进分片；所有分片的并集严格覆盖原目录列表。"""
+
+    if shard_count < 1:
+        raise AdapterError("--shard-count 必须至少为 1")
+    if not 0 <= shard_index < shard_count:
+        raise AdapterError(
+            f"--shard-index 必须位于 [0, {shard_count})，当前为 {shard_index}"
+        )
+    return dirs[shard_index::shard_count]
 
 
 def load_mimi(args):
@@ -147,6 +160,8 @@ def main() -> None:
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--n-codebooks", type=int, default=8)
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--shard-count", type=int, default=1, help="批量模式的确定性分片总数")
+    ap.add_argument("--shard-index", type=int, default=0, help="当前分片编号，从 0 开始")
     args = ap.parse_args()
     mimi = load_mimi(args)
     sample_rate = int(getattr(mimi, "sample_rate", 24000))
@@ -158,6 +173,10 @@ def main() -> None:
             log(f"按 split={args.split} 选中 {len(dirs)} 个会话")
             if not dirs:
                 raise AdapterError(f"批量目录中没有 split={args.split} 的会话")
+        dirs = shard_batch_dirs(dirs, args.shard_count, args.shard_index)
+        log(
+            f"分片 {args.shard_index}/{args.shard_count}：选中 {len(dirs)} 个会话"
+        )
         if args.limit:
             dirs = dirs[: args.limit]
         for sdir in dirs:
