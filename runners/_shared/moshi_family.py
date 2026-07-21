@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import inspect as _inspect
 import json
@@ -52,10 +53,6 @@ TIME_ALIGNMENT = {
 
 class AdapterError(RuntimeError):
     """本地 moshi 包 API 与预期不符：报错信息包含实测属性，供回传后修正适配。"""
-
-
-class ThermalLimitExceeded(AdapterError):
-    """GPU 温度达到冻结停止线（95°C）：立即中止当前任务并保留证据（PREREG #16(d)）。"""
 
 
 def log(msg: str) -> None:
@@ -117,48 +114,6 @@ def pcm_prefix_digest(path: str | Path, seconds: float) -> dict:
         "sample_rate": int(sample_rate),
         "seconds": float(seconds),
     }
-
-
-def _physical_gpu_index(torch_index: int) -> int | None:
-    """把 torch 设备序号映射回 nvidia-smi 的物理序号（CUDA_VISIBLE_DEVICES 重映射）。"""
-    visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-    if visible is None or visible.strip() == "":
-        return torch_index
-    entries = [item.strip() for item in visible.split(",") if item.strip()]
-    if torch_index >= len(entries):
-        return None
-    try:
-        return int(entries[torch_index])
-    except ValueError:
-        return None  # UUID/MIG 形式：留给 torch.cuda.temperature 路径
-
-
-def read_gpu_temperature(torch, device_index: int) -> float | None:
-    """读当前设备温度（°C）；两条路径都不可用时返回 None（记录但不阻断）。"""
-    reader = getattr(torch.cuda, "temperature", None)
-    if callable(reader):
-        try:
-            return float(reader(device_index))
-        except Exception:
-            pass
-    physical = _physical_gpu_index(device_index)
-    if physical is None:
-        return None
-    try:
-        out = subprocess.check_output(
-            [
-                "nvidia-smi",
-                f"--id={physical}",
-                "--query-gpu=temperature.gpu",
-                "--format=csv,noheader,nounits",
-            ],
-            text=True,
-            stderr=subprocess.DEVNULL,
-            timeout=15,
-        )
-        return float(out.strip().splitlines()[0])
-    except Exception:
-        return None
 
 
 def assert_free_disk(path: str | Path, min_free_bytes: int, *, what: str) -> int:
@@ -266,11 +221,27 @@ def clear_run_outputs(out_dir: Path) -> None:
         log(f"已清理 {removed} 个旧的 runner 产物")
 
 
-def read_wav_mono(path: str | Path, expect_sr: int) -> np.ndarray:
+def read_wav_mono(
+    path: str | Path,
+    expect_sr: int,
+    max_seconds: float | None = None,
+) -> np.ndarray:
+    """读取单声道波形；给出窗口时只从磁盘读取所需前缀。"""
+    max_frames = None
+    if max_seconds is not None:
+        if float(max_seconds) <= 0:
+            raise AdapterError(f"音频窗口必须为正，当前为 {max_seconds}")
+        max_frames = round(float(max_seconds) * expect_sr)
     try:
         import soundfile as sf
 
-        wav, sr = sf.read(str(path), dtype="float32", always_2d=False)
+        read_kwargs = {"frames": max_frames} if max_frames is not None else {}
+        wav, sr = sf.read(
+            str(path),
+            dtype="float32",
+            always_2d=False,
+            **read_kwargs,
+        )
         if wav.ndim > 1:
             wav = wav.mean(axis=1)
     except ImportError:
@@ -278,7 +249,10 @@ def read_wav_mono(path: str | Path, expect_sr: int) -> np.ndarray:
 
         with wave.open(str(path), "rb") as w:
             sr = w.getframerate()
+            n_channels = w.getnchannels()
             n = w.getnframes()
+            if max_frames is not None:
+                n = min(n, max_frames)
             width = w.getsampwidth()
             raw = w.readframes(n)
         if width == 2:
@@ -287,13 +261,18 @@ def read_wav_mono(path: str | Path, expect_sr: int) -> np.ndarray:
             wav = np.frombuffer(raw, dtype="<i4").astype(np.float32) / 2147483648.0
         else:
             raise AdapterError(f"不支持的 wav 位宽 {width * 8}，请先用 ffmpeg 转 16-bit PCM") from None
-        if w.getnchannels() > 1:  # type: ignore[union-attr]
-            wav = wav.reshape(-1, w.getnchannels()).mean(axis=1)  # type: ignore[union-attr]
+        if n_channels > 1:
+            wav = wav.reshape(-1, n_channels).mean(axis=1)
     if sr != expect_sr:
         raise AdapterError(
             f"{path} 采样率 {sr} ≠ {expect_sr}：请用 scripts/wp2_extract_candor.py 产出的 24 kHz 单声道 wav"
         )
-    return np.asarray(wav, dtype=np.float32)
+    wav = np.asarray(wav, dtype=np.float32)
+    if max_frames is not None and int(wav.shape[0]) != max_frames:
+        raise AdapterError(
+            f"{path} 读取到 {wav.shape[0]} 帧，短于请求窗口 {max_frames} 帧"
+        )
+    return wav
 
 
 def _autodetect_weight(root: Path, patterns: list[str], kind: str) -> Path:
@@ -446,6 +425,7 @@ def encode_mimi_stream(
     chunk_seconds: float,
     *,
     return_latent: bool,
+    use_cuda_graph: bool = False,
 ):
     """单次有状态流式编码，同时产生离散码与可选的量化前连续潜表征。"""
     import torch
@@ -463,6 +443,21 @@ def encode_mimi_stream(
         latent_fn, latent_source = _unquantized_encoder(mimi)
         if not callable(getattr(quantizer, "encode", None)):
             raise AdapterError("Mimi quantizer 缺少 encode()，无法从连续潜表征生成离散码")
+    graphed_step = None
+    if use_cuda_graph:
+        if torch.device(device).type != "cuda":
+            raise AdapterError("Mimi CUDA Graph 只支持 CUDA 设备")
+        from moshi.utils.compile import CUDAGraphed
+
+        if latent_fn is None:
+            graphed_step = CUDAGraphed(mimi.encode, warmup_steps=1, disable=False)
+        else:
+
+            def encode_with_latent(values):
+                latent_values = latent_fn(values)
+                return quantizer.encode(latent_values), latent_values
+
+            graphed_step = CUDAGraphed(encode_with_latent, warmup_steps=1, disable=False)
     codes_out = None
     latent_out_device = None
     written_steps = 0
@@ -470,42 +465,63 @@ def encode_mimi_stream(
     wav_cpu = torch.from_numpy(np.ascontiguousarray(wav, dtype=np.float32))
     wav_device = torch.zeros(padded_samples, dtype=torch.float32, device=device)
     wav_device[: int(wav.size)].copy_(wav_cpu)
-    with torch.no_grad(), streaming(batch_size=1):
-        for offset in range(0, padded_samples, chunk_samples):
-            x = wav_device[offset : offset + chunk_samples].reshape(1, 1, -1)
-            if latent_fn is None:
-                codes = mimi.encode(x)
-            else:
-                latent = latent_fn(x)
-                codes = quantizer.encode(latent)
-                if int(latent.shape[-1]) != chunk_steps:
+    graph_released = False
+    try:
+        with torch.no_grad(), streaming(batch_size=1):
+            for offset in range(0, padded_samples, chunk_samples):
+                x = wav_device[offset : offset + chunk_samples].reshape(1, 1, -1)
+                if latent_fn is None:
+                    codes = graphed_step(x) if graphed_step is not None else mimi.encode(x)
+                elif graphed_step is not None:
+                    codes, latent = graphed_step(x)
+                else:
+                    latent = latent_fn(x)
+                    codes = quantizer.encode(latent)
+                if latent_fn is not None and int(latent.shape[-1]) != chunk_steps:
                     raise AdapterError(
                         f"Mimi 连续潜表征帧数 {latent.shape[-1]} ≠ 预期 {chunk_steps}"
                     )
-            if int(codes.shape[-1]) != chunk_steps:
-                raise AdapterError(
-                    f"Mimi 流式码帧数 {codes.shape[-1]} ≠ 预期 {chunk_steps}"
-                )
-            take = min(chunk_steps, valid_steps - written_steps)
-            if take <= 0:
-                break
-            if codes_out is None:
-                codes_out = torch.empty(
-                    (int(codes.shape[0]), int(codes.shape[1]), valid_steps),
-                    dtype=codes.dtype,
-                    device=codes.device,
-                )
-            codes_out[..., written_steps : written_steps + take] = codes[..., :take]
-            if latent_fn is not None:
-                latent_chunk = latent[0, :, :take].transpose(0, 1)
-                if latent_out_device is None:
-                    latent_out_device = torch.empty(
-                        (valid_steps, int(latent_chunk.shape[1])),
-                        dtype=torch.float16,
-                        device=latent.device,
+                if int(codes.shape[-1]) != chunk_steps:
+                    raise AdapterError(
+                        f"Mimi 流式码帧数 {codes.shape[-1]} ≠ 预期 {chunk_steps}"
                     )
-                latent_out_device[written_steps : written_steps + take].copy_(latent_chunk)
-            written_steps += take
+                take = min(chunk_steps, valid_steps - written_steps)
+                if take <= 0:
+                    break
+                if codes_out is None:
+                    codes_out = torch.empty(
+                        (int(codes.shape[0]), int(codes.shape[1]), valid_steps),
+                        dtype=codes.dtype,
+                        device=codes.device,
+                    )
+                codes_out[..., written_steps : written_steps + take] = codes[..., :take]
+                if latent_fn is not None:
+                    latent_chunk = latent[0, :, :take].transpose(0, 1)
+                    if latent_out_device is None:
+                        latent_out_device = torch.empty(
+                            (valid_steps, int(latent_chunk.shape[1])),
+                            dtype=torch.float16,
+                            device=latent.device,
+                        )
+                    latent_out_device[written_steps : written_steps + take].copy_(latent_chunk)
+                written_steps += take
+            if graphed_step is not None:
+                if getattr(graphed_step, "_graph", None) is None:
+                    raise AdapterError("Mimi CUDA Graph 未成功建立")
+                torch.cuda.synchronize(torch.device(device))
+                graphed_step.reset()
+                gc.collect()
+                torch.cuda.synchronize(torch.device(device))
+                graph_released = True
+    finally:
+        if graphed_step is not None and not graph_released:
+            try:
+                torch.cuda.synchronize(torch.device(device))
+                graphed_step.reset()
+                gc.collect()
+                torch.cuda.synchronize(torch.device(device))
+            except Exception:
+                pass
     if codes_out is None:
         raise AdapterError("Mimi 流式编码没有产生任何码")
     if written_steps != valid_steps:
@@ -729,18 +745,18 @@ class _ActivationDoubleBufferWriter:
         self.chunk_steps = chunk_steps
         self.out_dir = out_dir
         self.layout = layout
-        self.gpu_buffers = [
-            {
-                ell: torch.empty(
-                    (chunk_steps, hidden_dim),
-                    dtype=torch.float16,
-                    device=device,
-                )
-                for ell in layers
-            }
-            for _ in range(2)
-        ]
         if layout == "per_layer_v1":
+            self.gpu_buffers = [
+                {
+                    ell: torch.empty(
+                        (chunk_steps, hidden_dim),
+                        dtype=torch.float16,
+                        device=device,
+                    )
+                    for ell in layers
+                }
+                for _ in range(2)
+            ]
             self.cpu_buffers = [
                 {
                     ell: torch.empty(
@@ -754,10 +770,18 @@ class _ActivationDoubleBufferWriter:
                 for _ in range(2)
             ]
         else:
-            # 层主序 [L, chunk, H]：每层是连续切片，可安全 non_blocking 回传
+            # 时间主序连续布局：逐步合并 32 层，整块只需一次异步 D2H。
+            self.gpu_buffers = [
+                torch.empty(
+                    (chunk_steps, len(layers), hidden_dim),
+                    dtype=torch.float16,
+                    device=device,
+                )
+                for _ in range(2)
+            ]
             self.cpu_buffers = [
                 torch.empty(
-                    (len(layers), chunk_steps, hidden_dim),
+                    (chunk_steps, len(layers), hidden_dim),
                     dtype=torch.float16,
                     device="cpu",
                     pin_memory=True,
@@ -770,6 +794,18 @@ class _ActivationDoubleBufferWriter:
             thread_name_prefix="moshi-activation-writer",
         )
         self.pending: list[Future | None] = [None, None]
+
+    def write_row(self, slot: int, row: int, captured: dict[int, object]) -> None:
+        """把当前时钟步的选层激活写入设备缓冲。"""
+        if self.layout == "per_layer_v1":
+            for ell in self.layers:
+                self.gpu_buffers[slot][ell][row].copy_(captured[ell][-1])
+            return
+        self.torch.stack(
+            tuple(captured[ell][-1] for ell in self.layers),
+            dim=0,
+            out=self.gpu_buffers[slot][row],
+        )
 
     def wait_slot(self, slot: int) -> None:
         future = self.pending[slot]
@@ -784,13 +820,16 @@ class _ActivationDoubleBufferWriter:
         current_stream = self.torch.cuda.current_stream()
         with self.torch.cuda.stream(self.transfer_stream):
             self.transfer_stream.wait_stream(current_stream)
-            for layer_pos, ell in enumerate(self.layers):
-                if self.layout == "per_layer_v1":
+            if self.layout == "per_layer_v1":
+                for ell in self.layers:
                     dst = self.cpu_buffers[slot][ell][:rows]
-                else:
-                    dst = self.cpu_buffers[slot][layer_pos, :rows]
-                dst.copy_(
-                    self.gpu_buffers[slot][ell][:rows],
+                    dst.copy_(
+                        self.gpu_buffers[slot][ell][:rows],
+                        non_blocking=True,
+                    )
+            else:
+                self.cpu_buffers[slot][:rows].copy_(
+                    self.gpu_buffers[slot][:rows],
                     non_blocking=True,
                 )
             ready = self.torch.cuda.Event()
@@ -819,11 +858,9 @@ class _ActivationDoubleBufferWriter:
                     values,
                 )
         else:
-            stage = self.cpu_buffers[slot][:, :rows].numpy()  # [L, rows, H]
-            stacked = np.ascontiguousarray(np.transpose(stage, (1, 0, 2)))  # [rows, L, H]
             write_npy_atomic(
                 self.out_dir / f"acts_part{part_index:05d}.npy",
-                stacked,
+                self.cpu_buffers[slot][:rows].numpy(),
             )
 
     def close(self) -> None:
@@ -842,8 +879,6 @@ def _forward_capture_selftext_cuda(
     chunk_steps: int,
     *,
     layout: str = "per_layer_v1",
-    thermal_limit_c: float | None = None,
-    thermal_check_interval: int = 128,
 ) -> dict:
     """CUDA 上保持单步贪心语义，并消除逐步主机同步。"""
     import torch
@@ -909,11 +944,6 @@ def _forward_capture_selftext_cuda(
         if model_input.device.index is not None
         else torch.cuda.current_device()
     )
-    if thermal_limit_c is not None and thermal_check_interval <= 0:
-        raise AdapterError(f"温度检查步距必须为正：{thermal_check_interval}")
-    temperature_max: float | None = None
-    temperature_samples = 0
-    temperature_unavailable_logged = False
     t0 = time.time()
 
     def graph_step(values):
@@ -922,6 +952,7 @@ def _forward_capture_selftext_cuda(
         return torch.argmax(logits)
 
     graphed_step = CUDAGraphed(graph_step, warmup_steps=1, disable=False)
+    graph_released = False
     try:
         with torch.no_grad(), streaming(batch_size=1):
             for p in range(n_steps):
@@ -953,10 +984,7 @@ def _forward_capture_selftext_cuda(
                     )
                     writer.wait_slot(active_slot)
 
-                for ell in layers:
-                    writer.gpu_buffers[active_slot][ell][row_in_part].copy_(
-                        captured[ell][-1]
-                    )
+                writer.write_row(active_slot, row_in_part, captured)
                 row_in_part += 1
                 is_full = row_in_part == chunk_steps
                 is_last = p + 1 == n_steps
@@ -970,29 +998,29 @@ def _forward_capture_selftext_cuda(
                     if part_index % 10 == 0:
                         rate = (p + 1) / max(time.time() - t0, 1e-9)
                         log(f"自预测前向 {p + 1}/{n_steps} 步（{rate:.1f} 步/s）")
-                if thermal_limit_c is not None and (p + 1) % thermal_check_interval == 0:
-                    temperature = read_gpu_temperature(torch, device_index)
-                    if temperature is None:
-                        if not temperature_unavailable_logged:
-                            log(
-                                "警告：GPU 温度不可读（torch.cuda.temperature 与 "
-                                "nvidia-smi 均失败），热保护降级为不可用"
-                            )
-                            temperature_unavailable_logged = True
-                    else:
-                        temperature_samples += 1
-                        if temperature_max is None or temperature > temperature_max:
-                            temperature_max = temperature
-                        if temperature >= thermal_limit_c:
-                            raise ThermalLimitExceeded(
-                                f"GPU{device_index} 温度 {temperature:.0f}°C ≥ 停止线 "
-                                f"{thermal_limit_c:.0f}°C（步 {p + 1}/{n_steps}，{out_dir.name}）"
-                            )
+            # 图引用流式 KV 状态；须在 streaming 上下文释放状态前销毁，
+            # 否则下一角色重新捕获时可能触发 stream capture invalidated。
+            torch.cuda.synchronize(model_input.device)
+            captured.clear()
+            graphed_step.reset()
+            gc.collect()
+            torch.cuda.synchronize(model_input.device)
+            graph_released = True
         if writer is None or hidden_dim is None:
             raise AdapterError("CUDA Graph 前向没有产生激活")
         writer.close()
         writer = None
     finally:
+        if not graph_released:
+            try:
+                torch.cuda.synchronize(model_input.device)
+                captured.clear()
+                graphed_step.reset()
+                gc.collect()
+                torch.cuda.synchronize(model_input.device)
+            except Exception:
+                # 保留原始前向异常；异常路径由进程退出并从原子分片断点恢复。
+                pass
         if writer is not None:
             writer.close()
         for handle in handles:
@@ -1021,12 +1049,6 @@ def _forward_capture_selftext_cuda(
         "telemetry": {
             "forward_elapsed_s": round(elapsed, 3),
             "steps_per_second": round(n_steps / max(elapsed, 1e-9), 3),
-            "temperature_max_c": temperature_max,
-            "temperature_samples": temperature_samples,
-            "temperature_limit_c": thermal_limit_c,
-            "temperature_check_interval_steps": (
-                thermal_check_interval if thermal_limit_c is not None else None
-            ),
             "device_index": int(device_index),
         },
     }
@@ -1044,8 +1066,6 @@ def forward_capture_selftext(
     top_k: int = DEFAULT_TEXT_TOP_K,
     *,
     layout: str = "per_layer_v1",
-    thermal_limit_c: float | None = None,
-    thermal_check_interval: int = 128,
 ) -> dict:
     """逐步自预测文本流的 teacher-forced 前向（PREREG #7 冻结协议）。
 
@@ -1068,8 +1088,6 @@ def forward_capture_selftext(
             out_dir,
             chunk_steps,
             layout=layout,
-            thermal_limit_c=thermal_limit_c,
-            thermal_check_interval=thermal_check_interval,
         )
     if layout != "per_layer_v1":
         raise AdapterError(
@@ -1260,12 +1278,6 @@ def _write_encoded_run(
             layout=(
                 str(plan_v2["activation_layout"]) if plan_v2 is not None else "per_layer_v1"
             ),
-            thermal_limit_c=(
-                float(plan_v2["temperature_limit_celsius"]) if plan_v2 is not None else None
-            ),
-            thermal_check_interval=(
-                int(plan_v2["temperature_check_interval_steps"]) if plan_v2 is not None else 128
-            ),
         )
     if plan_v2 is not None:
         expected_steps = int(plan_v2["expected_steps"])
@@ -1391,11 +1403,8 @@ def run(args) -> None:
     code_version = resolve_code_version(args.code_version)
     mimi, lm = load_models(args)
     sr = int(getattr(mimi, "sample_rate", 24000))
-    wav_agent = read_wav_mono(args.audio_agent, sr)
-    wav_other = read_wav_mono(args.audio_other, sr)
-    if args.max_seconds:
-        n = int(args.max_seconds * sr)
-        wav_agent, wav_other = wav_agent[:n], wav_other[:n]
+    wav_agent = read_wav_mono(args.audio_agent, sr, args.max_seconds)
+    wav_other = read_wav_mono(args.audio_other, sr, args.max_seconds)
     log(f"Mimi 流式编码 agent（块长 {args.mimi_chunk_seconds:g}s）")
     codes_agent, latent, latent_source = encode_mimi_stream(
         mimi,
@@ -1498,6 +1507,22 @@ def _role_args(base_args, session: dict, channel: int, extra: dict | None = None
     return SimpleNamespace(**values)
 
 
+def _planned_audio_hashes(session: dict) -> dict[str, str]:
+    """计划 v2 已核验完整摘要；旧计划缺字段时才回退全文件散列。"""
+    hashes: dict[str, str] = {}
+    for channel in (0, 1):
+        path = str(session[f"audio_ch{channel}"])
+        planned = session.get(f"audio_sha256_ch{channel}")
+        if planned is None:
+            hashes[path] = sha256_file(path)
+            continue
+        digest = str(planned).lower()
+        if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+            raise AdapterError(f"会话 {session['session_id']} ch{channel} 的计划摘要格式非法")
+        hashes[path] = digest
+    return hashes
+
+
 def run_session_pair(
     base_args,
     session: dict,
@@ -1509,6 +1534,7 @@ def run_session_pair(
     run_agent1: bool,
     role_extras: tuple[dict | None, dict | None] = (None, None),
     engineering_mode: str = "persistent_session_pair_cuda_graph_v1",
+    preloaded_audio: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> int:
     """一次读取并编码会话双声道，随后依次执行两个角色。"""
     if not run_agent0 and not run_agent1:
@@ -1516,11 +1542,11 @@ def run_session_pair(
     sr = int(getattr(mimi, "sample_rate", 24000))
     audio0 = str(session["audio_ch0"])
     audio1 = str(session["audio_ch1"])
-    wav0 = read_wav_mono(audio0, sr)
-    wav1 = read_wav_mono(audio1, sr)
-    if base_args.max_seconds:
-        n = int(base_args.max_seconds * sr)
-        wav0, wav1 = wav0[:n], wav1[:n]
+    if preloaded_audio is None:
+        wav0 = read_wav_mono(audio0, sr, base_args.max_seconds)
+        wav1 = read_wav_mono(audio1, sr, base_args.max_seconds)
+    else:
+        wav0, wav1 = preloaded_audio
 
     log(
         f"会话 {session['session_id']}：Mimi 编码 ch0/ch1"
@@ -1532,6 +1558,7 @@ def run_session_pair(
         base_args.device,
         base_args.mimi_chunk_seconds,
         return_latent=base_args.dump_mimi_latent,
+        use_cuda_graph=bool(getattr(base_args, "mimi_cuda_graph", False)),
     )
     codes1, latent1, latent_source1 = encode_mimi_stream(
         mimi,
@@ -1539,17 +1566,21 @@ def run_session_pair(
         base_args.device,
         base_args.mimi_chunk_seconds,
         return_latent=base_args.dump_mimi_latent,
+        use_cuda_graph=bool(getattr(base_args, "mimi_cuda_graph", False)),
     )
     _assert_streaming_idle(mimi, lm)
-    audio_hashes = {
-        audio0: sha256_file(audio0),
-        audio1: sha256_file(audio1),
-    }
+    audio_hashes = _planned_audio_hashes(session)
     engineering = {
         "engineering_mode": engineering_mode,
         "persistent_worker": True,
         "session_pair_reuse": True,
         "mimi_device_buffered": True,
+        "mimi_cuda_graph": bool(getattr(base_args, "mimi_cuda_graph", False)),
+        "audio_prefix_only": bool(base_args.max_seconds),
+        "audio_prefetched": preloaded_audio is not None,
+        "planned_full_audio_digest_reused": all(
+            session.get(f"audio_sha256_ch{channel}") is not None for channel in (0, 1)
+        ),
     }
     completed = 0
     if run_agent0:
@@ -1621,6 +1652,8 @@ def cached_run_is_valid_v2(
             return False
         if float(execution.get("mimi_chunk_seconds")) != float(settings["mimi_chunk_seconds"]):
             return False
+        if bool(execution.get("mimi_cuda_graph")) != bool(settings["mimi_cuda_graph"]):
+            return False
         if int(execution.get("forward_chunk_steps")) != int(settings["forward_chunk_steps"]):
             return False
         if str(e1.get("plan_id")) != str(plan["plan_id"]):
@@ -1655,8 +1688,31 @@ def cached_run_is_valid_v2(
     return True
 
 
+def _prepare_e1_session_audio(
+    session: dict,
+    sample_rate: int,
+    window_seconds: float,
+) -> tuple[dict[str, dict], np.ndarray, np.ndarray]:
+    """校验输入前缀并只读取计算所需窗口，供后台预取线程调用。"""
+    input_prefix: dict[str, dict] = {}
+    waves: list[np.ndarray] = []
+    for channel in (0, 1):
+        path = session[f"audio_ch{channel}"]
+        digest = pcm_prefix_digest(path, window_seconds)
+        expected = dict(session[f"prefix_ch{channel}"])
+        if digest != expected:
+            raise AdapterError(
+                f"会话 {session['session_id']} ch{channel} 输入前缀指纹与计划不符"
+                f"（实测 {digest['sha256'][:12]}… vs 计划 {expected.get('sha256', '')[:12]}…）"
+                "——音频文件在计划生成后被改动，拒绝执行"
+            )
+        input_prefix[f"ch{channel}"] = digest
+        waves.append(read_wav_mono(path, sample_rate, window_seconds))
+    return input_prefix, waves[0], waves[1]
+
+
 def run_batch_plan_v2(plan: dict, device: str = "cuda") -> None:
-    """E1 缓存计划 v2（PREREG #16(d)）：单卡持久进程 + 堆叠分片 + 热保护 + 遥测。"""
+    """E1 缓存计划 v2：单卡持久进程、连续堆叠分片与音频预取。"""
     import torch
 
     if not torch.cuda.is_available():
@@ -1664,7 +1720,9 @@ def run_batch_plan_v2(plan: dict, device: str = "cuda") -> None:
     torch_device = torch.device(device)
     if torch_device.type != "cuda":
         raise AdapterError(f"计划 v2 只支持 cuda 设备，收到 {device!r}")
-    torch.cuda.set_device(torch_device)
+    if torch_device.index is None:
+        torch_device = torch.device("cuda", 0)
+    torch.cuda.set_device(int(torch_device.index))
     settings = dict(plan["settings"])
     resources = dict(plan.get("resources", {}))
     code_version = resolve_code_version(str(plan["code_version"]))
@@ -1682,11 +1740,12 @@ def run_batch_plan_v2(plan: dict, device: str = "cuda") -> None:
         model_root=str(plan["model_root"]),
         lm_weight=plan.get("lm_weight"),
         mimi_weight=plan.get("mimi_weight"),
-        device=device,
+        device=str(torch_device),
         n_codebooks=int(settings["n_codebooks"]),
         layers=layers,
         max_seconds=float(settings["window_seconds"]),
         mimi_chunk_seconds=float(settings["mimi_chunk_seconds"]),
+        mimi_cuda_graph=bool(settings["mimi_cuda_graph"]),
         forward_chunk_steps=int(settings["forward_chunk_steps"]),
         text_mode="greedy",
         text_temperature=DEFAULT_TEXT_TEMPERATURE,
@@ -1696,10 +1755,6 @@ def run_batch_plan_v2(plan: dict, device: str = "cuda") -> None:
         seed=int(settings["seed"]),
         model_name=str(plan.get("model_name", "moshi")),
     )
-    mimi, lm = load_models(base_args)
-    n_layers_model = len(lm.transformer.layers)
-    if layers[-1] >= n_layers_model:
-        raise AdapterError(f"计划层号 {layers[-1]} 超出模型层数 {n_layers_model}")
     min_free = int(resources.get("min_free_disk_bytes", 0))
     window_seconds = float(settings["window_seconds"])
     sessions = list(plan["sessions"])
@@ -1707,8 +1762,8 @@ def run_batch_plan_v2(plan: dict, device: str = "cuda") -> None:
         f"E1 计划 v2：{plan['plan_id']}，shard={shard_id}，会话 {len(sessions)}，"
         f"层 {layers[0]}..{layers[-1]}，窗 {window_seconds:g}s"
     )
-    completed = 0
     skipped = 0
+    work_items: list[tuple[int, dict, list[bool]]] = []
     for index, session in enumerate(sessions, start=1):
         valid = [
             cached_run_is_valid_v2(
@@ -1724,60 +1779,83 @@ def run_batch_plan_v2(plan: dict, device: str = "cuda") -> None:
         if all(valid):
             log(f"会话 {index}/{len(sessions)} 已完整，跳过 {session['session_id']}")
             continue
-        assert_free_disk(
-            session["out_agent0"],
-            min_free,
-            what=f"会话 {session['session_id']} 开跑前",
+        work_items.append((index, session, valid))
+
+    if not work_items:
+        log(f"E1 持久批处理完成：新增 0 路，复用 {skipped} 路（未加载模型）")
+        return
+
+    assert_free_disk(
+        work_items[0][1]["out_agent0"],
+        min_free,
+        what=f"会话 {work_items[0][1]['session_id']} 开跑前",
+    )
+    log(f"预检完成：待计算 {len(work_items)} 个会话，开始加载模型")
+    mimi, lm = load_models(base_args)
+    n_layers_model = len(lm.transformer.layers)
+    if layers[-1] >= n_layers_model:
+        raise AdapterError(f"计划层号 {layers[-1]} 超出模型层数 {n_layers_model}")
+    sample_rate = int(getattr(mimi, "sample_rate", 24000))
+    completed = 0
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="moshi-audio-prefetch") as executor:
+        future = executor.submit(
+            _prepare_e1_session_audio,
+            work_items[0][1],
+            sample_rate,
+            window_seconds,
         )
-        input_prefix: dict[str, dict] = {}
-        for ch in (0, 1):
-            digest = pcm_prefix_digest(session[f"audio_ch{ch}"], window_seconds)
-            expected = dict(session[f"prefix_ch{ch}"])
-            if digest != expected:
-                raise AdapterError(
-                    f"会话 {session['session_id']} ch{ch} 输入前缀指纹与计划不符"
-                    f"（实测 {digest['sha256'][:12]}… vs 计划 {expected.get('sha256', '')[:12]}…）"
-                    "——音频文件在计划生成后被改动，拒绝执行"
+        for position, (index, session, valid) in enumerate(work_items):
+            input_prefix, wav0, wav1 = future.result()
+            next_future = None
+            if position + 1 < len(work_items):
+                next_future = executor.submit(
+                    _prepare_e1_session_audio,
+                    work_items[position + 1][1],
+                    sample_rate,
+                    window_seconds,
                 )
-            input_prefix[f"ch{ch}"] = digest
-        role_extras = tuple(
-            {
-                "plan_v2": {
-                    "plan_id": plan["plan_id"],
-                    "prereg_tag": plan.get("prereg_tag", ""),
-                    "cohort": session["cohort"],
-                    "agent_channel": ch,
-                    "expected_steps": int(settings["expected_steps"]),
-                    "expected_parts": int(settings["expected_parts"]),
-                    "expected_hidden_dim": settings.get("expected_hidden_dim"),
-                    "activation_layout": str(settings["activation_layout"]),
-                    "analysis_max_label_step": int(settings["analysis_max_label_step"]),
-                    "common_window_steps": int(settings["common_window_steps"]),
-                    "temperature_limit_celsius": float(settings["temperature_limit_celsius"]),
-                    "temperature_check_interval_steps": int(
-                        settings["temperature_check_interval_steps"]
-                    ),
-                    "input_prefix": input_prefix,
-                    "shard_id": shard_id,
+            assert_free_disk(
+                session["out_agent0"],
+                min_free,
+                what=f"会话 {session['session_id']} 开跑前",
+            )
+            role_extras = tuple(
+                {
+                    "plan_v2": {
+                        "plan_id": plan["plan_id"],
+                        "prereg_tag": plan.get("prereg_tag", ""),
+                        "cohort": session["cohort"],
+                        "agent_channel": channel,
+                        "expected_steps": int(settings["expected_steps"]),
+                        "expected_parts": int(settings["expected_parts"]),
+                        "expected_hidden_dim": settings.get("expected_hidden_dim"),
+                        "activation_layout": str(settings["activation_layout"]),
+                        "analysis_max_label_step": int(settings["analysis_max_label_step"]),
+                        "common_window_steps": int(settings["common_window_steps"]),
+                        "input_prefix": input_prefix,
+                        "shard_id": shard_id,
+                    }
                 }
-            }
-            for ch in (0, 1)
-        )
-        completed += run_session_pair(
-            base_args,
-            session,
-            mimi,
-            lm,
-            code_version,
-            run_agent0=not valid[0],
-            run_agent1=not valid[1],
-            role_extras=role_extras,
-            engineering_mode="persistent_session_pair_cuda_graph_v2",
-        )
-        log(
-            f"E1 持久批处理进度：会话 {index}/{len(sessions)}，"
-            f"本进程新增 {completed} 路、复用 {skipped} 路"
-        )
+                for channel in (0, 1)
+            )
+            completed += run_session_pair(
+                base_args,
+                session,
+                mimi,
+                lm,
+                code_version,
+                run_agent0=not valid[0],
+                run_agent1=not valid[1],
+                role_extras=role_extras,
+                engineering_mode="persistent_session_pair_cuda_graph_v3_io_prefetch",
+                preloaded_audio=(wav0, wav1),
+            )
+            log(
+                f"E1 持久批处理进度：会话 {index}/{len(sessions)}，"
+                f"本进程新增 {completed} 路、复用 {skipped} 路"
+            )
+            if next_future is not None:
+                future = next_future
     log(f"E1 持久批处理完成：新增 {completed} 路，复用 {skipped} 路")
 
 

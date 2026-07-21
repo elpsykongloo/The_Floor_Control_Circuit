@@ -27,13 +27,13 @@
 - 五个受试模型各有独立 `.venv`（路径见 文档/01 §3），互不混装；跨环境协作只走"CLI 契约 + 磁盘 schema"（见 文档/02 附录 C），不做跨环境 import。
 - 本地模型适配高频坑（①–③ 见 文档/00 §11；④ 起为本机实测新增）：① HF 缓存符号链接 → 设 `HF_HUB_DISABLE_SYMLINKS=1` 并开 LongPathsEnabled；② DataLoader 多进程 → 脚本必须有 `if __name__ == "__main__":` 守卫；③ 音频 IO 统一用环境内 ffmpeg，避免 sox 链路；④ pytest 遇 `PermissionError: ...\Temp\pytest-of-<用户>` → 旧临时目录 ACL 损坏，用 `uv run pytest --basetemp=D:\data_storage\The_Floor_Control_Circuit\tmp\pytest`（或删除该旧目录）；⑤ transformers `trust_remote_code` 模型目录名含 `.`（如 `MiniCPM-o-4.5`）→ 动态模块名被点号切分报 `ModuleNotFoundError: transformers_modules.MiniCPM-o-4`，`runners/minicpm_o/run.py` 已内置并核验无点 junction 别名；MiniCPM-o 4.5 上游纯读出仍会无条件初始化 TTS，runner 在 `generate_audio=false` 时临时跳过该无用初始化；⑥ PersonaPlex 的 Mimi 未暴露 `frame_size`，runner 仅在 `sample_rate/frame_rate` 可精确整除时推导帧长（本机为 24000/12.5=1920）。
 - 本机有双卡（24 GB+），长音频 KV cache 可跨卡；GPU 任务（TTS 合成 vs 激活缓存前向）应分卡或错峰。
-- GPU 长任务温度干预阈值固定为 **95°C**（用户 2026-07-19 将原 90°C 调整为 95°C）：低于 95°C 只记录；达到或超过 95°C 时立即停止对应任务，并保留温度、进程、终端与日志证据。
+- E1 GPU 长任务由用户人工保障散热（PREREG #17，2026-07-22）；运行器不读取温度、不轮询 `nvidia-smi`，也不执行自动温控中止。
 - Moshi 的 600 秒整段 `lm(codes)` 压力路径继续禁跑；长序列仅按 `PREREG.md` 变更记录 #3 的有状态分块方案执行。
 - **上下文截断规程（PREREG #11）**：任何受试模型的 MVE/E1 探针分析窗必须先登记该模型的 context 上限并截断到规格内（Moshi：context=3000 步 → 可用标签步 0..2998；权威 `src/floor_circuit/mve/alignment.py`）。超上下文运行会出现 sink 淘汰尖峰与公共吸引态塌缩（2026-07-19 实测），其行不得进入任何判据。
 - Moshi 正式 greedy 缓存按 `PREREG.md` #10 使用双卡各一个持久会话进程：会话级分片、双声道编码复用、显卡驻留缓冲与单步 CUDA Graph；历史有效 greedy 缓存由版本集合护栏续用。
 - **G0 已全线退役（PREREG #16，2026-07-21 用户裁决）**：标记为初期探索的不成熟想法（判据建立在 Mimi 重建音频上，不具真值性质），一切修复/确认/质检/论文义务取消；`wp1_g0_*` 工具链封存不再运行，历史结果只留 PREREG 登记。配套登记事实：**CANDOR 无人工话轮标注**（transcribe_output.json = AWS ASR 原始输出；Audiophile/Cliffhanger/Backbiter 均为算法化话轮模型）——CANDOR 标签效度支柱 = T4 人工核验（#13）+ G1 优势佐证，Backbiter 仅为算法化同侪参考。
 - **DuplexConv 下载未完**（2026-07-21：Edu_upper 45/45 与 edu_lower 19/19 完整；none_Edu 21/125、jsons.tar.gz 未下）：训练侧清单冻结顺延至补齐后（#16(b)），冻结前不得读取任何会话内容；**prereg-v1 前置修订为 #14 roster + #15 + 指纹回填**，不再等 DuplexConv。
-- **E1 缓存 v2（PREREG #16(c)(d)，已实现待本机冒烟）**：`wp_e1_cache_plan.py` 生成计划 v2（主计划 + 双分片，plan_id 内容寻址，音频/权重/配置全量摘要 + 240 s PCM 前缀指纹）；`runners/moshi/run_batch.py --plan <shard>` 自动走 v2 分支（全 32 层堆叠 [T,L,H] 分片、95°C 热保护、遥测、断点续跑）；`wp_e1_cache_audit.py` 审计、`wp_e1_cache_parity.py` 与历史 MVE 前 3000 步逐位核验；zarr 摄取支持堆叠布局流式写入。**全量统一重跑，不复用 MVE 4 层缓存**；旧 `mve_r1_greedy/` 封存禁改。
+- **E1 缓存 v2（PREREG #16(c)/#17）**：`wp_e1_cache_plan.py` 生成计划 v2（主计划 + 243/257 加权双分片，plan_id 内容寻址，音频/权重/配置全量摘要 + 240 s PCM 前缀指纹）；`runners/moshi/run_batch.py --plan <shard>` 自动走 v2 分支（全 32 层连续堆叠 [T,L,H] 分片、512 步双缓冲、下一会话音频预取、Mimi 0.08 秒单帧与 LM 单步各用 CUDA Graph 并逐段释放、资源遥测、断点续跑）；运行器不含温控路径。`wp_e1_cache_audit.py` 审计、`wp_e1_cache_parity.py` 与历史 MVE 前 3000 步逐位核验；zarr 摄取支持堆叠布局流式写入。**全量统一重跑，不复用 MVE 4 层缓存**；旧 `mve_r1_greedy/` 封存禁改。
 
 ## 4. 文档地图
 

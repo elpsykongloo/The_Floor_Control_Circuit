@@ -86,17 +86,38 @@ class TestPrefixDigest:
         _write_wav(b, 24000, value_step=5)
         assert pcm_prefix_digest(a, 1.0)["sha256"] != pcm_prefix_digest(b, 1.0)["sha256"]
 
+    def test_runner_reads_only_requested_prefix(self, tmp_path, runner_mod):
+        wav = tmp_path / "long.wav"
+        _write_wav(wav, 24000 * 4)
+        prefix = runner_mod.read_wav_mono(wav, 24000, max_seconds=2.0)
+        full = runner_mod.read_wav_mono(wav, 24000)
+        assert prefix.shape == (48000,)
+        assert np.array_equal(prefix, full[:48000])
+
 
 class TestPlanner:
     def test_assign_shards_disjoint_union_balance(self, plan_mod):
         sessions = [{"session_id": f"s{i:03d}"} for i in range(500)]
-        shards = plan_mod.assign_shards(sessions, 2)
-        assert [len(s) for s in shards] == [250, 250]
+        shards = plan_mod.assign_shards(sessions, [243, 257])
+        assert [len(s) for s in shards] == [243, 257]
         ids = [record["session_id"] for shard in shards for record in shard]
         assert sorted(ids) == sorted(record["session_id"] for record in sessions)
         assert not (
             {r["session_id"] for r in shards[0]} & {r["session_id"] for r in shards[1]}
         )
+        assert [record["session_id"] for record in shards[0]] == sorted(
+            record["session_id"] for record in shards[0]
+        )
+        assert [record["session_id"] for record in shards[1]] == sorted(
+            record["session_id"] for record in shards[1]
+        )
+
+    @pytest.mark.parametrize(
+        ("total", "expected"),
+        [(2, [1, 1]), (3, [1, 2]), (500, [243, 257])],
+    )
+    def test_scale_shard_counts(self, plan_mod, total, expected):
+        assert plan_mod.scale_shard_counts(total, [243, 257]) == expected
 
     def test_plan_id_deterministic_and_content_addressed(self, plan_mod):
         settings = {"layers": list(range(32)), "expected_steps": 3000}
@@ -192,6 +213,7 @@ def _synthetic_v2_run(
                 "latent_kind": "pre_quantization_continuous",
                 "max_seconds": 1.0,
                 "mimi_chunk_seconds": 0.08,
+                "mimi_cuda_graph": True,
                 "forward_chunk_steps": chunk,
             },
             "e1": {
@@ -209,8 +231,12 @@ def _synthetic_v2_run(
                 "shard_id": 0,
                 "telemetry": {
                     "steps_per_second": 38.7,
-                    "temperature_max_c": 71.0,
+                    "forward_elapsed_s": 0.31,
                     "peak_memory_allocated_bytes": 123,
+                    "peak_memory_reserved_bytes": 160,
+                    "gpu_name": "合成显卡",
+                    "gpu_uuid": "GPU-test",
+                    "gpu_total_memory_bytes": 1000,
                     "output_bytes": 0,
                 },
             },
@@ -246,6 +272,7 @@ def _plan_for_run(manifest: dict, session_dirs: dict[int, Path]) -> tuple[dict, 
             "expected_hidden_dim": manifest["hidden_dim"],
             "window_seconds": manifest["extra"]["execution"]["max_seconds"],
             "mimi_chunk_seconds": manifest["extra"]["execution"]["mimi_chunk_seconds"],
+            "mimi_cuda_graph": manifest["extra"]["execution"]["mimi_cuda_graph"],
             "forward_chunk_steps": manifest["extra"]["execution"]["forward_chunk_steps"],
             "activation_layout": "stacked_tlh_v2",
         },
@@ -349,6 +376,25 @@ class TestAuditRole:
         problems = audit_mod.audit_role(run_dir, plan, session, 0, sample_finite=3)
         assert any("非有限值" in problem for problem in problems)
 
+    def test_same_runner_digest_with_new_commit_prefix_passes(self, tmp_path, audit_mod):
+        run_dir = tmp_path / "sid-test_agent0"
+        manifest = _synthetic_v2_run(run_dir)
+        plan, session = _plan_for_run(manifest, {0: run_dir})
+        payload = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+        payload["code_version"] = "def5678+runner." + "0" * 64
+        (run_dir / "manifest.json").write_text(json.dumps(payload), encoding="utf-8")
+        assert audit_mod.audit_role(run_dir, plan, session, 0, sample_finite=0) == []
+
+    def test_telemetry_summary_has_resource_fields_without_thermal_fields(
+        self, tmp_path, audit_mod
+    ):
+        manifest = _synthetic_v2_run(tmp_path / "run")
+        summary = audit_mod.summarize_telemetry([manifest])
+        assert "temperature_max_c" not in summary
+        assert summary["steps_per_second"]["median"] == pytest.approx(38.7)
+        assert summary["peak_memory_allocated_fraction_max"] == pytest.approx(0.123)
+        assert summary["per_gpu"]["GPU-test"]["n_roles"] == 1
+
 
 class TestParity:
     @pytest.fixture()
@@ -419,13 +465,3 @@ class TestWriterLayoutGuards:
                 seed=0,
                 layout="stacked_tlh_v2",
             )
-
-    def test_physical_gpu_index_mapping(self, runner_mod, monkeypatch):
-        monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "1")
-        assert runner_mod._physical_gpu_index(0) == 1
-        monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0,1")
-        assert runner_mod._physical_gpu_index(1) == 1
-        monkeypatch.delenv("CUDA_VISIBLE_DEVICES")
-        assert runner_mod._physical_gpu_index(0) == 0
-        monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "GPU-uuid-x")
-        assert runner_mod._physical_gpu_index(0) is None

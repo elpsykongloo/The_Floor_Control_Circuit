@@ -11,7 +11,7 @@
   $env:CUDA_VISIBLE_DEVICES='1'; <moshi python> runners/moshi/run_batch.py --plan <shard1>
 
 计划内容：git/代码/配置/权重摘要、逐会话音频 sha256 + 240 s PCM 前缀指纹、cohort、
-资源估算与磁盘/温度护栏。会话集合 = e1/sets.py（train 400 + eval 100，PREREG #15-D2）。
+资源估算与磁盘余量护栏。会话集合 = e1/sets.py（train 400 + eval 100，PREREG #15-D2）。
 全量统一重跑（#16(c)）：不复用 MVE 4 层缓存，旧目录封存不动。
 """
 
@@ -132,9 +132,12 @@ class DigestCache:
     def save(self) -> None:
         if self.dirty:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(
+            temporary = self.path.with_name(f".{self.path.name}.tmp")
+            temporary.write_text(
                 json.dumps(self.data, ensure_ascii=False, indent=1), encoding="utf-8"
             )
+            temporary.replace(self.path)
+            self.dirty = False
 
 
 def _check_wav_header(path: Path, min_seconds: float) -> tuple[int, float]:
@@ -191,15 +194,48 @@ def build_session_records(
         record["out_agent1"] = str(out_root / f"{session_id}_agent1")
         records.append(record)
         if (index + 1) % 50 == 0:
+            cache.save()
             print(f"会话记录 {index + 1}/{len(ordered_sessions)}")
     return records
 
 
-def assign_shards(sessions: list[dict], num_shards: int) -> list[list[dict]]:
-    """按会话序号取模分片：均衡、确定、互斥且并集完整。"""
-    if num_shards < 1:
-        raise ValueError("num_shards 必须至少为 1")
-    return [sessions[shard::num_shards] for shard in range(num_shards)]
+def scale_shard_counts(total: int, reference_counts: list[int]) -> list[int]:
+    """用最大余数法把正式会话配额缩放到任意冒烟规模。"""
+    if total < 0:
+        raise ValueError("会话总数不能为负")
+    if not reference_counts or any(int(value) <= 0 for value in reference_counts):
+        raise ValueError("分片参考配额必须是非空正整数列表")
+    denominator = sum(int(value) for value in reference_counts)
+    quotas = [total * int(value) / denominator for value in reference_counts]
+    counts = [math.floor(value) for value in quotas]
+    remainder = total - sum(counts)
+    order = sorted(
+        range(len(counts)),
+        key=lambda index: (-(quotas[index] - counts[index]), index),
+    )
+    for index in order[:remainder]:
+        counts[index] += 1
+    return counts
+
+
+def assign_shards(sessions: list[dict], shard_counts: list[int]) -> list[list[dict]]:
+    """平滑加权轮转：保持输入顺序，并精确满足各卡会话配额。"""
+    counts = [int(value) for value in shard_counts]
+    if not counts or any(value < 0 for value in counts):
+        raise ValueError("分片配额必须是非空非负整数列表")
+    if sum(counts) != len(sessions):
+        raise ValueError(f"分片配额合计 {sum(counts)} ≠ 会话数 {len(sessions)}")
+    shards: list[list[dict]] = [[] for _ in counts]
+    scores = [0 for _ in counts]
+    total = len(sessions)
+    for session in sessions:
+        for index, weight in enumerate(counts):
+            scores[index] += weight
+        candidates = [index for index, weight in enumerate(counts) if len(shards[index]) < weight]
+        chosen = max(candidates, key=lambda index: (scores[index], -index))
+        shards[chosen].append(session)
+        scores[chosen] -= total
+    return shards
 
 
 def compute_plan_id(model_name: str, settings: dict, sessions: list[dict]) -> str:
@@ -266,6 +302,7 @@ def build_plan(args) -> tuple[dict, list[dict]]:
         "analysis_max_label_step": int(mve["analysis_max_label_step"]),
         "common_window_steps": round(float(grids["common_window_s"]) * FRAME_HZ),
         "mimi_chunk_seconds": float(cache_cfg["mimi_chunk_seconds"]),
+        "mimi_cuda_graph": bool(cache_cfg["mimi_cuda_graph"]),
         "forward_chunk_steps": chunk_steps,
         "text_mode": str(cache_cfg["text_mode"]),
         "text_temperature": 0.7,
@@ -274,8 +311,6 @@ def build_plan(args) -> tuple[dict, list[dict]]:
         "seed": 0,
         "dtype": str(cache_cfg["dtype"]),
         "activation_layout": str(cache_cfg["activation_layout"]),
-        "temperature_limit_celsius": float(cache_cfg["temperature_limit_celsius"]),
-        "temperature_check_interval_steps": int(cache_cfg["temperature_check_interval_steps"]),
     }
     if settings["text_mode"] != "greedy":
         raise SystemExit("E1 正式缓存要求 text_mode=greedy（PREREG #7/#16）")
@@ -293,8 +328,10 @@ def build_plan(args) -> tuple[dict, list[dict]]:
     out_root = data_root() / "activations" / model_name / str(cache_cfg["out_group"])
     out_dir = Path(args.out_dir) if args.out_dir else data_root() / "e1_cache_plan"
     cache = DigestCache(out_dir / ".audio_digest_cache.json")
-    sessions = build_session_records(ordered, audio_root, out_root, window_seconds, cache)
-    cache.save()
+    try:
+        sessions = build_session_records(ordered, audio_root, out_root, window_seconds, cache)
+    finally:
+        cache.save()
 
     model_root = Path(paths["models"]["moshi"]["weights_moshiko"])
     lm_weight = _autodetect_weight(model_root, ["model.safetensors", "*.safetensors"], "LM 权重")
@@ -304,11 +341,13 @@ def build_plan(args) -> tuple[dict, list[dict]]:
     if lm_weight == mimi_weight:
         raise SystemExit(f"LM 与 Mimi 权重解析到同一文件 {lm_weight}")
     print("计算权重摘要（首次较慢，之后走缓存）……")
-    weight_digests = {
-        "lm_sha256": cache.file_sha256(lm_weight),
-        "mimi_sha256": cache.file_sha256(mimi_weight),
-    }
-    cache.save()
+    try:
+        weight_digests = {
+            "lm_sha256": cache.file_sha256(lm_weight),
+            "mimi_sha256": cache.file_sha256(mimi_weight),
+        }
+    finally:
+        cache.save()
 
     config_digests = {
         "configs/grids.yaml": _sha256_file(REPO_ROOT / "configs" / "grids.yaml"),
@@ -316,6 +355,13 @@ def build_plan(args) -> tuple[dict, list[dict]]:
     }
     code_version = _runner_code_version()
     plan_id = compute_plan_id(model_name, settings, sessions)
+    num_shards = int(cache_cfg["num_shards"])
+    reference_counts = [int(value) for value in cache_cfg["shard_session_counts"]]
+    if len(reference_counts) != num_shards:
+        raise SystemExit(
+            f"shard_session_counts 长度 {len(reference_counts)} ≠ num_shards={num_shards}"
+        )
+    shard_counts = scale_shard_counts(len(sessions), reference_counts)
     plan = {
         "schema_version": PLAN_SCHEMA_VERSION,
         "plan_kind": PLAN_KIND,
@@ -344,13 +390,15 @@ def build_plan(args) -> tuple[dict, list[dict]]:
             settings, len(sessions), float(cache_cfg["min_free_disk_gb"])
         ),
         "sharding": {
-            "num_shards": int(cache_cfg["num_shards"]),
+            "num_shards": num_shards,
             "shard_id": None,
-            "assignment": "session_index_modulo",
+            "assignment": "smooth_weighted_round_robin",
+            "reference_session_counts": reference_counts,
+            "session_counts": shard_counts,
         },
         "sessions": sessions,
     }
-    shards = assign_shards(sessions, int(cache_cfg["num_shards"]))
+    shards = assign_shards(sessions, shard_counts)
     shard_union = sorted(record["session_id"] for shard in shards for record in shard)
     if shard_union != sorted(record["session_id"] for record in sessions):
         raise SystemExit("分片并集与主计划不一致——分片逻辑异常")

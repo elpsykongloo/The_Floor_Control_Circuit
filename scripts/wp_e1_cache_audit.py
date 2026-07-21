@@ -29,6 +29,18 @@ def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _code_version_accepted(actual: object, accepted: list[object]) -> bool:
+    """允许内容不变但提交号因正式入库而更新的 runner 版本。"""
+    value = str(actual)
+    accepted_values = {str(item) for item in accepted}
+    if value in accepted_values:
+        return True
+    digest = value.partition("+runner.")[2]
+    return len(digest) == 64 and any(
+        candidate.partition("+runner.")[2] == digest for candidate in accepted_values
+    )
+
+
 def audit_role(
     out_dir: Path,
     plan: dict,
@@ -52,7 +64,9 @@ def audit_role(
 
     if int(payload.get("schema_version", 0)) != 2:
         problems.append(f"schema_version={payload.get('schema_version')} ≠ 2")
-    if payload.get("code_version") not in set(plan.get("accepted_code_versions", [])):
+    if not _code_version_accepted(
+        payload.get("code_version"), plan.get("accepted_code_versions", [])
+    ):
         problems.append(f"code_version 不在计划接受集：{payload.get('code_version')}")
     if payload.get("text_mode") != "greedy":
         problems.append(f"text_mode={payload.get('text_mode')} ≠ greedy")
@@ -68,6 +82,11 @@ def audit_role(
         problems.append(f"latent_kind 异常：{execution.get('latent_kind')}")
     if float(execution.get("max_seconds", -1)) != float(settings["window_seconds"]):
         problems.append(f"max_seconds={execution.get('max_seconds')} ≠ {settings['window_seconds']}")
+    if bool(execution.get("mimi_cuda_graph")) != bool(settings["mimi_cuda_graph"]):
+        problems.append(
+            f"mimi_cuda_graph={execution.get('mimi_cuda_graph')} ≠ "
+            f"{settings['mimi_cuda_graph']}"
+        )
     if str(e1.get("plan_id")) != str(plan["plan_id"]):
         problems.append(f"plan_id 不符：{e1.get('plan_id')}")
     if str(e1.get("cohort")) != str(session["cohort"]):
@@ -120,22 +139,47 @@ def audit_role(
 
 
 def summarize_telemetry(manifests: list[dict]) -> dict:
-    steps_per_second = []
-    temps = []
-    peaks = []
+    steps_per_second: list[float] = []
+    forward_elapsed: list[float] = []
+    peaks: list[int] = []
+    reserved: list[int] = []
+    fractions: list[float] = []
     bytes_total = 0
-    unavailable = 0
+    grouped: dict[str, dict] = {}
     for payload in manifests:
-        telemetry = payload.get("extra", {}).get("e1", {}).get("telemetry", {})
+        e1 = payload.get("extra", {}).get("e1", {})
+        telemetry = e1.get("telemetry", {})
         if telemetry.get("steps_per_second") is not None:
             steps_per_second.append(float(telemetry["steps_per_second"]))
-        if telemetry.get("temperature_max_c") is not None:
-            temps.append(float(telemetry["temperature_max_c"]))
-        elif telemetry:
-            unavailable += 1
+        if telemetry.get("forward_elapsed_s") is not None:
+            forward_elapsed.append(float(telemetry["forward_elapsed_s"]))
         if telemetry.get("peak_memory_allocated_bytes") is not None:
             peaks.append(int(telemetry["peak_memory_allocated_bytes"]))
+        if telemetry.get("peak_memory_reserved_bytes") is not None:
+            reserved.append(int(telemetry["peak_memory_reserved_bytes"]))
+        total_memory = int(telemetry.get("gpu_total_memory_bytes", 0))
+        if total_memory > 0 and telemetry.get("peak_memory_allocated_bytes") is not None:
+            fractions.append(int(telemetry["peak_memory_allocated_bytes"]) / total_memory)
         bytes_total += int(telemetry.get("output_bytes", 0))
+        gpu_uuid = str(telemetry.get("gpu_uuid", "unknown"))
+        if gpu_uuid == "unknown":
+            gpu_uuid = f"shard-{e1.get('shard_id', 'unknown')}"
+        group = grouped.setdefault(
+            gpu_uuid,
+            {
+                "gpu_name": telemetry.get("gpu_name"),
+                "steps_per_second": [],
+                "peak_memory_allocated_bytes": [],
+                "gpu_total_memory_bytes": total_memory or None,
+            },
+        )
+        if telemetry.get("steps_per_second") is not None:
+            group["steps_per_second"].append(float(telemetry["steps_per_second"]))
+        if telemetry.get("peak_memory_allocated_bytes") is not None:
+            group["peak_memory_allocated_bytes"].append(
+                int(telemetry["peak_memory_allocated_bytes"])
+            )
+
     def _stats(values: list[float]) -> dict | None:
         if not values:
             return None
@@ -146,12 +190,30 @@ def summarize_telemetry(manifests: list[dict]) -> dict:
             "median": float(np.median(array)),
             "max": float(array.max()),
         }
+
+    per_gpu = {}
+    for gpu_uuid, values in sorted(grouped.items()):
+        gpu_peaks = values["peak_memory_allocated_bytes"]
+        gpu_total = values["gpu_total_memory_bytes"]
+        peak_max = max(gpu_peaks) if gpu_peaks else None
+        per_gpu[gpu_uuid] = {
+            "gpu_name": values["gpu_name"],
+            "n_roles": len(values["steps_per_second"]),
+            "steps_per_second": _stats(values["steps_per_second"]),
+            "peak_memory_allocated_bytes_max": peak_max,
+            "gpu_total_memory_bytes": gpu_total,
+            "peak_memory_allocated_fraction": (
+                peak_max / gpu_total if peak_max is not None and gpu_total else None
+            ),
+        }
     return {
         "steps_per_second": _stats(steps_per_second),
-        "temperature_max_c": _stats(temps),
-        "temperature_unavailable_roles": unavailable,
+        "forward_elapsed_s": _stats(forward_elapsed),
         "peak_memory_allocated_bytes_max": max(peaks) if peaks else None,
+        "peak_memory_reserved_bytes_max": max(reserved) if reserved else None,
+        "peak_memory_allocated_fraction_max": max(fractions) if fractions else None,
         "output_bytes_total": bytes_total,
+        "per_gpu": per_gpu,
     }
 
 
