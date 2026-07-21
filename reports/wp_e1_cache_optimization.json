@@ -1,0 +1,94 @@
+{
+ "generated_at": "2026-07-21T21:05:34.4305258Z",
+ "formal_plan_id": "e1r1-moshi-37e1701082b0",
+ "verdict": "ready_for_formal_dual_gpu_run",
+ "implemented": {
+  "temperature_control_removed": true,
+  "default_cuda_device_normalized": true,
+  "cuda_graph_released_before_streaming_exit": true,
+  "audio_prefix_only_read": true,
+  "next_session_audio_prefetch": true,
+  "planned_full_audio_digest_reused": true,
+  "completed_cache_preflight_before_model_load": true,
+  "digest_cache_incremental_atomic_save": true,
+  "stacked_contiguous_double_buffer": true,
+  "activation_chunk_steps": 512,
+  "mimi_single_frame_cuda_graph": true,
+  "weighted_shard_session_counts": [
+   243,
+   257
+  ]
+ },
+ "validation": {
+  "unit_tests": "28 passed",
+  "repository_test_suite": {
+   "passed": 305,
+   "failed": 0,
+   "elapsed_seconds": 244.02,
+   "resolution": "核心代码提交并推送后重生成正式计划，仓库全量测试通过"
+  },
+  "ruff": "passed",
+  "same_process_sessions": 3,
+  "same_process_roles": 6,
+  "dual_gpu_sessions": 4,
+  "dual_gpu_roles": 8,
+  "final_integrated_audit": "4/4 passed",
+  "historical_parity": "2/2 runs，层 4/12/20/28、文本 token、Mimi 潜表征逐元素相等",
+  "forced_interrupt_recovery": "passed；孤立分片被清理，重启后 2/2 通过",
+  "completed_restart_seconds": 3.1,
+  "completed_restart_loaded_model": false
+ },
+ "measured_performance": {
+  "dual_gpu_forward_steps_per_second_median": {
+   "gpu0": 36.025,
+   "gpu1": 38.2645
+  },
+  "weighted_forward_hours": {
+   "gpu0_243_sessions": 11.2422,
+   "gpu1_257_sessions": 11.194
+  },
+  "final_gpu1_forward_steps_per_second_median": 38.4245,
+  "final_two_session_wall_seconds": 353.2,
+  "estimated_formal_end_to_end_hours": [
+   12.1,
+   12.3
+  ],
+  "peak_memory_allocated_bytes": 17648163840,
+  "gpu_total_memory_bytes": 25769279488,
+  "peak_memory_allocated_fraction": 0.6848528243957397,
+  "mimi_cuda_graph": {
+   "baseline_seconds_per_channel": 9.535348,
+   "optimized_seconds_per_channel": 6.210318,
+   "speedup": 1.535404,
+   "codes_mismatch": 0,
+   "latent_mismatch": 0,
+   "estimated_minutes_saved_gpu0": 26.93,
+   "estimated_minutes_saved_gpu1": 28.48
+  }
+ },
+ "rejected_vram_optimizations": {
+  "role_batch_size_2": {
+   "reason": "速度下降且激活不再逐元素等价",
+   "short_window_speedup_vs_two_batch1": 0.516458,
+   "short_context_peak_memory_allocated_bytes": 18965617664,
+   "first_mismatch_layer": 0
+  },
+  "larger_mimi_chunks": {
+   "reason": "离散码与连续潜表征均改变",
+   "tested_seconds": [
+    0.64,
+    1.28,
+    5.12,
+    20.48
+   ],
+   "minimum_codes_mismatch": 2362
+  },
+  "deeper_audio_prefetch": {
+   "reason": "双卡实测 GPU 利用率 100%，单会话预取已覆盖机械盘读取；继续加深只增加主存占用"
+  }
+ },
+ "formal_commands": [
+  "$env:CUDA_VISIBLE_DEVICES='0'; & 'C:\\artificial_intelligence\\models\\Full-Duplex\\Moshi_family\\.venv\\Scripts\\python.exe' 'runners\\moshi\\run_batch.py' --plan 'D:\\data_storage\\The_Floor_Control_Circuit\\e1_cache_plan\\e1_r1_moshi.shard0.json'",
+  "$env:CUDA_VISIBLE_DEVICES='1'; & 'C:\\artificial_intelligence\\models\\Full-Duplex\\Moshi_family\\.venv\\Scripts\\python.exe' 'runners\\moshi\\run_batch.py' --plan 'D:\\data_storage\\The_Floor_Control_Circuit\\e1_cache_plan\\e1_r1_moshi.shard1.json'"
+ ]
+}

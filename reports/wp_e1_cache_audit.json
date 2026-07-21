@@ -1,0 +1,44 @@
+{
+ "generated_at": "2026-07-21T20:45:04.923690+00:00",
+ "plan_id": "e1r1-moshi-82e54ec23666",
+ "plan_path": "D:\\data_storage\\The_Floor_Control_Circuit\\e1_cache_plan_smoke_final\\e1_r1_moshi.plan.json",
+ "n_sessions": 2,
+ "n_roles": 4,
+ "n_passed": 4,
+ "n_failed": 0,
+ "verdict": "passed",
+ "telemetry": {
+  "steps_per_second": {
+   "n": 4,
+   "min": 38.308,
+   "median": 38.4245,
+   "max": 38.458
+  },
+  "forward_elapsed_s": {
+   "n": 4,
+   "min": 78.008,
+   "median": 78.0755,
+   "max": 78.313
+  },
+  "peak_memory_allocated_bytes_max": 17648163840,
+  "peak_memory_reserved_bytes_max": 17999855616,
+  "peak_memory_allocated_fraction_max": 0.6848528243957397,
+  "output_bytes_total": 3158116096,
+  "per_gpu": {
+   "9bc67a4a-f682-7c62-16f7-93d441ac1cd0": {
+    "gpu_name": "NVIDIA GeForce RTX 3090",
+    "n_roles": 4,
+    "steps_per_second": {
+     "n": 4,
+     "min": 38.308,
+     "median": 38.4245,
+     "max": 38.458
+    },
+    "peak_memory_allocated_bytes_max": 17648163840,
+    "gpu_total_memory_bytes": 25769279488,
+    "peak_memory_allocated_fraction": 0.6848528243957397
+   }
+  }
+ },
+ "failures": {}
+}

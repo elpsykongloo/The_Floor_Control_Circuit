@@ -1,0 +1,65 @@
+{
+ "generated_at": "2026-07-21T20:45:22.864539+00:00",
+ "e1_root": "D:\\data_storage\\The_Floor_Control_Circuit\\activations\\moshi\\e1_r1_greedy",
+ "mve_root": "D:\\data_storage\\The_Floor_Control_Circuit\\activations\\moshi\\mve_r1_greedy",
+ "prefix_steps": 3000,
+ "layers": [
+  4,
+  12,
+  20,
+  28
+ ],
+ "n_compared": 2,
+ "n_all_equal": 2,
+ "verdict": "equal",
+ "runs": [
+  {
+   "run": "002d68da-7738-4177-89d9-d72ae803e0e4_agent0",
+   "comparisons": {
+    "acts_L4": {
+     "equal": true
+    },
+    "acts_L12": {
+     "equal": true
+    },
+    "acts_L20": {
+     "equal": true
+    },
+    "acts_L28": {
+     "equal": true
+    },
+    "text_tokens": {
+     "equal": true
+    },
+    "mimi_latent": {
+     "equal": true
+    }
+   },
+   "all_equal": true
+  },
+  {
+   "run": "002d68da-7738-4177-89d9-d72ae803e0e4_agent1",
+   "comparisons": {
+    "acts_L4": {
+     "equal": true
+    },
+    "acts_L12": {
+     "equal": true
+    },
+    "acts_L20": {
+     "equal": true
+    },
+    "acts_L28": {
+     "equal": true
+    },
+    "text_tokens": {
+     "equal": true
+    },
+    "mimi_latent": {
+     "equal": true
+    }
+   },
+   "all_equal": true
+  }
+ ]
+}

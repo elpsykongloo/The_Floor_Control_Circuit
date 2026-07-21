@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-07-17T13:47:24.770450+00:00",
- "n_sessions_requested": 40,
+ "generated_at": "2026-07-21T19:05:36.168157+00:00",
+ "n_sessions_requested": 140,
  "converted": [
   {
    "session": "026c91ab-94c5-482c-aba7-42e83a79c423",
@@ -201,7 +201,607 @@
    "session": "2a2cab49-1155-4379-b926-0e1b9e838687",
    "mode": "stereo_split",
    "cached": true
+  },
+  {
+   "session": "2b52341f-05ff-4341-905a-c264b228e625",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2b52341f-05ff-4341-905a-c264b228e625\\processed\\2b52341f-05ff-4341-905a-c264b228e625.mp3",
+   "channels": 2
+  },
+  {
+   "session": "2bc13e09-30ac-4bd6-941c-24036501b329",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2bc13e09-30ac-4bd6-941c-24036501b329\\processed\\2bc13e09-30ac-4bd6-941c-24036501b329.mp3",
+   "channels": 2
+  },
+  {
+   "session": "2c92dd3e-6e7a-4968-871d-5674790e7a74",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2c92dd3e-6e7a-4968-871d-5674790e7a74\\processed\\2c92dd3e-6e7a-4968-871d-5674790e7a74.mp3",
+   "channels": 2
+  },
+  {
+   "session": "2c9f9799-b379-4c6e-91dd-38a1897d4ff6",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2c9f9799-b379-4c6e-91dd-38a1897d4ff6\\processed\\2c9f9799-b379-4c6e-91dd-38a1897d4ff6.mp3",
+   "channels": 2
+  },
+  {
+   "session": "2d20999a-e929-43c8-9b4f-f220cafc06d1",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2d20999a-e929-43c8-9b4f-f220cafc06d1\\processed\\2d20999a-e929-43c8-9b4f-f220cafc06d1.mp3",
+   "channels": 2
+  },
+  {
+   "session": "2d8791a3-3ad0-4011-bdc1-2dde05ebcba2",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2d8791a3-3ad0-4011-bdc1-2dde05ebcba2\\processed\\2d8791a3-3ad0-4011-bdc1-2dde05ebcba2.mp3",
+   "channels": 2
+  },
+  {
+   "session": "2ec76af8-c231-488a-95bf-4269bef6996b",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2ec76af8-c231-488a-95bf-4269bef6996b\\processed\\2ec76af8-c231-488a-95bf-4269bef6996b.mp3",
+   "channels": 2
+  },
+  {
+   "session": "2ef0bddb-04a7-4d0e-8aba-fa7c313e5295",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2ef0bddb-04a7-4d0e-8aba-fa7c313e5295\\processed\\2ef0bddb-04a7-4d0e-8aba-fa7c313e5295.mp3",
+   "channels": 2
+  },
+  {
+   "session": "2faec4dd-2885-46f3-9796-d4b152a75f9b",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\2faec4dd-2885-46f3-9796-d4b152a75f9b\\processed\\2faec4dd-2885-46f3-9796-d4b152a75f9b.mp3",
+   "channels": 2
+  },
+  {
+   "session": "30a5a4ba-5ca5-465f-8a8f-cda3d7737662",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\30a5a4ba-5ca5-465f-8a8f-cda3d7737662\\processed\\30a5a4ba-5ca5-465f-8a8f-cda3d7737662.mp3",
+   "channels": 2
+  },
+  {
+   "session": "3186a2ea-47f5-45cf-8c9c-ba4182d2c0a7",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\3186a2ea-47f5-45cf-8c9c-ba4182d2c0a7\\processed\\3186a2ea-47f5-45cf-8c9c-ba4182d2c0a7.mp3",
+   "channels": 2
+  },
+  {
+   "session": "3271eacf-69b5-4144-8dbe-b596de94ec30",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\3271eacf-69b5-4144-8dbe-b596de94ec30\\processed\\3271eacf-69b5-4144-8dbe-b596de94ec30.mp3",
+   "channels": 2
+  },
+  {
+   "session": "330137c3-3b27-4eab-95b6-ff26b2aa2c0f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\330137c3-3b27-4eab-95b6-ff26b2aa2c0f\\processed\\330137c3-3b27-4eab-95b6-ff26b2aa2c0f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "33528414-6a77-4fde-a01a-aebbad5fc3d8",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\33528414-6a77-4fde-a01a-aebbad5fc3d8\\processed\\33528414-6a77-4fde-a01a-aebbad5fc3d8.mp3",
+   "channels": 2
+  },
+  {
+   "session": "339012e4-ada1-4c88-839d-08a6842b5903",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\339012e4-ada1-4c88-839d-08a6842b5903\\processed\\339012e4-ada1-4c88-839d-08a6842b5903.mp3",
+   "channels": 2
+  },
+  {
+   "session": "33d4bd03-1a0b-4252-9ebb-9ab864a57a7e",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\33d4bd03-1a0b-4252-9ebb-9ab864a57a7e\\processed\\33d4bd03-1a0b-4252-9ebb-9ab864a57a7e.mp3",
+   "channels": 2
+  },
+  {
+   "session": "34feb55e-d811-4684-89a3-362f4297b7fc",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\34feb55e-d811-4684-89a3-362f4297b7fc\\processed\\34feb55e-d811-4684-89a3-362f4297b7fc.mp3",
+   "channels": 2
+  },
+  {
+   "session": "35ec4d47-9fa9-4868-b51a-ee38999f7953",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\35ec4d47-9fa9-4868-b51a-ee38999f7953\\processed\\35ec4d47-9fa9-4868-b51a-ee38999f7953.mp3",
+   "channels": 2
+  },
+  {
+   "session": "3a51d3fd-a343-4177-b48e-a694a14c5891",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\3a51d3fd-a343-4177-b48e-a694a14c5891\\processed\\3a51d3fd-a343-4177-b48e-a694a14c5891.mp3",
+   "channels": 2
+  },
+  {
+   "session": "3a5a4eec-b25f-4d92-badd-5ec53ab52847",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\3a5a4eec-b25f-4d92-badd-5ec53ab52847\\processed\\3a5a4eec-b25f-4d92-badd-5ec53ab52847.mp3",
+   "channels": 2
+  },
+  {
+   "session": "3bdc16b8-2b33-41c1-9375-d960f4d01e0b",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\3bdc16b8-2b33-41c1-9375-d960f4d01e0b\\processed\\3bdc16b8-2b33-41c1-9375-d960f4d01e0b.mp3",
+   "channels": 2
+  },
+  {
+   "session": "3c27cd73-51a0-4787-b568-3456a6ceb3e3",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\3c27cd73-51a0-4787-b568-3456a6ceb3e3\\processed\\3c27cd73-51a0-4787-b568-3456a6ceb3e3.mp3",
+   "channels": 2
+  },
+  {
+   "session": "3e4b373e-f0c5-49f1-9bf0-20332f3ec712",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\3e4b373e-f0c5-49f1-9bf0-20332f3ec712\\processed\\3e4b373e-f0c5-49f1-9bf0-20332f3ec712.mp3",
+   "channels": 2
+  },
+  {
+   "session": "3eb02a3e-10a7-4927-a967-6d39e43edc0f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\3eb02a3e-10a7-4927-a967-6d39e43edc0f\\processed\\3eb02a3e-10a7-4927-a967-6d39e43edc0f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "442dea44-b336-4903-9d01-47c8ca7a9a58",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\442dea44-b336-4903-9d01-47c8ca7a9a58\\processed\\442dea44-b336-4903-9d01-47c8ca7a9a58.mp3",
+   "channels": 2
+  },
+  {
+   "session": "4538cb0c-5102-4971-bd22-9767cc23e8bf",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\4538cb0c-5102-4971-bd22-9767cc23e8bf\\processed\\4538cb0c-5102-4971-bd22-9767cc23e8bf.mp3",
+   "channels": 2
+  },
+  {
+   "session": "46747c83-d53f-43a6-9de0-17298e3b633f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\46747c83-d53f-43a6-9de0-17298e3b633f\\processed\\46747c83-d53f-43a6-9de0-17298e3b633f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "46d14a01-720f-4d43-a00a-16e8a34835d4",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\46d14a01-720f-4d43-a00a-16e8a34835d4\\processed\\46d14a01-720f-4d43-a00a-16e8a34835d4.mp3",
+   "channels": 2
+  },
+  {
+   "session": "474ab563-0623-448f-b2f6-13505ae80fa4",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\474ab563-0623-448f-b2f6-13505ae80fa4\\processed\\474ab563-0623-448f-b2f6-13505ae80fa4.mp3",
+   "channels": 2
+  },
+  {
+   "session": "4b10bbc0-0b22-4944-b086-27dea1ac40d2",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\4b10bbc0-0b22-4944-b086-27dea1ac40d2\\processed\\4b10bbc0-0b22-4944-b086-27dea1ac40d2.mp3",
+   "channels": 2
+  },
+  {
+   "session": "4b3fc3a3-8714-407c-b142-bf2e242e0ae9",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\4b3fc3a3-8714-407c-b142-bf2e242e0ae9\\processed\\4b3fc3a3-8714-407c-b142-bf2e242e0ae9.mp3",
+   "channels": 2
+  },
+  {
+   "session": "4be7675a-c2e4-4535-a602-a57aefbadc3e",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\4be7675a-c2e4-4535-a602-a57aefbadc3e\\processed\\4be7675a-c2e4-4535-a602-a57aefbadc3e.mp3",
+   "channels": 2
+  },
+  {
+   "session": "4c2f2108-be90-4a60-8c43-d2544558b8e2",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\4c2f2108-be90-4a60-8c43-d2544558b8e2\\processed\\4c2f2108-be90-4a60-8c43-d2544558b8e2.mp3",
+   "channels": 2
+  },
+  {
+   "session": "4d094d13-35ca-4a09-b918-b23f185e6340",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\4d094d13-35ca-4a09-b918-b23f185e6340\\processed\\4d094d13-35ca-4a09-b918-b23f185e6340.mp3",
+   "channels": 2
+  },
+  {
+   "session": "4da5f1a9-e9ae-4837-802a-27c8b6675b4c",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\4da5f1a9-e9ae-4837-802a-27c8b6675b4c\\processed\\4da5f1a9-e9ae-4837-802a-27c8b6675b4c.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5057bc37-07d8-4149-a206-ab98231e2980",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5057bc37-07d8-4149-a206-ab98231e2980\\processed\\5057bc37-07d8-4149-a206-ab98231e2980.mp3",
+   "channels": 2
+  },
+  {
+   "session": "52565e58-97f6-42b8-9697-a17869a7dfed",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\52565e58-97f6-42b8-9697-a17869a7dfed\\processed\\52565e58-97f6-42b8-9697-a17869a7dfed.mp3",
+   "channels": 2
+  },
+  {
+   "session": "52983901-602c-484c-a43f-da8509a84e88",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\52983901-602c-484c-a43f-da8509a84e88\\processed\\52983901-602c-484c-a43f-da8509a84e88.mp3",
+   "channels": 2
+  },
+  {
+   "session": "52e38736-df36-4dfc-97c3-7f7a2ca790ad",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\52e38736-df36-4dfc-97c3-7f7a2ca790ad\\processed\\52e38736-df36-4dfc-97c3-7f7a2ca790ad.mp3",
+   "channels": 2
+  },
+  {
+   "session": "54fb8d98-5142-4ffa-9227-29319f91a287",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\54fb8d98-5142-4ffa-9227-29319f91a287\\processed\\54fb8d98-5142-4ffa-9227-29319f91a287.mp3",
+   "channels": 2
+  },
+  {
+   "session": "56ee9fdd-486c-4709-82f7-485322ed4a05",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\56ee9fdd-486c-4709-82f7-485322ed4a05\\processed\\56ee9fdd-486c-4709-82f7-485322ed4a05.mp3",
+   "channels": 2
+  },
+  {
+   "session": "571658d4-279e-494e-8e01-f4d922147436",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\571658d4-279e-494e-8e01-f4d922147436\\processed\\571658d4-279e-494e-8e01-f4d922147436.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5a69b66a-61bc-45b5-98bd-ffb14fb1e1ec",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5a69b66a-61bc-45b5-98bd-ffb14fb1e1ec\\processed\\5a69b66a-61bc-45b5-98bd-ffb14fb1e1ec.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5a6f9b34-17b2-4a65-95e1-7af5b451b395",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5a6f9b34-17b2-4a65-95e1-7af5b451b395\\processed\\5a6f9b34-17b2-4a65-95e1-7af5b451b395.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5ab6dbec-f52d-4df2-ba45-78b92fb1cb9f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5ab6dbec-f52d-4df2-ba45-78b92fb1cb9f\\processed\\5ab6dbec-f52d-4df2-ba45-78b92fb1cb9f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5c89fd8d-9663-4d7d-bbdd-a919c95e986b",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5c89fd8d-9663-4d7d-bbdd-a919c95e986b\\processed\\5c89fd8d-9663-4d7d-bbdd-a919c95e986b.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5c91528b-686c-4446-82dc-5dd830d4d7b1",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5c91528b-686c-4446-82dc-5dd830d4d7b1\\processed\\5c91528b-686c-4446-82dc-5dd830d4d7b1.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5d7dc5a5-8dbe-4fb0-bf59-2d53f0ce3b65",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5d7dc5a5-8dbe-4fb0-bf59-2d53f0ce3b65\\processed\\5d7dc5a5-8dbe-4fb0-bf59-2d53f0ce3b65.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5d895bf7-4efd-4a5d-ad62-57fa820ad746",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5d895bf7-4efd-4a5d-ad62-57fa820ad746\\processed\\5d895bf7-4efd-4a5d-ad62-57fa820ad746.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5e6434fa-16f7-47e2-b4bd-60b0ec9e7fbc",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5e6434fa-16f7-47e2-b4bd-60b0ec9e7fbc\\processed\\5e6434fa-16f7-47e2-b4bd-60b0ec9e7fbc.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5ebef664-8567-4425-8ca9-9be90745a61d",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5ebef664-8567-4425-8ca9-9be90745a61d\\processed\\5ebef664-8567-4425-8ca9-9be90745a61d.mp3",
+   "channels": 2
+  },
+  {
+   "session": "5f3c916e-a2d5-44ce-b39d-41c9d29de48f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\5f3c916e-a2d5-44ce-b39d-41c9d29de48f\\processed\\5f3c916e-a2d5-44ce-b39d-41c9d29de48f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "60454fcf-eceb-4faf-9347-8d796e1b5be8",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\60454fcf-eceb-4faf-9347-8d796e1b5be8\\processed\\60454fcf-eceb-4faf-9347-8d796e1b5be8.mp3",
+   "channels": 2
+  },
+  {
+   "session": "6163a127-a76c-4bec-8d7c-02e6e6fd548a",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\6163a127-a76c-4bec-8d7c-02e6e6fd548a\\processed\\6163a127-a76c-4bec-8d7c-02e6e6fd548a.mp3",
+   "channels": 2
+  },
+  {
+   "session": "61e32a88-cbee-4319-9f54-564af7e118a5",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\61e32a88-cbee-4319-9f54-564af7e118a5\\processed\\61e32a88-cbee-4319-9f54-564af7e118a5.mp3",
+   "channels": 2
+  },
+  {
+   "session": "61f439d4-55ca-482d-b78f-21ed14af9912",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\61f439d4-55ca-482d-b78f-21ed14af9912\\processed\\61f439d4-55ca-482d-b78f-21ed14af9912.mp3",
+   "channels": 2
+  },
+  {
+   "session": "623768bc-17cf-4121-8968-f0c25c1aaddb",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\623768bc-17cf-4121-8968-f0c25c1aaddb\\processed\\623768bc-17cf-4121-8968-f0c25c1aaddb.mp3",
+   "channels": 2
+  },
+  {
+   "session": "63573cd4-63b2-41d0-9d14-6e0c98b6c212",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\63573cd4-63b2-41d0-9d14-6e0c98b6c212\\processed\\63573cd4-63b2-41d0-9d14-6e0c98b6c212.mp3",
+   "channels": 2
+  },
+  {
+   "session": "64d2a057-f8ac-4e44-9e0f-6645a3da8a91",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\64d2a057-f8ac-4e44-9e0f-6645a3da8a91\\processed\\64d2a057-f8ac-4e44-9e0f-6645a3da8a91.mp3",
+   "channels": 2
+  },
+  {
+   "session": "65b9bc57-6206-475d-91ec-c5696259c0d4",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\65b9bc57-6206-475d-91ec-c5696259c0d4\\processed\\65b9bc57-6206-475d-91ec-c5696259c0d4.mp3",
+   "channels": 2
+  },
+  {
+   "session": "65ec7b23-af77-449e-9b11-e431f8a3b874",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\65ec7b23-af77-449e-9b11-e431f8a3b874\\processed\\65ec7b23-af77-449e-9b11-e431f8a3b874.mp3",
+   "channels": 2
+  },
+  {
+   "session": "65ef52f0-93a4-435c-ae13-ab502aa60bd7",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\65ef52f0-93a4-435c-ae13-ab502aa60bd7\\processed\\65ef52f0-93a4-435c-ae13-ab502aa60bd7.mp3",
+   "channels": 2
+  },
+  {
+   "session": "660c942e-6681-4f6f-9d9d-0aff9f2e5561",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\660c942e-6681-4f6f-9d9d-0aff9f2e5561\\processed\\660c942e-6681-4f6f-9d9d-0aff9f2e5561.mp3",
+   "channels": 2
+  },
+  {
+   "session": "66768810-879d-4e2f-b5f5-ecc67d298104",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\66768810-879d-4e2f-b5f5-ecc67d298104\\processed\\66768810-879d-4e2f-b5f5-ecc67d298104.mp3",
+   "channels": 2
+  },
+  {
+   "session": "66ad6c92-6876-40c6-b32c-fed5571dff00",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\66ad6c92-6876-40c6-b32c-fed5571dff00\\processed\\66ad6c92-6876-40c6-b32c-fed5571dff00.mp3",
+   "channels": 2
+  },
+  {
+   "session": "680827e2-b20a-40e7-9b6e-adf01595b954",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\680827e2-b20a-40e7-9b6e-adf01595b954\\processed\\680827e2-b20a-40e7-9b6e-adf01595b954.mp3",
+   "channels": 2
+  },
+  {
+   "session": "6ec9ed5c-3b53-4661-bb3c-e83308de804f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\6ec9ed5c-3b53-4661-bb3c-e83308de804f\\processed\\6ec9ed5c-3b53-4661-bb3c-e83308de804f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "6ff06445-48e2-40e6-8833-0d73489714a9",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\6ff06445-48e2-40e6-8833-0d73489714a9\\processed\\6ff06445-48e2-40e6-8833-0d73489714a9.mp3",
+   "channels": 2
+  },
+  {
+   "session": "6ff82242-7aec-46d3-a7ed-a8a0b4076c75",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\6ff82242-7aec-46d3-a7ed-a8a0b4076c75\\processed\\6ff82242-7aec-46d3-a7ed-a8a0b4076c75.mp3",
+   "channels": 2
+  },
+  {
+   "session": "70dea9ad-baf7-4699-96a3-642508a8f69e",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\70dea9ad-baf7-4699-96a3-642508a8f69e\\processed\\70dea9ad-baf7-4699-96a3-642508a8f69e.mp3",
+   "channels": 2
+  },
+  {
+   "session": "74566dc5-b8cd-4835-91ec-7e4e245dc318",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\74566dc5-b8cd-4835-91ec-7e4e245dc318\\processed\\74566dc5-b8cd-4835-91ec-7e4e245dc318.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7463ac49-ae39-44f9-8a77-7d94ddf0a46a",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7463ac49-ae39-44f9-8a77-7d94ddf0a46a\\processed\\7463ac49-ae39-44f9-8a77-7d94ddf0a46a.mp3",
+   "channels": 2
+  },
+  {
+   "session": "778aeea0-34ed-4b5d-980d-d6ffe062e914",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\778aeea0-34ed-4b5d-980d-d6ffe062e914\\processed\\778aeea0-34ed-4b5d-980d-d6ffe062e914.mp3",
+   "channels": 2
+  },
+  {
+   "session": "787f92f0-51e6-442f-a7a2-71967779e830",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\787f92f0-51e6-442f-a7a2-71967779e830\\processed\\787f92f0-51e6-442f-a7a2-71967779e830.mp3",
+   "channels": 2
+  },
+  {
+   "session": "796f2826-b2cc-4848-a32c-a19892cd7919",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\796f2826-b2cc-4848-a32c-a19892cd7919\\processed\\796f2826-b2cc-4848-a32c-a19892cd7919.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7ab498fa-9f84-446c-9f1d-daa5b60a8c71",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7ab498fa-9f84-446c-9f1d-daa5b60a8c71\\processed\\7ab498fa-9f84-446c-9f1d-daa5b60a8c71.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7b88a1c0-eeb3-4d76-9aca-c9ad83198b96",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7b88a1c0-eeb3-4d76-9aca-c9ad83198b96\\processed\\7b88a1c0-eeb3-4d76-9aca-c9ad83198b96.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7bcd1417-babb-4b17-a018-21001904bc2f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7bcd1417-babb-4b17-a018-21001904bc2f\\processed\\7bcd1417-babb-4b17-a018-21001904bc2f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7d0033eb-06d9-48f7-a551-b3ca5507d99a",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7d0033eb-06d9-48f7-a551-b3ca5507d99a\\processed\\7d0033eb-06d9-48f7-a551-b3ca5507d99a.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7d078985-6c61-4009-b25a-565ea5b1ed56",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7d078985-6c61-4009-b25a-565ea5b1ed56\\processed\\7d078985-6c61-4009-b25a-565ea5b1ed56.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7d9949bb-15a7-4b72-9e1c-2c68775fb95d",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7d9949bb-15a7-4b72-9e1c-2c68775fb95d\\processed\\7d9949bb-15a7-4b72-9e1c-2c68775fb95d.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7eb00e0d-90e4-4310-86ab-616b4e498765",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7eb00e0d-90e4-4310-86ab-616b4e498765\\processed\\7eb00e0d-90e4-4310-86ab-616b4e498765.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7f32f80f-9412-43c2-87c1-df810a781a94",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7f32f80f-9412-43c2-87c1-df810a781a94\\processed\\7f32f80f-9412-43c2-87c1-df810a781a94.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7f42f761-f9c4-41c7-9bad-e1dc66d13370",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7f42f761-f9c4-41c7-9bad-e1dc66d13370\\processed\\7f42f761-f9c4-41c7-9bad-e1dc66d13370.mp3",
+   "channels": 2
+  },
+  {
+   "session": "7fab8351-a974-4066-be77-59569259a0d4",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\7fab8351-a974-4066-be77-59569259a0d4\\processed\\7fab8351-a974-4066-be77-59569259a0d4.mp3",
+   "channels": 2
+  },
+  {
+   "session": "824c8d5a-0504-4a2d-986c-6494469e2c86",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\824c8d5a-0504-4a2d-986c-6494469e2c86\\processed\\824c8d5a-0504-4a2d-986c-6494469e2c86.mp3",
+   "channels": 2
+  },
+  {
+   "session": "826248c3-018b-4b56-8844-ef762f5b60cd",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\826248c3-018b-4b56-8844-ef762f5b60cd\\processed\\826248c3-018b-4b56-8844-ef762f5b60cd.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8287d05f-f9d4-46d8-bb41-6a2e7b46987b",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8287d05f-f9d4-46d8-bb41-6a2e7b46987b\\processed\\8287d05f-f9d4-46d8-bb41-6a2e7b46987b.mp3",
+   "channels": 2
+  },
+  {
+   "session": "84842960-26e4-4adf-8de0-e6319684d69f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\84842960-26e4-4adf-8de0-e6319684d69f\\processed\\84842960-26e4-4adf-8de0-e6319684d69f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8655398f-c876-4323-ad2a-2a3334ad9847",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8655398f-c876-4323-ad2a-2a3334ad9847\\processed\\8655398f-c876-4323-ad2a-2a3334ad9847.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8712e06c-82bc-46dc-ba0f-4181c1feaf48",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8712e06c-82bc-46dc-ba0f-4181c1feaf48\\processed\\8712e06c-82bc-46dc-ba0f-4181c1feaf48.mp3",
+   "channels": 2
+  },
+  {
+   "session": "882bdd3e-4def-4144-a5b8-adb69e81a7e3",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\882bdd3e-4def-4144-a5b8-adb69e81a7e3\\processed\\882bdd3e-4def-4144-a5b8-adb69e81a7e3.mp3",
+   "channels": 2
+  },
+  {
+   "session": "88c90246-2d1a-4c6b-b84d-abde34a8cb0f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\88c90246-2d1a-4c6b-b84d-abde34a8cb0f\\processed\\88c90246-2d1a-4c6b-b84d-abde34a8cb0f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8a852635-85e0-4b09-8004-ad3d7de925d5",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8a852635-85e0-4b09-8004-ad3d7de925d5\\processed\\8a852635-85e0-4b09-8004-ad3d7de925d5.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8b1f3ac0-a641-4574-9763-2218bfb4bdd1",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8b1f3ac0-a641-4574-9763-2218bfb4bdd1\\processed\\8b1f3ac0-a641-4574-9763-2218bfb4bdd1.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8bf5b973-cb87-4d3b-859b-8e116476295f",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8bf5b973-cb87-4d3b-859b-8e116476295f\\processed\\8bf5b973-cb87-4d3b-859b-8e116476295f.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8c19ef18-4f48-4938-a2fe-f489af906df7",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8c19ef18-4f48-4938-a2fe-f489af906df7\\processed\\8c19ef18-4f48-4938-a2fe-f489af906df7.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8d0c52af-1e6d-46ca-a709-28c7ba9734ce",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8d0c52af-1e6d-46ca-a709-28c7ba9734ce\\processed\\8d0c52af-1e6d-46ca-a709-28c7ba9734ce.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8e88babc-8098-4a2b-b533-252a2419f7be",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8e88babc-8098-4a2b-b533-252a2419f7be\\processed\\8e88babc-8098-4a2b-b533-252a2419f7be.mp3",
+   "channels": 2
+  },
+  {
+   "session": "8ec55249-5189-4055-bb68-c2466e320f90",
+   "mode": "stereo_split",
+   "src": "D:\\data_storage\\The_Floor_Control_Circuit\\candor_extracted\\8ec55249-5189-4055-bb68-c2466e320f90\\processed\\8ec55249-5189-4055-bb68-c2466e320f90.mp3",
+   "channels": 2
   }
  ],
- "n_converted_ok": 40
+ "n_converted_ok": 140
 }

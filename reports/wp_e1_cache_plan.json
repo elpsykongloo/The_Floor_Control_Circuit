@@ -1,0 +1,36 @@
+{
+ "generated_at": "2026-07-21T21:01:00.649185+00:00",
+ "plan_id": "e1r1-moshi-37e1701082b0",
+ "git_commit": "98fe79573660b95563af93fd15ada1057858c1e0",
+ "code_version": "98fe795+runner.3f1be378606b01f1bb42a7b7a9c63c656d34db924b89c368f9b943e58fae8d16",
+ "n_sessions": 500,
+ "n_roles": 1000,
+ "cohorts": {
+  "n_train": 400,
+  "n_eval": 100,
+  "source": "e1/sets.py（PREREG #15-D2 冻结切片）"
+ },
+ "window_seconds": 240.0,
+ "layers": "0..31",
+ "activation_layout": "stacked_tlh_v2",
+ "expected_parts_per_role": 6,
+ "estimated_total_gb": 789.56,
+ "weight_digests": {
+  "lm_sha256": "5b835c664f3830bf453808cbca9bfbcc9de332c328cc01cbffdfbaba2a8838a7",
+  "mimi_sha256": "09b782f0629851a271227fb9d36db65c041790365f11bbe5d3d59369cf863f50"
+ },
+ "config_digests": {
+  "configs/grids.yaml": "b6509a49e8407d024dae4175aa325064e708ca8840bf74d0d83e57a567ef09ba",
+  "configs/splits/candor.json": "0378ca258a5daebbf9bc5c966e552da7640a90499f2b3d9f0b21b465be93c02e"
+ },
+ "main_plan": "D:\\data_storage\\The_Floor_Control_Circuit\\e1_cache_plan\\e1_r1_moshi.plan.json",
+ "main_plan_sha256": "124ced7803af71abd81ad55d15006068aff8efcbb594589b51ed013c7ca64789",
+ "shard_plans": [
+  "D:\\data_storage\\The_Floor_Control_Circuit\\e1_cache_plan\\e1_r1_moshi.shard0.json",
+  "D:\\data_storage\\The_Floor_Control_Circuit\\e1_cache_plan\\e1_r1_moshi.shard1.json"
+ ],
+ "shard_sizes": [
+  243,
+  257
+ ]
+}
