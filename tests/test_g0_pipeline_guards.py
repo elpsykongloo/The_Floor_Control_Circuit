@@ -34,6 +34,28 @@ def test_prepare_reads_only_target_shard_ids(tmp_path, monkeypatch):
     assert module._read_shard_session_ids(tmp_path, "val-*.parquet") == {"val_a", "val_b"}
 
 
+def test_dualturn_row_can_skip_continuous_mimi_features():
+    from floor_circuit.data.dualturn import _row_to_session
+
+    row = {
+        "session_id": "demo",
+        "dataset": "switchboard",
+        "duration_s": 0.08,
+        "num_frames": 1,
+    }
+    for channel in (0, 1):
+        row[f"codes_ch{channel}"] = list(range(8))
+        row[f"fvad_ch{channel}"] = [0.0] * 4
+        for name in ("vad", "eot", "hold", "bot", "bc"):
+            row[f"{name}_ch{channel}"] = [0]
+
+    session = _row_to_session(row, include_mimi_feat=False)
+
+    assert session.mimi_feat == {}
+    assert session.codes[0].shape == (1, 8)
+    assert session.fvad[1].shape == (1, 4)
+
+
 def test_decode_split_filter_rejects_unreadable_metadata(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(REPO_ROOT / "runners" / "_shared"))
     module = _load_script("decode_mimi_guard", REPO_ROOT / "runners" / "moshi" / "decode_mimi.py")

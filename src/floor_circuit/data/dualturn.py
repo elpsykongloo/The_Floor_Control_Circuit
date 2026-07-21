@@ -91,12 +91,15 @@ def _reshape(values: Any, n_frames: int, width: int, dtype) -> np.ndarray:
     return arr.reshape(n_frames, width)  # 帧主序假定（解码听感核对）
 
 
-def _row_to_session(row: dict) -> DualturnSession:
+def _row_to_session(row: dict, include_mimi_feat: bool = True) -> DualturnSession:
+    """把发布物行转成会话；按需跳过体量最大的连续 Mimi 特征。"""
+
     n = int(row["num_frames"])
     codes, feat, tracks, fvad = {}, {}, {}, {}
     for ch in (0, 1):
         codes[ch] = _reshape(row[f"codes_ch{ch}"], n, N_CODEBOOKS, np.int16)
-        feat[ch] = _reshape(row[f"mimi_feat_ch{ch}"], n, FEAT_DIM, np.float16)
+        if include_mimi_feat:
+            feat[ch] = _reshape(row[f"mimi_feat_ch{ch}"], n, FEAT_DIM, np.float16)
         tracks[ch] = {name: _reshape(row[f"{name}_ch{ch}"], n, 1, np.int8) for name in TRACK_NAMES}
         fvad[ch] = _reshape(row[f"fvad_ch{ch}"], n, FVAD_DIM, np.float32)
     return DualturnSession(
@@ -116,21 +119,28 @@ def iter_sessions(
     sessions: set[str] | None = None,
     limit: int | None = None,
     shard_glob: str = "*.parquet",
+    include_mimi_feat: bool = True,
 ) -> Iterator[DualturnSession]:
-    """流式遍历 data/*.parquet 的会话行；sessions 给定时只产出命中的会话。"""
+    """流式遍历会话行；可用列投影跳过当前任务不需要的连续 Mimi 特征。"""
     import pyarrow.parquet as pq
 
     data_dir = Path(dualturn_dir) / "data"
     if not data_dir.exists():
         data_dir = Path(dualturn_dir)
+    columns = None
+    if not include_mimi_feat:
+        columns = ["session_id", "dataset", "duration_s", "num_frames"]
+        columns += [f"codes_ch{ch}" for ch in (0, 1)]
+        columns += [f"{name}_ch{ch}" for ch in (0, 1) for name in TRACK_NAMES]
+        columns += [f"fvad_ch{ch}" for ch in (0, 1)]
     n_out = 0
     for shard in sorted(data_dir.glob(shard_glob)):
         pf = pq.ParquetFile(shard)
-        for batch in pf.iter_batches(batch_size=4):
+        for batch in pf.iter_batches(batch_size=4, columns=columns):
             for row in batch.to_pylist():
                 if sessions is not None and str(row.get("session_id")) not in sessions:
                     continue
-                yield _row_to_session(row)
+                yield _row_to_session(row, include_mimi_feat=include_mimi_feat)
                 n_out += 1
                 if limit is not None and n_out >= limit:
                     return

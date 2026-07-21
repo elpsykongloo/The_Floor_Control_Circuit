@@ -1,707 +1,3208 @@
 {
- "generated_at": "2026-07-18T15:03:40.855971+00:00",
- "split": "test",
+ "generated_at": "2026-07-21T07:26:59.964608+00:00",
+ "split": "train_confirm",
  "sessions": [
   {
-   "session": "sw04637",
-   "frames": 3734,
-   "dur_s": 298.7
+   "session": "sw02007",
+   "frames": 7498,
+   "dur_s": 599.8
   },
   {
-   "session": "sw04638",
-   "frames": 3731,
-   "dur_s": 298.4
+   "session": "sw02008",
+   "frames": 2758,
+   "dur_s": 220.6
   },
   {
-   "session": "sw04640",
+   "session": "sw02009",
+   "frames": 3925,
+   "dur_s": 314.0
+  },
+  {
+   "session": "sw02013",
+   "frames": 6909,
+   "dur_s": 552.7
+  },
+  {
+   "session": "sw02015",
+   "frames": 4859,
+   "dur_s": 388.7
+  },
+  {
+   "session": "sw02025",
+   "frames": 4384,
+   "dur_s": 350.7
+  },
+  {
+   "session": "sw02035",
+   "frames": 3843,
+   "dur_s": 307.4
+  },
+  {
+   "session": "sw02038",
+   "frames": 7499,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02054",
+   "frames": 7504,
+   "dur_s": 600.3
+  },
+  {
+   "session": "sw02062",
+   "frames": 7494,
+   "dur_s": 599.5
+  },
+  {
+   "session": "sw02092",
+   "frames": 5004,
+   "dur_s": 400.3
+  },
+  {
+   "session": "sw02093",
+   "frames": 4318,
+   "dur_s": 345.4
+  },
+  {
+   "session": "sw02096",
+   "frames": 6150,
+   "dur_s": 492.0
+  },
+  {
+   "session": "sw02105",
+   "frames": 3454,
+   "dur_s": 276.3
+  },
+  {
+   "session": "sw02123",
+   "frames": 1592,
+   "dur_s": 127.3
+  },
+  {
+   "session": "sw02130",
+   "frames": 5927,
+   "dur_s": 474.1
+  },
+  {
+   "session": "sw02136",
+   "frames": 7507,
+   "dur_s": 600.5
+  },
+  {
+   "session": "sw02153",
+   "frames": 6906,
+   "dur_s": 552.4
+  },
+  {
+   "session": "sw02160",
+   "frames": 5086,
+   "dur_s": 406.9
+  },
+  {
+   "session": "sw02171",
+   "frames": 7499,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02174",
+   "frames": 7498,
+   "dur_s": 599.8
+  },
+  {
+   "session": "sw02176",
+   "frames": 7500,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02182",
+   "frames": 7510,
+   "dur_s": 600.8
+  },
+  {
+   "session": "sw02185",
+   "frames": 7508,
+   "dur_s": 600.6
+  },
+  {
+   "session": "sw02189",
+   "frames": 4034,
+   "dur_s": 322.7
+  },
+  {
+   "session": "sw02190",
+   "frames": 7491,
+   "dur_s": 599.3
+  },
+  {
+   "session": "sw02201",
+   "frames": 7493,
+   "dur_s": 599.4
+  },
+  {
+   "session": "sw02205",
+   "frames": 6027,
+   "dur_s": 482.1
+  },
+  {
+   "session": "sw02224",
+   "frames": 7307,
+   "dur_s": 584.5
+  },
+  {
+   "session": "sw02232",
+   "frames": 7488,
+   "dur_s": 599.0
+  },
+  {
+   "session": "sw02237",
+   "frames": 7510,
+   "dur_s": 600.8
+  },
+  {
+   "session": "sw02238",
+   "frames": 7496,
+   "dur_s": 599.6
+  },
+  {
+   "session": "sw02255",
+   "frames": 7486,
+   "dur_s": 598.9
+  },
+  {
+   "session": "sw02293",
+   "frames": 5178,
+   "dur_s": 414.2
+  },
+  {
+   "session": "sw02296",
+   "frames": 3244,
+   "dur_s": 259.5
+  },
+  {
+   "session": "sw02297",
+   "frames": 7496,
+   "dur_s": 599.6
+  },
+  {
+   "session": "sw02299",
+   "frames": 4687,
+   "dur_s": 374.9
+  },
+  {
+   "session": "sw02302",
+   "frames": 5125,
+   "dur_s": 410.0
+  },
+  {
+   "session": "sw02304",
+   "frames": 4974,
+   "dur_s": 397.9
+  },
+  {
+   "session": "sw02314",
+   "frames": 5622,
+   "dur_s": 449.7
+  },
+  {
+   "session": "sw02333",
+   "frames": 7489,
+   "dur_s": 599.1
+  },
+  {
+   "session": "sw02337",
+   "frames": 7495,
+   "dur_s": 599.6
+  },
+  {
+   "session": "sw02339",
+   "frames": 5629,
+   "dur_s": 450.3
+  },
+  {
+   "session": "sw02348",
+   "frames": 7494,
+   "dur_s": 599.5
+  },
+  {
+   "session": "sw02349",
+   "frames": 3445,
+   "dur_s": 275.5
+  },
+  {
+   "session": "sw02363",
+   "frames": 7503,
+   "dur_s": 600.2
+  },
+  {
+   "session": "sw02369",
+   "frames": 6618,
+   "dur_s": 529.4
+  },
+  {
+   "session": "sw02370",
+   "frames": 7503,
+   "dur_s": 600.2
+  },
+  {
+   "session": "sw02371",
+   "frames": 5090,
+   "dur_s": 407.1
+  },
+  {
+   "session": "sw02374",
+   "frames": 6194,
+   "dur_s": 495.5
+  },
+  {
+   "session": "sw02376",
+   "frames": 4396,
+   "dur_s": 351.6
+  },
+  {
+   "session": "sw02384",
+   "frames": 5606,
+   "dur_s": 448.4
+  },
+  {
+   "session": "sw02390",
+   "frames": 7499,
+   "dur_s": 599.8
+  },
+  {
+   "session": "sw02401",
+   "frames": 4753,
+   "dur_s": 380.2
+  },
+  {
+   "session": "sw02403",
+   "frames": 7485,
+   "dur_s": 598.8
+  },
+  {
+   "session": "sw02419",
+   "frames": 7502,
+   "dur_s": 600.1
+  },
+  {
+   "session": "sw02432",
+   "frames": 7492,
+   "dur_s": 599.3
+  },
+  {
+   "session": "sw02435",
+   "frames": 7504,
+   "dur_s": 600.3
+  },
+  {
+   "session": "sw02453",
+   "frames": 7500,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02463",
+   "frames": 7498,
+   "dur_s": 599.8
+  },
+  {
+   "session": "sw02470",
+   "frames": 7497,
+   "dur_s": 599.7
+  },
+  {
+   "session": "sw02476",
+   "frames": 6770,
+   "dur_s": 541.6
+  },
+  {
+   "session": "sw02479",
+   "frames": 7507,
+   "dur_s": 600.5
+  },
+  {
+   "session": "sw02480",
+   "frames": 5840,
+   "dur_s": 467.1
+  },
+  {
+   "session": "sw02491",
+   "frames": 6774,
+   "dur_s": 541.8
+  },
+  {
+   "session": "sw02497",
+   "frames": 7486,
+   "dur_s": 598.8
+  },
+  {
+   "session": "sw02509",
+   "frames": 5727,
+   "dur_s": 458.2
+  },
+  {
+   "session": "sw02510",
+   "frames": 7500,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02526",
+   "frames": 7494,
+   "dur_s": 599.5
+  },
+  {
+   "session": "sw02530",
+   "frames": 6344,
+   "dur_s": 507.5
+  },
+  {
+   "session": "sw02546",
+   "frames": 4694,
+   "dur_s": 375.5
+  },
+  {
+   "session": "sw02562",
+   "frames": 7501,
+   "dur_s": 600.1
+  },
+  {
+   "session": "sw02568",
+   "frames": 7505,
+   "dur_s": 600.3
+  },
+  {
+   "session": "sw02578",
+   "frames": 7366,
+   "dur_s": 589.2
+  },
+  {
+   "session": "sw02580",
+   "frames": 7507,
+   "dur_s": 600.5
+  },
+  {
+   "session": "sw02586",
+   "frames": 7488,
+   "dur_s": 599.0
+  },
+  {
+   "session": "sw02591",
+   "frames": 7489,
+   "dur_s": 599.1
+  },
+  {
+   "session": "sw02594",
+   "frames": 7505,
+   "dur_s": 600.3
+  },
+  {
+   "session": "sw02598",
+   "frames": 7489,
+   "dur_s": 599.1
+  },
+  {
+   "session": "sw02606",
+   "frames": 7465,
+   "dur_s": 597.2
+  },
+  {
+   "session": "sw02622",
+   "frames": 6627,
+   "dur_s": 530.1
+  },
+  {
+   "session": "sw02625",
+   "frames": 5624,
+   "dur_s": 449.9
+  },
+  {
+   "session": "sw02637",
+   "frames": 6069,
+   "dur_s": 485.5
+  },
+  {
+   "session": "sw02648",
+   "frames": 7487,
+   "dur_s": 598.9
+  },
+  {
+   "session": "sw02650",
+   "frames": 7497,
+   "dur_s": 599.7
+  },
+  {
+   "session": "sw02659",
+   "frames": 7490,
+   "dur_s": 599.2
+  },
+  {
+   "session": "sw02669",
+   "frames": 7499,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02670",
+   "frames": 7510,
+   "dur_s": 600.8
+  },
+  {
+   "session": "sw02678",
+   "frames": 3178,
+   "dur_s": 254.2
+  },
+  {
+   "session": "sw02695",
+   "frames": 7267,
+   "dur_s": 581.3
+  },
+  {
+   "session": "sw02715",
+   "frames": 7511,
+   "dur_s": 600.8
+  },
+  {
+   "session": "sw02733",
+   "frames": 7508,
+   "dur_s": 600.6
+  },
+  {
+   "session": "sw02735",
+   "frames": 7497,
+   "dur_s": 599.7
+  },
+  {
+   "session": "sw02736",
+   "frames": 7499,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02738",
+   "frames": 7135,
+   "dur_s": 570.7
+  },
+  {
+   "session": "sw02748",
+   "frames": 7483,
+   "dur_s": 598.6
+  },
+  {
+   "session": "sw02760",
+   "frames": 7503,
+   "dur_s": 600.2
+  },
+  {
+   "session": "sw02773",
+   "frames": 7202,
+   "dur_s": 576.2
+  },
+  {
+   "session": "sw02788",
+   "frames": 7498,
+   "dur_s": 599.8
+  },
+  {
+   "session": "sw02800",
+   "frames": 4067,
+   "dur_s": 325.4
+  },
+  {
+   "session": "sw02811",
+   "frames": 7493,
+   "dur_s": 599.4
+  },
+  {
+   "session": "sw02816",
+   "frames": 5188,
+   "dur_s": 415.0
+  },
+  {
+   "session": "sw02821",
+   "frames": 6743,
+   "dur_s": 539.4
+  },
+  {
+   "session": "sw02829",
+   "frames": 6750,
+   "dur_s": 540.0
+  },
+  {
+   "session": "sw02831",
+   "frames": 7499,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02832",
+   "frames": 7498,
+   "dur_s": 599.8
+  },
+  {
+   "session": "sw02833",
+   "frames": 4863,
+   "dur_s": 389.0
+  },
+  {
+   "session": "sw02836",
+   "frames": 7500,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02839",
+   "frames": 7049,
+   "dur_s": 563.9
+  },
+  {
+   "session": "sw02842",
+   "frames": 3649,
+   "dur_s": 291.9
+  },
+  {
+   "session": "sw02844",
+   "frames": 5180,
+   "dur_s": 414.4
+  },
+  {
+   "session": "sw02848",
+   "frames": 6214,
+   "dur_s": 497.1
+  },
+  {
+   "session": "sw02849",
+   "frames": 6399,
+   "dur_s": 511.9
+  },
+  {
+   "session": "sw02856",
+   "frames": 7500,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02860",
+   "frames": 7506,
+   "dur_s": 600.4
+  },
+  {
+   "session": "sw02861",
+   "frames": 7514,
+   "dur_s": 601.1
+  },
+  {
+   "session": "sw02864",
+   "frames": 5651,
+   "dur_s": 452.0
+  },
+  {
+   "session": "sw02882",
+   "frames": 7489,
+   "dur_s": 599.0
+  },
+  {
+   "session": "sw02883",
+   "frames": 3049,
+   "dur_s": 243.9
+  },
+  {
+   "session": "sw02884",
+   "frames": 7491,
+   "dur_s": 599.2
+  },
+  {
+   "session": "sw02885",
+   "frames": 7498,
+   "dur_s": 599.8
+  },
+  {
+   "session": "sw02897",
+   "frames": 4752,
+   "dur_s": 380.1
+  },
+  {
+   "session": "sw02900",
+   "frames": 3005,
+   "dur_s": 240.4
+  },
+  {
+   "session": "sw02901",
+   "frames": 7492,
+   "dur_s": 599.3
+  },
+  {
+   "session": "sw02912",
+   "frames": 7500,
+   "dur_s": 599.9
+  },
+  {
+   "session": "sw02931",
+   "frames": 6362,
+   "dur_s": 509.0
+  },
+  {
+   "session": "sw02934",
+   "frames": 6423,
+   "dur_s": 513.8
+  },
+  {
+   "session": "sw02942",
+   "frames": 7495,
+   "dur_s": 599.5
+  },
+  {
+   "session": "sw02952",
+   "frames": 6206,
+   "dur_s": 496.5
+  },
+  {
+   "session": "sw02962",
+   "frames": 5721,
+   "dur_s": 457.7
+  },
+  {
+   "session": "sw02966",
+   "frames": 7498,
+   "dur_s": 599.8
+  },
+  {
+   "session": "sw02973",
+   "frames": 5056,
+   "dur_s": 404.5
+  },
+  {
+   "session": "sw02979",
+   "frames": 5621,
+   "dur_s": 449.6
+  },
+  {
+   "session": "sw02987",
+   "frames": 5619,
+   "dur_s": 449.5
+  },
+  {
+   "session": "sw03007",
+   "frames": 5634,
+   "dur_s": 450.7
+  },
+  {
+   "session": "sw03009",
+   "frames": 5606,
+   "dur_s": 448.4
+  },
+  {
+   "session": "sw03017",
+   "frames": 4557,
+   "dur_s": 364.5
+  },
+  {
+   "session": "sw03018",
+   "frames": 5321,
+   "dur_s": 425.6
+  },
+  {
+   "session": "sw03022",
+   "frames": 5622,
+   "dur_s": 449.7
+  },
+  {
+   "session": "sw03023",
+   "frames": 5623,
+   "dur_s": 449.8
+  },
+  {
+   "session": "sw03025",
+   "frames": 5628,
+   "dur_s": 450.2
+  },
+  {
+   "session": "sw03032",
+   "frames": 5622,
+   "dur_s": 449.7
+  },
+  {
+   "session": "sw03038",
+   "frames": 5621,
+   "dur_s": 449.6
+  },
+  {
+   "session": "sw03053",
+   "frames": 5352,
+   "dur_s": 428.2
+  },
+  {
+   "session": "sw03063",
+   "frames": 5622,
+   "dur_s": 449.7
+  },
+  {
+   "session": "sw03065",
+   "frames": 5609,
+   "dur_s": 448.7
+  },
+  {
+   "session": "sw03069",
+   "frames": 5623,
+   "dur_s": 449.8
+  },
+  {
+   "session": "sw03079",
+   "frames": 5620,
+   "dur_s": 449.6
+  },
+  {
+   "session": "sw03087",
+   "frames": 5632,
+   "dur_s": 450.5
+  },
+  {
+   "session": "sw03120",
+   "frames": 5627,
+   "dur_s": 450.2
+  },
+  {
+   "session": "sw03124",
+   "frames": 5621,
+   "dur_s": 449.6
+  },
+  {
+   "session": "sw03142",
+   "frames": 5634,
+   "dur_s": 450.7
+  },
+  {
+   "session": "sw03146",
+   "frames": 5621,
+   "dur_s": 449.6
+  },
+  {
+   "session": "sw03163",
+   "frames": 3268,
+   "dur_s": 261.4
+  },
+  {
+   "session": "sw03167",
+   "frames": 3747,
+   "dur_s": 299.7
+  },
+  {
+   "session": "sw03193",
+   "frames": 3422,
+   "dur_s": 273.7
+  },
+  {
+   "session": "sw03203",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03221",
    "frames": 3739,
    "dur_s": 299.1
   },
   {
-   "session": "sw04641",
-   "frames": 3740,
-   "dur_s": 299.2
+   "session": "sw03226",
+   "frames": 3747,
+   "dur_s": 299.7
   },
   {
-   "session": "sw04642",
-   "frames": 3737,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04643",
-   "frames": 3736,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04644",
-   "frames": 3737,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04646",
-   "frames": 3721,
-   "dur_s": 297.6
-  },
-  {
-   "session": "sw04649",
-   "frames": 3737,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04650",
-   "frames": 3740,
-   "dur_s": 299.1
-  },
-  {
-   "session": "sw04655",
-   "frames": 3744,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04659",
-   "frames": 3743,
-   "dur_s": 299.4
-  },
-  {
-   "session": "sw04660",
-   "frames": 3729,
-   "dur_s": 298.3
-  },
-  {
-   "session": "sw04661",
-   "frames": 3755,
-   "dur_s": 300.4
-  },
-  {
-   "session": "sw04664",
-   "frames": 3728,
-   "dur_s": 298.2
-  },
-  {
-   "session": "sw04666",
-   "frames": 3715,
-   "dur_s": 297.2
-  },
-  {
-   "session": "sw04667",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04669",
-   "frames": 3749,
-   "dur_s": 299.8
-  },
-  {
-   "session": "sw04674",
-   "frames": 3731,
-   "dur_s": 298.4
-  },
-  {
-   "session": "sw04675",
-   "frames": 3740,
-   "dur_s": 299.2
-  },
-  {
-   "session": "sw04679",
-   "frames": 3736,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04680",
-   "frames": 3751,
-   "dur_s": 300.1
-  },
-  {
-   "session": "sw04681",
-   "frames": 3729,
-   "dur_s": 298.2
-  },
-  {
-   "session": "sw04682",
-   "frames": 3728,
-   "dur_s": 298.2
-  },
-  {
-   "session": "sw04684",
-   "frames": 3751,
-   "dur_s": 300.1
-  },
-  {
-   "session": "sw04687",
-   "frames": 3749,
-   "dur_s": 299.8
-  },
-  {
-   "session": "sw04688",
-   "frames": 3745,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04691",
-   "frames": 3731,
-   "dur_s": 298.5
-  },
-  {
-   "session": "sw04693",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04695",
-   "frames": 3737,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04696",
-   "frames": 3735,
-   "dur_s": 298.8
-  },
-  {
-   "session": "sw04697",
-   "frames": 3750,
-   "dur_s": 299.9
-  },
-  {
-   "session": "sw04698",
-   "frames": 3753,
-   "dur_s": 300.2
-  },
-  {
-   "session": "sw04702",
-   "frames": 3737,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04703",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04707",
-   "frames": 3737,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04709",
-   "frames": 3744,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04710",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04716",
-   "frames": 3745,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04717",
-   "frames": 3741,
-   "dur_s": 299.2
-  },
-  {
-   "session": "sw04718",
-   "frames": 3298,
-   "dur_s": 263.8
-  },
-  {
-   "session": "sw04720",
-   "frames": 3745,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04721",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04723",
-   "frames": 3731,
-   "dur_s": 298.4
-  },
-  {
-   "session": "sw04725",
-   "frames": 3731,
-   "dur_s": 298.4
-  },
-  {
-   "session": "sw04726",
-   "frames": 3720,
-   "dur_s": 297.5
-  },
-  {
-   "session": "sw04728",
-   "frames": 3740,
-   "dur_s": 299.2
-  },
-  {
-   "session": "sw04733",
+   "session": "sw03227",
    "frames": 3732,
    "dur_s": 298.5
   },
   {
-   "session": "sw04734",
-   "frames": 3739,
-   "dur_s": 299.1
-  },
-  {
-   "session": "sw04735",
-   "frames": 3735,
-   "dur_s": 298.8
-  },
-  {
-   "session": "sw04736",
-   "frames": 3737,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04745",
-   "frames": 3736,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04746",
-   "frames": 3747,
-   "dur_s": 299.7
-  },
-  {
-   "session": "sw04749",
-   "frames": 3729,
-   "dur_s": 298.3
-  },
-  {
-   "session": "sw04752",
-   "frames": 3745,
-   "dur_s": 299.6
-  },
-  {
-   "session": "sw04756",
-   "frames": 3746,
-   "dur_s": 299.6
-  },
-  {
-   "session": "sw04758",
-   "frames": 3746,
-   "dur_s": 299.6
-  },
-  {
-   "session": "sw04759",
-   "frames": 3723,
-   "dur_s": 297.8
-  },
-  {
-   "session": "sw04761",
-   "frames": 3726,
-   "dur_s": 298.0
-  },
-  {
-   "session": "sw04765",
-   "frames": 3729,
-   "dur_s": 298.3
-  },
-  {
-   "session": "sw04769",
+   "session": "sw03229",
    "frames": 3733,
    "dur_s": 298.6
   },
   {
-   "session": "sw04770",
-   "frames": 3743,
-   "dur_s": 299.4
+   "session": "sw03233",
+   "frames": 3733,
+   "dur_s": 298.6
   },
   {
-   "session": "sw04771",
+   "session": "sw03236",
+   "frames": 3685,
+   "dur_s": 294.7
+  },
+  {
+   "session": "sw03260",
    "frames": 3744,
    "dur_s": 299.5
   },
   {
-   "session": "sw04774",
-   "frames": 3745,
-   "dur_s": 299.6
+   "session": "sw03261",
+   "frames": 3732,
+   "dur_s": 298.5
   },
   {
-   "session": "sw04784",
-   "frames": 3724,
-   "dur_s": 297.9
-  },
-  {
-   "session": "sw04785",
-   "frames": 3755,
-   "dur_s": 300.3
-  },
-  {
-   "session": "sw04787",
-   "frames": 3745,
-   "dur_s": 299.6
-  },
-  {
-   "session": "sw04788",
-   "frames": 3739,
-   "dur_s": 299.1
-  },
-  {
-   "session": "sw04792",
-   "frames": 3736,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04796",
-   "frames": 3757,
-   "dur_s": 300.5
-  },
-  {
-   "session": "sw04798",
-   "frames": 3721,
-   "dur_s": 297.6
-  },
-  {
-   "session": "sw04799",
-   "frames": 3737,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04801",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04802",
-   "frames": 3735,
-   "dur_s": 298.8
-  },
-  {
-   "session": "sw04803",
-   "frames": 3745,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04804",
-   "frames": 3731,
-   "dur_s": 298.4
-  },
-  {
-   "session": "sw04805",
-   "frames": 3739,
-   "dur_s": 299.1
-  },
-  {
-   "session": "sw04809",
-   "frames": 3747,
-   "dur_s": 299.7
-  },
-  {
-   "session": "sw04811",
-   "frames": 3727,
-   "dur_s": 298.1
-  },
-  {
-   "session": "sw04812",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04814",
-   "frames": 3743,
-   "dur_s": 299.4
-  },
-  {
-   "session": "sw04815",
-   "frames": 3744,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04816",
-   "frames": 3728,
-   "dur_s": 298.2
-  },
-  {
-   "session": "sw04818",
-   "frames": 3750,
-   "dur_s": 299.9
-  },
-  {
-   "session": "sw04821",
-   "frames": 3739,
-   "dur_s": 299.1
-  },
-  {
-   "session": "sw04822",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04823",
-   "frames": 3742,
-   "dur_s": 299.3
-  },
-  {
-   "session": "sw04825",
-   "frames": 3739,
-   "dur_s": 299.0
-  },
-  {
-   "session": "sw04826",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04829",
-   "frames": 3750,
-   "dur_s": 299.9
-  },
-  {
-   "session": "sw04830",
-   "frames": 3735,
-   "dur_s": 298.8
-  },
-  {
-   "session": "sw04831",
-   "frames": 3754,
-   "dur_s": 300.3
-  },
-  {
-   "session": "sw04832",
-   "frames": 3724,
-   "dur_s": 297.9
-  },
-  {
-   "session": "sw04833",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04834",
-   "frames": 3752,
-   "dur_s": 300.1
-  },
-  {
-   "session": "sw04835",
-   "frames": 3747,
-   "dur_s": 299.7
-  },
-  {
-   "session": "sw04836",
-   "frames": 3725,
-   "dur_s": 297.9
-  },
-  {
-   "session": "sw04837",
-   "frames": 3728,
-   "dur_s": 298.2
-  },
-  {
-   "session": "sw04840",
-   "frames": 3736,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04843",
-   "frames": 3745,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04845",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04846",
-   "frames": 3735,
-   "dur_s": 298.7
-  },
-  {
-   "session": "sw04847",
-   "frames": 3739,
-   "dur_s": 299.1
-  },
-  {
-   "session": "sw04856",
-   "frames": 3753,
-   "dur_s": 300.2
-  },
-  {
-   "session": "sw04858",
-   "frames": 3728,
-   "dur_s": 298.2
-  },
-  {
-   "session": "sw04859",
-   "frames": 3751,
-   "dur_s": 300.1
-  },
-  {
-   "session": "sw04861",
-   "frames": 3727,
-   "dur_s": 298.1
-  },
-  {
-   "session": "sw04863",
-   "frames": 3744,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04868",
-   "frames": 3721,
-   "dur_s": 297.6
-  },
-  {
-   "session": "sw04869",
-   "frames": 3728,
-   "dur_s": 298.2
-  },
-  {
-   "session": "sw04871",
-   "frames": 3735,
-   "dur_s": 298.7
-  },
-  {
-   "session": "sw04874",
-   "frames": 3736,
-   "dur_s": 298.9
-  },
-  {
-   "session": "sw04875",
-   "frames": 3746,
-   "dur_s": 299.6
-  },
-  {
-   "session": "sw04876",
-   "frames": 3749,
-   "dur_s": 299.8
-  },
-  {
-   "session": "sw04877",
-   "frames": 3739,
-   "dur_s": 299.0
-  },
-  {
-   "session": "sw04879",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04880",
-   "frames": 3735,
-   "dur_s": 298.7
-  },
-  {
-   "session": "sw04883",
-   "frames": 3739,
-   "dur_s": 299.1
-  },
-  {
-   "session": "sw04886",
-   "frames": 3735,
-   "dur_s": 298.7
-  },
-  {
-   "session": "sw04890",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04891",
+   "session": "sw03273",
    "frames": 3731,
    "dur_s": 298.5
   },
   {
-   "session": "sw04895",
-   "frames": 3758,
-   "dur_s": 300.6
+   "session": "sw03277",
+   "frames": 3733,
+   "dur_s": 298.6
   },
   {
-   "session": "sw04899",
+   "session": "sw03284",
    "frames": 3736,
    "dur_s": 298.9
   },
   {
-   "session": "sw04901",
-   "frames": 3744,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04902",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04903",
-   "frames": 3745,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04905",
-   "frames": 3733,
-   "dur_s": 298.6
-  },
-  {
-   "session": "sw04908",
-   "frames": 3740,
+   "session": "sw03291",
+   "frames": 3741,
    "dur_s": 299.2
   },
   {
-   "session": "sw04909",
-   "frames": 3724,
-   "dur_s": 297.9
+   "session": "sw03292",
+   "frames": 3158,
+   "dur_s": 252.6
   },
   {
-   "session": "sw04911",
-   "frames": 3727,
-   "dur_s": 298.1
-  },
-  {
-   "session": "sw04914",
-   "frames": 3740,
-   "dur_s": 299.2
-  },
-  {
-   "session": "sw04917",
-   "frames": 3745,
-   "dur_s": 299.5
-  },
-  {
-   "session": "sw04925",
+   "session": "sw03295",
    "frames": 3737,
    "dur_s": 298.9
   },
   {
-   "session": "sw04926",
-   "frames": 3747,
-   "dur_s": 299.7
+   "session": "sw03300",
+   "frames": 3740,
+   "dur_s": 299.2
   },
   {
-   "session": "sw04927",
-   "frames": 3724,
-   "dur_s": 297.9
+   "session": "sw03315",
+   "frames": 3731,
+   "dur_s": 298.4
   },
   {
-   "session": "sw04928",
-   "frames": 3742,
-   "dur_s": 299.3
+   "session": "sw03322",
+   "frames": 3733,
+   "dur_s": 298.6
   },
   {
-   "session": "sw04936",
+   "session": "sw03326",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03331",
+   "frames": 2393,
+   "dur_s": 191.4
+  },
+  {
+   "session": "sw03339",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03343",
+   "frames": 3746,
+   "dur_s": 299.6
+  },
+  {
+   "session": "sw03347",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03351",
+   "frames": 3736,
+   "dur_s": 298.9
+  },
+  {
+   "session": "sw03363",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03370",
+   "frames": 3745,
+   "dur_s": 299.6
+  },
+  {
+   "session": "sw03374",
    "frames": 3739,
    "dur_s": 299.1
   },
   {
-   "session": "sw04940",
+   "session": "sw03398",
+   "frames": 3514,
+   "dur_s": 281.1
+  },
+  {
+   "session": "sw03399",
+   "frames": 3745,
+   "dur_s": 299.6
+  },
+  {
+   "session": "sw03404",
+   "frames": 3751,
+   "dur_s": 300.1
+  },
+  {
+   "session": "sw03407",
+   "frames": 3746,
+   "dur_s": 299.6
+  },
+  {
+   "session": "sw03411",
+   "frames": 3744,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03416",
+   "frames": 3731,
+   "dur_s": 298.5
+  },
+  {
+   "session": "sw03421",
+   "frames": 3227,
+   "dur_s": 258.1
+  },
+  {
+   "session": "sw03424",
+   "frames": 3739,
+   "dur_s": 299.0
+  },
+  {
+   "session": "sw03427",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03444",
+   "frames": 3723,
+   "dur_s": 297.8
+  },
+  {
+   "session": "sw03453",
+   "frames": 3739,
+   "dur_s": 299.1
+  },
+  {
+   "session": "sw03455",
+   "frames": 3744,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03458",
+   "frames": 3743,
+   "dur_s": 299.4
+  },
+  {
+   "session": "sw03465",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03467",
    "frames": 3749,
+   "dur_s": 299.8
+  },
+  {
+   "session": "sw03473",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03490",
+   "frames": 3747,
+   "dur_s": 299.7
+  },
+  {
+   "session": "sw03499",
+   "frames": 3739,
+   "dur_s": 299.0
+  },
+  {
+   "session": "sw03506",
+   "frames": 3743,
+   "dur_s": 299.4
+  },
+  {
+   "session": "sw03513",
+   "frames": 3731,
+   "dur_s": 298.4
+  },
+  {
+   "session": "sw03514",
+   "frames": 3751,
+   "dur_s": 300.1
+  },
+  {
+   "session": "sw03526",
+   "frames": 3737,
+   "dur_s": 298.9
+  },
+  {
+   "session": "sw03531",
+   "frames": 3739,
+   "dur_s": 299.1
+  },
+  {
+   "session": "sw03532",
+   "frames": 3731,
+   "dur_s": 298.5
+  },
+  {
+   "session": "sw03542",
+   "frames": 3736,
+   "dur_s": 298.9
+  },
+  {
+   "session": "sw03544",
+   "frames": 3746,
+   "dur_s": 299.6
+  },
+  {
+   "session": "sw03546",
+   "frames": 3720,
+   "dur_s": 297.5
+  },
+  {
+   "session": "sw03553",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03555",
+   "frames": 3731,
+   "dur_s": 298.5
+  },
+  {
+   "session": "sw03560",
+   "frames": 3739,
+   "dur_s": 299.0
+  },
+  {
+   "session": "sw03561",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03562",
+   "frames": 3735,
+   "dur_s": 298.8
+  },
+  {
+   "session": "sw03566",
+   "frames": 3740,
+   "dur_s": 299.2
+  },
+  {
+   "session": "sw03569",
+   "frames": 3747,
+   "dur_s": 299.7
+  },
+  {
+   "session": "sw03571",
+   "frames": 3740,
+   "dur_s": 299.2
+  },
+  {
+   "session": "sw03578",
+   "frames": 3725,
+   "dur_s": 298.0
+  },
+  {
+   "session": "sw03580",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03583",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03585",
+   "frames": 3749,
+   "dur_s": 299.8
+  },
+  {
+   "session": "sw03595",
+   "frames": 3725,
+   "dur_s": 298.0
+  },
+  {
+   "session": "sw03597",
+   "frames": 3737,
+   "dur_s": 298.9
+  },
+  {
+   "session": "sw03600",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03623",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03631",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03638",
+   "frames": 3740,
+   "dur_s": 299.2
+  },
+  {
+   "session": "sw03647",
+   "frames": 3751,
+   "dur_s": 300.1
+  },
+  {
+   "session": "sw03650",
+   "frames": 3742,
+   "dur_s": 299.3
+  },
+  {
+   "session": "sw03660",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03667",
+   "frames": 3577,
+   "dur_s": 286.1
+  },
+  {
+   "session": "sw03673",
+   "frames": 3737,
+   "dur_s": 298.9
+  },
+  {
+   "session": "sw03678",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03680",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03689",
+   "frames": 3744,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03698",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03705",
+   "frames": 3723,
+   "dur_s": 297.8
+  },
+  {
+   "session": "sw03713",
+   "frames": 3742,
+   "dur_s": 299.3
+  },
+  {
+   "session": "sw03715",
+   "frames": 3742,
+   "dur_s": 299.3
+  },
+  {
+   "session": "sw03717",
+   "frames": 3747,
+   "dur_s": 299.7
+  },
+  {
+   "session": "sw03719",
+   "frames": 3723,
+   "dur_s": 297.8
+  },
+  {
+   "session": "sw03721",
+   "frames": 3740,
+   "dur_s": 299.2
+  },
+  {
+   "session": "sw03730",
+   "frames": 3008,
+   "dur_s": 240.6
+  },
+  {
+   "session": "sw03731",
+   "frames": 3750,
    "dur_s": 299.9
+  },
+  {
+   "session": "sw03736",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03748",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03761",
+   "frames": 3720,
+   "dur_s": 297.5
+  },
+  {
+   "session": "sw03767",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03793",
+   "frames": 3735,
+   "dur_s": 298.8
+  },
+  {
+   "session": "sw03795",
+   "frames": 3731,
+   "dur_s": 298.5
+  },
+  {
+   "session": "sw03818",
+   "frames": 3743,
+   "dur_s": 299.4
+  },
+  {
+   "session": "sw03829",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03843",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03848",
+   "frames": 3734,
+   "dur_s": 298.7
+  },
+  {
+   "session": "sw03850",
+   "frames": 3735,
+   "dur_s": 298.8
+  },
+  {
+   "session": "sw03856",
+   "frames": 3735,
+   "dur_s": 298.7
+  },
+  {
+   "session": "sw03867",
+   "frames": 3741,
+   "dur_s": 299.2
+  },
+  {
+   "session": "sw03874",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03875",
+   "frames": 3749,
+   "dur_s": 299.8
+  },
+  {
+   "session": "sw03880",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03888",
+   "frames": 3720,
+   "dur_s": 297.5
+  },
+  {
+   "session": "sw03892",
+   "frames": 3749,
+   "dur_s": 299.8
+  },
+  {
+   "session": "sw03899",
+   "frames": 3743,
+   "dur_s": 299.4
+  },
+  {
+   "session": "sw03910",
+   "frames": 3757,
+   "dur_s": 300.5
+  },
+  {
+   "session": "sw03912",
+   "frames": 3735,
+   "dur_s": 298.8
+  },
+  {
+   "session": "sw03915",
+   "frames": 3743,
+   "dur_s": 299.4
+  },
+  {
+   "session": "sw03919",
+   "frames": 3744,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw03922",
+   "frames": 3742,
+   "dur_s": 299.3
+  },
+  {
+   "session": "sw03928",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03976",
+   "frames": 3735,
+   "dur_s": 298.8
+  },
+  {
+   "session": "sw03984",
+   "frames": 3747,
+   "dur_s": 299.7
+  },
+  {
+   "session": "sw03986",
+   "frames": 3747,
+   "dur_s": 299.7
+  },
+  {
+   "session": "sw03990",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw03996",
+   "frames": 3735,
+   "dur_s": 298.7
+  },
+  {
+   "session": "sw03998",
+   "frames": 3742,
+   "dur_s": 299.3
+  },
+  {
+   "session": "sw04006",
+   "frames": 3746,
+   "dur_s": 299.6
+  },
+  {
+   "session": "sw04012",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw04016",
+   "frames": 3757,
+   "dur_s": 300.5
+  },
+  {
+   "session": "sw04027",
+   "frames": 3744,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw04030",
+   "frames": 3743,
+   "dur_s": 299.4
+  },
+  {
+   "session": "sw04035",
+   "frames": 3747,
+   "dur_s": 299.7
+  },
+  {
+   "session": "sw04037",
+   "frames": 3735,
+   "dur_s": 298.8
+  },
+  {
+   "session": "sw04054",
+   "frames": 3749,
+   "dur_s": 299.8
+  },
+  {
+   "session": "sw04069",
+   "frames": 3739,
+   "dur_s": 299.1
+  },
+  {
+   "session": "sw04072",
+   "frames": 3751,
+   "dur_s": 300.1
+  },
+  {
+   "session": "sw04074",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw04080",
+   "frames": 3751,
+   "dur_s": 300.1
+  },
+  {
+   "session": "sw04083",
+   "frames": 3739,
+   "dur_s": 299.0
+  },
+  {
+   "session": "sw04086",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw04090",
+   "frames": 3731,
+   "dur_s": 298.5
+  },
+  {
+   "session": "sw04094",
+   "frames": 3745,
+   "dur_s": 299.5
+  },
+  {
+   "session": "sw04095",
+   "frames": 3739,
+   "dur_s": 299.1
+  },
+  {
+   "session": "sw04097",
+   "frames": 3727,
+   "dur_s": 298.1
+  },
+  {
+   "session": "sw04112",
+   "frames": 3737,
+   "dur_s": 298.9
+  },
+  {
+   "session": "sw04113",
+   "frames": 3746,
+   "dur_s": 299.6
+  },
+  {
+   "session": "sw04121",
+   "frames": 3733,
+   "dur_s": 298.6
+  },
+  {
+   "session": "sw04125",
+   "frames": 3740,
+   "dur_s": 299.2
+  },
+  {
+   "session": "sw04127",
+   "frames": 3735,
+   "dur_s": 298.8
+  },
+  {
+   "session": "sw04128",
+   "frames": 3731,
+   "dur_s": 298.4
   }
  ],
- "n_ok": 138,
+ "n_ok": 300,
+ "roster": {
+  "path": "configs/splits/dualturn_train_confirm.json",
+  "n_sessions": 300
+ },
  "source_shards": {
-  "glob": "test-*.parquet",
-  "n_split_ids": 138,
-  "n_release_ids": 138,
-  "n_expected_available": 138,
+  "glob": "train-*.parquet",
+  "n_split_ids": 300,
+  "n_release_ids": 1986,
+  "n_expected_available": 300,
   "missing_from_release": [],
   "undeclared_missing": [],
-  "extra_in_release": []
+  "extra_in_release": [
+   "sw02001",
+   "sw02005",
+   "sw02006",
+   "sw02010",
+   "sw02012",
+   "sw02014",
+   "sw02017",
+   "sw02018",
+   "sw02019",
+   "sw02020",
+   "sw02022",
+   "sw02023",
+   "sw02024",
+   "sw02027",
+   "sw02028",
+   "sw02032",
+   "sw02036",
+   "sw02039",
+   "sw02040",
+   "sw02041",
+   "sw02044",
+   "sw02045",
+   "sw02050",
+   "sw02051",
+   "sw02053",
+   "sw02055",
+   "sw02056",
+   "sw02057",
+   "sw02060",
+   "sw02061",
+   "sw02064",
+   "sw02065",
+   "sw02067",
+   "sw02071",
+   "sw02072",
+   "sw02073",
+   "sw02078",
+   "sw02079",
+   "sw02080",
+   "sw02082",
+   "sw02083",
+   "sw02085",
+   "sw02086",
+   "sw02087",
+   "sw02089",
+   "sw02090",
+   "sw02091",
+   "sw02094",
+   "sw02095",
+   "sw02101",
+   "sw02102",
+   "sw02104",
+   "sw02107",
+   "sw02108",
+   "sw02109",
+   "sw02110",
+   "sw02111",
+   "sw02113",
+   "sw02114",
+   "sw02116",
+   "sw02118",
+   "sw02120",
+   "sw02121",
+   "sw02122",
+   "sw02124",
+   "sw02125",
+   "sw02129",
+   "sw02131",
+   "sw02137",
+   "sw02139",
+   "sw02141",
+   "sw02145",
+   "sw02149",
+   "sw02150",
+   "sw02151",
+   "sw02152",
+   "sw02154",
+   "sw02155",
+   "sw02157",
+   "sw02158",
+   "sw02161",
+   "sw02162",
+   "sw02163",
+   "sw02164",
+   "sw02165",
+   "sw02166",
+   "sw02167",
+   "sw02168",
+   "sw02169",
+   "sw02172",
+   "sw02173",
+   "sw02175",
+   "sw02177",
+   "sw02178",
+   "sw02179",
+   "sw02180",
+   "sw02181",
+   "sw02184",
+   "sw02186",
+   "sw02187",
+   "sw02191",
+   "sw02193",
+   "sw02194",
+   "sw02195",
+   "sw02196",
+   "sw02197",
+   "sw02198",
+   "sw02199",
+   "sw02202",
+   "sw02203",
+   "sw02204",
+   "sw02206",
+   "sw02220",
+   "sw02221",
+   "sw02222",
+   "sw02223",
+   "sw02226",
+   "sw02227",
+   "sw02228",
+   "sw02229",
+   "sw02230",
+   "sw02231",
+   "sw02233",
+   "sw02234",
+   "sw02235",
+   "sw02236",
+   "sw02239",
+   "sw02240",
+   "sw02241",
+   "sw02242",
+   "sw02243",
+   "sw02244",
+   "sw02245",
+   "sw02246",
+   "sw02247",
+   "sw02248",
+   "sw02249",
+   "sw02250",
+   "sw02251",
+   "sw02252",
+   "sw02253",
+   "sw02254",
+   "sw02256",
+   "sw02257",
+   "sw02258",
+   "sw02259",
+   "sw02260",
+   "sw02261",
+   "sw02262",
+   "sw02263",
+   "sw02264",
+   "sw02265",
+   "sw02266",
+   "sw02267",
+   "sw02268",
+   "sw02269",
+   "sw02270",
+   "sw02271",
+   "sw02272",
+   "sw02273",
+   "sw02274",
+   "sw02275",
+   "sw02276",
+   "sw02277",
+   "sw02278",
+   "sw02279",
+   "sw02280",
+   "sw02281",
+   "sw02282",
+   "sw02283",
+   "sw02284",
+   "sw02285",
+   "sw02286",
+   "sw02287",
+   "sw02288",
+   "sw02290",
+   "sw02291",
+   "sw02292",
+   "sw02294",
+   "sw02295",
+   "sw02298",
+   "sw02300",
+   "sw02301",
+   "sw02303",
+   "sw02305",
+   "sw02306",
+   "sw02307",
+   "sw02308",
+   "sw02309",
+   "sw02310",
+   "sw02311",
+   "sw02312",
+   "sw02313",
+   "sw02315",
+   "sw02316",
+   "sw02317",
+   "sw02318",
+   "sw02319",
+   "sw02320",
+   "sw02323",
+   "sw02324",
+   "sw02325",
+   "sw02326",
+   "sw02327",
+   "sw02328",
+   "sw02330",
+   "sw02331",
+   "sw02332",
+   "sw02334",
+   "sw02335",
+   "sw02336",
+   "sw02338",
+   "sw02340",
+   "sw02341",
+   "sw02342",
+   "sw02343",
+   "sw02344",
+   "sw02345",
+   "sw02346",
+   "sw02347",
+   "sw02350",
+   "sw02352",
+   "sw02353",
+   "sw02354",
+   "sw02355",
+   "sw02356",
+   "sw02358",
+   "sw02359",
+   "sw02360",
+   "sw02361",
+   "sw02362",
+   "sw02365",
+   "sw02366",
+   "sw02367",
+   "sw02368",
+   "sw02372",
+   "sw02373",
+   "sw02375",
+   "sw02377",
+   "sw02378",
+   "sw02379",
+   "sw02380",
+   "sw02381",
+   "sw02382",
+   "sw02383",
+   "sw02387",
+   "sw02388",
+   "sw02389",
+   "sw02392",
+   "sw02393",
+   "sw02394",
+   "sw02395",
+   "sw02396",
+   "sw02397",
+   "sw02398",
+   "sw02399",
+   "sw02402",
+   "sw02404",
+   "sw02405",
+   "sw02406",
+   "sw02407",
+   "sw02408",
+   "sw02409",
+   "sw02410",
+   "sw02411",
+   "sw02413",
+   "sw02415",
+   "sw02416",
+   "sw02417",
+   "sw02418",
+   "sw02420",
+   "sw02421",
+   "sw02422",
+   "sw02423",
+   "sw02424",
+   "sw02426",
+   "sw02427",
+   "sw02428",
+   "sw02429",
+   "sw02430",
+   "sw02431",
+   "sw02433",
+   "sw02434",
+   "sw02436",
+   "sw02437",
+   "sw02438",
+   "sw02439",
+   "sw02440",
+   "sw02441",
+   "sw02442",
+   "sw02443",
+   "sw02444",
+   "sw02445",
+   "sw02446",
+   "sw02447",
+   "sw02448",
+   "sw02450",
+   "sw02451",
+   "sw02452",
+   "sw02454",
+   "sw02455",
+   "sw02456",
+   "sw02457",
+   "sw02458",
+   "sw02459",
+   "sw02460",
+   "sw02461",
+   "sw02464",
+   "sw02465",
+   "sw02466",
+   "sw02467",
+   "sw02468",
+   "sw02469",
+   "sw02471",
+   "sw02472",
+   "sw02473",
+   "sw02474",
+   "sw02477",
+   "sw02478",
+   "sw02481",
+   "sw02482",
+   "sw02483",
+   "sw02484",
+   "sw02485",
+   "sw02486",
+   "sw02487",
+   "sw02488",
+   "sw02489",
+   "sw02490",
+   "sw02492",
+   "sw02493",
+   "sw02494",
+   "sw02495",
+   "sw02496",
+   "sw02498",
+   "sw02499",
+   "sw02500",
+   "sw02501",
+   "sw02502",
+   "sw02503",
+   "sw02504",
+   "sw02505",
+   "sw02506",
+   "sw02507",
+   "sw02508",
+   "sw02511",
+   "sw02513",
+   "sw02514",
+   "sw02515",
+   "sw02517",
+   "sw02518",
+   "sw02519",
+   "sw02520",
+   "sw02521",
+   "sw02522",
+   "sw02523",
+   "sw02524",
+   "sw02525",
+   "sw02527",
+   "sw02528",
+   "sw02529",
+   "sw02531",
+   "sw02532",
+   "sw02533",
+   "sw02534",
+   "sw02536",
+   "sw02537",
+   "sw02538",
+   "sw02539",
+   "sw02540",
+   "sw02543",
+   "sw02545",
+   "sw02547",
+   "sw02548",
+   "sw02549",
+   "sw02550",
+   "sw02551",
+   "sw02552",
+   "sw02553",
+   "sw02554",
+   "sw02556",
+   "sw02557",
+   "sw02558",
+   "sw02559",
+   "sw02560",
+   "sw02561",
+   "sw02563",
+   "sw02564",
+   "sw02565",
+   "sw02566",
+   "sw02567",
+   "sw02569",
+   "sw02570",
+   "sw02571",
+   "sw02572",
+   "sw02573",
+   "sw02574",
+   "sw02575",
+   "sw02576",
+   "sw02577",
+   "sw02579",
+   "sw02582",
+   "sw02583",
+   "sw02584",
+   "sw02585",
+   "sw02587",
+   "sw02588",
+   "sw02589",
+   "sw02592",
+   "sw02593",
+   "sw02595",
+   "sw02596",
+   "sw02597",
+   "sw02599",
+   "sw02600",
+   "sw02602",
+   "sw02604",
+   "sw02605",
+   "sw02608",
+   "sw02609",
+   "sw02610",
+   "sw02611",
+   "sw02612",
+   "sw02613",
+   "sw02614",
+   "sw02615",
+   "sw02616",
+   "sw02617",
+   "sw02618",
+   "sw02619",
+   "sw02620",
+   "sw02621",
+   "sw02623",
+   "sw02624",
+   "sw02626",
+   "sw02627",
+   "sw02628",
+   "sw02629",
+   "sw02630",
+   "sw02631",
+   "sw02632",
+   "sw02633",
+   "sw02634",
+   "sw02635",
+   "sw02636",
+   "sw02638",
+   "sw02640",
+   "sw02641",
+   "sw02642",
+   "sw02643",
+   "sw02644",
+   "sw02645",
+   "sw02646",
+   "sw02647",
+   "sw02649",
+   "sw02651",
+   "sw02652",
+   "sw02653",
+   "sw02654",
+   "sw02656",
+   "sw02657",
+   "sw02658",
+   "sw02661",
+   "sw02662",
+   "sw02663",
+   "sw02664",
+   "sw02665",
+   "sw02666",
+   "sw02667",
+   "sw02668",
+   "sw02671",
+   "sw02672",
+   "sw02673",
+   "sw02674",
+   "sw02675",
+   "sw02676",
+   "sw02679",
+   "sw02680",
+   "sw02681",
+   "sw02682",
+   "sw02684",
+   "sw02685",
+   "sw02686",
+   "sw02687",
+   "sw02688",
+   "sw02689",
+   "sw02690",
+   "sw02691",
+   "sw02692",
+   "sw02693",
+   "sw02694",
+   "sw02696",
+   "sw02697",
+   "sw02698",
+   "sw02699",
+   "sw02700",
+   "sw02701",
+   "sw02702",
+   "sw02703",
+   "sw02704",
+   "sw02705",
+   "sw02707",
+   "sw02708",
+   "sw02709",
+   "sw02710",
+   "sw02711",
+   "sw02712",
+   "sw02713",
+   "sw02714",
+   "sw02716",
+   "sw02717",
+   "sw02718",
+   "sw02719",
+   "sw02720",
+   "sw02721",
+   "sw02722",
+   "sw02723",
+   "sw02724",
+   "sw02725",
+   "sw02726",
+   "sw02727",
+   "sw02728",
+   "sw02729",
+   "sw02730",
+   "sw02731",
+   "sw02732",
+   "sw02734",
+   "sw02737",
+   "sw02739",
+   "sw02740",
+   "sw02741",
+   "sw02742",
+   "sw02743",
+   "sw02744",
+   "sw02746",
+   "sw02747",
+   "sw02749",
+   "sw02750",
+   "sw02751",
+   "sw02752",
+   "sw02753",
+   "sw02754",
+   "sw02756",
+   "sw02757",
+   "sw02758",
+   "sw02759",
+   "sw02761",
+   "sw02762",
+   "sw02763",
+   "sw02764",
+   "sw02765",
+   "sw02766",
+   "sw02767",
+   "sw02768",
+   "sw02769",
+   "sw02770",
+   "sw02771",
+   "sw02772",
+   "sw02774",
+   "sw02776",
+   "sw02777",
+   "sw02778",
+   "sw02779",
+   "sw02780",
+   "sw02781",
+   "sw02782",
+   "sw02783",
+   "sw02785",
+   "sw02786",
+   "sw02787",
+   "sw02789",
+   "sw02790",
+   "sw02791",
+   "sw02792",
+   "sw02793",
+   "sw02794",
+   "sw02795",
+   "sw02796",
+   "sw02797",
+   "sw02798",
+   "sw02799",
+   "sw02801",
+   "sw02802",
+   "sw02803",
+   "sw02804",
+   "sw02805",
+   "sw02806",
+   "sw02807",
+   "sw02808",
+   "sw02809",
+   "sw02810",
+   "sw02812",
+   "sw02813",
+   "sw02814",
+   "sw02815",
+   "sw02817",
+   "sw02818",
+   "sw02819",
+   "sw02820",
+   "sw02822",
+   "sw02823",
+   "sw02824",
+   "sw02825",
+   "sw02826",
+   "sw02827",
+   "sw02828",
+   "sw02830",
+   "sw02834",
+   "sw02835",
+   "sw02837",
+   "sw02838",
+   "sw02840",
+   "sw02841",
+   "sw02843",
+   "sw02845",
+   "sw02846",
+   "sw02847",
+   "sw02850",
+   "sw02851",
+   "sw02852",
+   "sw02853",
+   "sw02854",
+   "sw02855",
+   "sw02858",
+   "sw02859",
+   "sw02862",
+   "sw02863",
+   "sw02865",
+   "sw02866",
+   "sw02867",
+   "sw02868",
+   "sw02869",
+   "sw02870",
+   "sw02871",
+   "sw02872",
+   "sw02873",
+   "sw02874",
+   "sw02875",
+   "sw02876",
+   "sw02877",
+   "sw02878",
+   "sw02879",
+   "sw02886",
+   "sw02887",
+   "sw02888",
+   "sw02889",
+   "sw02890",
+   "sw02891",
+   "sw02892",
+   "sw02893",
+   "sw02894",
+   "sw02895",
+   "sw02896",
+   "sw02898",
+   "sw02899",
+   "sw02909",
+   "sw02910",
+   "sw02913",
+   "sw02914",
+   "sw02915",
+   "sw02916",
+   "sw02917",
+   "sw02918",
+   "sw02919",
+   "sw02920",
+   "sw02921",
+   "sw02922",
+   "sw02923",
+   "sw02924",
+   "sw02925",
+   "sw02926",
+   "sw02927",
+   "sw02928",
+   "sw02929",
+   "sw02930",
+   "sw02932",
+   "sw02933",
+   "sw02935",
+   "sw02936",
+   "sw02937",
+   "sw02938",
+   "sw02939",
+   "sw02940",
+   "sw02941",
+   "sw02943",
+   "sw02944",
+   "sw02945",
+   "sw02950",
+   "sw02951",
+   "sw02953",
+   "sw02954",
+   "sw02955",
+   "sw02956",
+   "sw02957",
+   "sw02958",
+   "sw02959",
+   "sw02960",
+   "sw02961",
+   "sw02963",
+   "sw02964",
+   "sw02965",
+   "sw02967",
+   "sw02968",
+   "sw02969",
+   "sw02970",
+   "sw02978",
+   "sw02980",
+   "sw02981",
+   "sw02982",
+   "sw02983",
+   "sw02984",
+   "sw02985",
+   "sw02986",
+   "sw02988",
+   "sw02989",
+   "sw02990",
+   "sw02991",
+   "sw02992",
+   "sw02993",
+   "sw02994",
+   "sw02995",
+   "sw02996",
+   "sw02997",
+   "sw02998",
+   "sw02999",
+   "sw03000",
+   "sw03001",
+   "sw03002",
+   "sw03003",
+   "sw03004",
+   "sw03005",
+   "sw03006",
+   "sw03008",
+   "sw03010",
+   "sw03011",
+   "sw03012",
+   "sw03013",
+   "sw03014",
+   "sw03015",
+   "sw03016",
+   "sw03019",
+   "sw03020",
+   "sw03021",
+   "sw03024",
+   "sw03026",
+   "sw03027",
+   "sw03028",
+   "sw03029",
+   "sw03030",
+   "sw03031",
+   "sw03033",
+   "sw03034",
+   "sw03035",
+   "sw03036",
+   "sw03037",
+   "sw03039",
+   "sw03040",
+   "sw03041",
+   "sw03042",
+   "sw03043",
+   "sw03044",
+   "sw03045",
+   "sw03046",
+   "sw03047",
+   "sw03048",
+   "sw03049",
+   "sw03050",
+   "sw03051",
+   "sw03052",
+   "sw03054",
+   "sw03055",
+   "sw03056",
+   "sw03057",
+   "sw03058",
+   "sw03059",
+   "sw03060",
+   "sw03061",
+   "sw03062",
+   "sw03064",
+   "sw03066",
+   "sw03067",
+   "sw03068",
+   "sw03070",
+   "sw03071",
+   "sw03072",
+   "sw03073",
+   "sw03074",
+   "sw03075",
+   "sw03076",
+   "sw03077",
+   "sw03078",
+   "sw03080",
+   "sw03081",
+   "sw03082",
+   "sw03083",
+   "sw03084",
+   "sw03085",
+   "sw03086",
+   "sw03088",
+   "sw03089",
+   "sw03090",
+   "sw03091",
+   "sw03092",
+   "sw03093",
+   "sw03094",
+   "sw03095",
+   "sw03096",
+   "sw03097",
+   "sw03098",
+   "sw03099",
+   "sw03100",
+   "sw03101",
+   "sw03102",
+   "sw03103",
+   "sw03104",
+   "sw03105",
+   "sw03106",
+   "sw03107",
+   "sw03108",
+   "sw03109",
+   "sw03110",
+   "sw03111",
+   "sw03112",
+   "sw03113",
+   "sw03114",
+   "sw03115",
+   "sw03116",
+   "sw03117",
+   "sw03118",
+   "sw03119",
+   "sw03121",
+   "sw03122",
+   "sw03123",
+   "sw03125",
+   "sw03126",
+   "sw03127",
+   "sw03128",
+   "sw03129",
+   "sw03130",
+   "sw03131",
+   "sw03132",
+   "sw03133",
+   "sw03134",
+   "sw03135",
+   "sw03136",
+   "sw03137",
+   "sw03138",
+   "sw03140",
+   "sw03141",
+   "sw03143",
+   "sw03144",
+   "sw03147",
+   "sw03148",
+   "sw03149",
+   "sw03150",
+   "sw03151",
+   "sw03152",
+   "sw03153",
+   "sw03154",
+   "sw03155",
+   "sw03156",
+   "sw03157",
+   "sw03158",
+   "sw03159",
+   "sw03160",
+   "sw03161",
+   "sw03162",
+   "sw03164",
+   "sw03165",
+   "sw03166",
+   "sw03168",
+   "sw03169",
+   "sw03170",
+   "sw03171",
+   "sw03172",
+   "sw03173",
+   "sw03174",
+   "sw03175",
+   "sw03176",
+   "sw03177",
+   "sw03178",
+   "sw03179",
+   "sw03180",
+   "sw03181",
+   "sw03182",
+   "sw03183",
+   "sw03184",
+   "sw03185",
+   "sw03186",
+   "sw03187",
+   "sw03188",
+   "sw03189",
+   "sw03190",
+   "sw03191",
+   "sw03192",
+   "sw03194",
+   "sw03195",
+   "sw03196",
+   "sw03197",
+   "sw03198",
+   "sw03199",
+   "sw03200",
+   "sw03201",
+   "sw03202",
+   "sw03204",
+   "sw03205",
+   "sw03206",
+   "sw03207",
+   "sw03208",
+   "sw03214",
+   "sw03215",
+   "sw03216",
+   "sw03217",
+   "sw03218",
+   "sw03219",
+   "sw03220",
+   "sw03222",
+   "sw03223",
+   "sw03224",
+   "sw03225",
+   "sw03228",
+   "sw03230",
+   "sw03231",
+   "sw03232",
+   "sw03234",
+   "sw03235",
+   "sw03237",
+   "sw03238",
+   "sw03239",
+   "sw03240",
+   "sw03241",
+   "sw03242",
+   "sw03243",
+   "sw03244",
+   "sw03245",
+   "sw03246",
+   "sw03247",
+   "sw03248",
+   "sw03249",
+   "sw03250",
+   "sw03251",
+   "sw03252",
+   "sw03253",
+   "sw03254",
+   "sw03255",
+   "sw03256",
+   "sw03257",
+   "sw03258",
+   "sw03259",
+   "sw03262",
+   "sw03263",
+   "sw03264",
+   "sw03265",
+   "sw03266",
+   "sw03267",
+   "sw03268",
+   "sw03269",
+   "sw03270",
+   "sw03271",
+   "sw03272",
+   "sw03274",
+   "sw03275",
+   "sw03276",
+   "sw03278",
+   "sw03279",
+   "sw03280",
+   "sw03281",
+   "sw03282",
+   "sw03283",
+   "sw03285",
+   "sw03286",
+   "sw03287",
+   "sw03288",
+   "sw03289",
+   "sw03290",
+   "sw03293",
+   "sw03294",
+   "sw03296",
+   "sw03297",
+   "sw03298",
+   "sw03299",
+   "sw03301",
+   "sw03302",
+   "sw03303",
+   "sw03304",
+   "sw03305",
+   "sw03306",
+   "sw03307",
+   "sw03308",
+   "sw03309",
+   "sw03310",
+   "sw03311",
+   "sw03312",
+   "sw03313",
+   "sw03314",
+   "sw03316",
+   "sw03317",
+   "sw03318",
+   "sw03319",
+   "sw03320",
+   "sw03321",
+   "sw03323",
+   "sw03324",
+   "sw03325",
+   "sw03327",
+   "sw03328",
+   "sw03329",
+   "sw03330",
+   "sw03332",
+   "sw03333",
+   "sw03334",
+   "sw03335",
+   "sw03336",
+   "sw03337",
+   "sw03338",
+   "sw03340",
+   "sw03341",
+   "sw03342",
+   "sw03344",
+   "sw03345",
+   "sw03346",
+   "sw03348",
+   "sw03349",
+   "sw03350",
+   "sw03352",
+   "sw03353",
+   "sw03354",
+   "sw03355",
+   "sw03356",
+   "sw03357",
+   "sw03358",
+   "sw03359",
+   "sw03360",
+   "sw03361",
+   "sw03362",
+   "sw03364",
+   "sw03365",
+   "sw03366",
+   "sw03367",
+   "sw03368",
+   "sw03369",
+   "sw03371",
+   "sw03372",
+   "sw03373",
+   "sw03375",
+   "sw03376",
+   "sw03377",
+   "sw03378",
+   "sw03379",
+   "sw03380",
+   "sw03381",
+   "sw03382",
+   "sw03383",
+   "sw03384",
+   "sw03385",
+   "sw03386",
+   "sw03387",
+   "sw03388",
+   "sw03389",
+   "sw03390",
+   "sw03391",
+   "sw03392",
+   "sw03393",
+   "sw03394",
+   "sw03395",
+   "sw03396",
+   "sw03397",
+   "sw03400",
+   "sw03401",
+   "sw03402",
+   "sw03403",
+   "sw03405",
+   "sw03406",
+   "sw03408",
+   "sw03409",
+   "sw03410",
+   "sw03412",
+   "sw03413",
+   "sw03414",
+   "sw03415",
+   "sw03417",
+   "sw03418",
+   "sw03419",
+   "sw03420",
+   "sw03422",
+   "sw03423",
+   "sw03425",
+   "sw03426",
+   "sw03428",
+   "sw03429",
+   "sw03430",
+   "sw03431",
+   "sw03432",
+   "sw03433",
+   "sw03434",
+   "sw03435",
+   "sw03436",
+   "sw03437",
+   "sw03438",
+   "sw03439",
+   "sw03440",
+   "sw03441",
+   "sw03442",
+   "sw03443",
+   "sw03445",
+   "sw03446",
+   "sw03447",
+   "sw03448",
+   "sw03449",
+   "sw03450",
+   "sw03451",
+   "sw03452",
+   "sw03454",
+   "sw03456",
+   "sw03457",
+   "sw03459",
+   "sw03460",
+   "sw03461",
+   "sw03462",
+   "sw03463",
+   "sw03464",
+   "sw03466",
+   "sw03468",
+   "sw03469",
+   "sw03470",
+   "sw03471",
+   "sw03472",
+   "sw03474",
+   "sw03475",
+   "sw03476",
+   "sw03477",
+   "sw03478",
+   "sw03479",
+   "sw03480",
+   "sw03481",
+   "sw03482",
+   "sw03483",
+   "sw03484",
+   "sw03485",
+   "sw03486",
+   "sw03487",
+   "sw03488",
+   "sw03489",
+   "sw03491",
+   "sw03492",
+   "sw03493",
+   "sw03494",
+   "sw03495",
+   "sw03496",
+   "sw03497",
+   "sw03498",
+   "sw03500",
+   "sw03501",
+   "sw03502",
+   "sw03503",
+   "sw03504",
+   "sw03505",
+   "sw03507",
+   "sw03508",
+   "sw03509",
+   "sw03511",
+   "sw03512",
+   "sw03515",
+   "sw03516",
+   "sw03517",
+   "sw03518",
+   "sw03519",
+   "sw03520",
+   "sw03521",
+   "sw03522",
+   "sw03523",
+   "sw03524",
+   "sw03525",
+   "sw03527",
+   "sw03528",
+   "sw03529",
+   "sw03530",
+   "sw03533",
+   "sw03534",
+   "sw03535",
+   "sw03536",
+   "sw03537",
+   "sw03538",
+   "sw03539",
+   "sw03540",
+   "sw03541",
+   "sw03543",
+   "sw03545",
+   "sw03547",
+   "sw03548",
+   "sw03549",
+   "sw03550",
+   "sw03551",
+   "sw03552",
+   "sw03554",
+   "sw03556",
+   "sw03557",
+   "sw03558",
+   "sw03559",
+   "sw03563",
+   "sw03564",
+   "sw03565",
+   "sw03567",
+   "sw03568",
+   "sw03570",
+   "sw03572",
+   "sw03574",
+   "sw03575",
+   "sw03576",
+   "sw03577",
+   "sw03579",
+   "sw03582",
+   "sw03584",
+   "sw03586",
+   "sw03587",
+   "sw03588",
+   "sw03589",
+   "sw03590",
+   "sw03591",
+   "sw03592",
+   "sw03593",
+   "sw03594",
+   "sw03596",
+   "sw03598",
+   "sw03599",
+   "sw03601",
+   "sw03602",
+   "sw03603",
+   "sw03604",
+   "sw03605",
+   "sw03606",
+   "sw03607",
+   "sw03608",
+   "sw03609",
+   "sw03610",
+   "sw03611",
+   "sw03612",
+   "sw03614",
+   "sw03615",
+   "sw03616",
+   "sw03617",
+   "sw03618",
+   "sw03619",
+   "sw03620",
+   "sw03621",
+   "sw03622",
+   "sw03624",
+   "sw03625",
+   "sw03626",
+   "sw03627",
+   "sw03628",
+   "sw03629",
+   "sw03630",
+   "sw03632",
+   "sw03633",
+   "sw03634",
+   "sw03635",
+   "sw03636",
+   "sw03637",
+   "sw03639",
+   "sw03640",
+   "sw03641",
+   "sw03642",
+   "sw03643",
+   "sw03644",
+   "sw03645",
+   "sw03646",
+   "sw03648",
+   "sw03649",
+   "sw03651",
+   "sw03652",
+   "sw03653",
+   "sw03654",
+   "sw03655",
+   "sw03656",
+   "sw03657",
+   "sw03658",
+   "sw03659",
+   "sw03661",
+   "sw03662",
+   "sw03663",
+   "sw03664",
+   "sw03665",
+   "sw03666",
+   "sw03668",
+   "sw03669",
+   "sw03670",
+   "sw03671",
+   "sw03672",
+   "sw03674",
+   "sw03675",
+   "sw03676",
+   "sw03677",
+   "sw03679",
+   "sw03681",
+   "sw03682",
+   "sw03683",
+   "sw03684",
+   "sw03685",
+   "sw03686",
+   "sw03687",
+   "sw03688",
+   "sw03690",
+   "sw03691",
+   "sw03692",
+   "sw03693",
+   "sw03694",
+   "sw03695",
+   "sw03696",
+   "sw03697",
+   "sw03699",
+   "sw03701",
+   "sw03702",
+   "sw03703",
+   "sw03704",
+   "sw03706",
+   "sw03707",
+   "sw03708",
+   "sw03709",
+   "sw03710",
+   "sw03711",
+   "sw03712",
+   "sw03714",
+   "sw03716",
+   "sw03718",
+   "sw03720",
+   "sw03722",
+   "sw03723",
+   "sw03724",
+   "sw03725",
+   "sw03726",
+   "sw03727",
+   "sw03728",
+   "sw03729",
+   "sw03732",
+   "sw03733",
+   "sw03734",
+   "sw03735",
+   "sw03737",
+   "sw03738",
+   "sw03739",
+   "sw03740",
+   "sw03741",
+   "sw03742",
+   "sw03743",
+   "sw03744",
+   "sw03745",
+   "sw03746",
+   "sw03747",
+   "sw03749",
+   "sw03750",
+   "sw03751",
+   "sw03752",
+   "sw03753",
+   "sw03754",
+   "sw03755",
+   "sw03756",
+   "sw03757",
+   "sw03758",
+   "sw03759",
+   "sw03760",
+   "sw03762",
+   "sw03763",
+   "sw03764",
+   "sw03765",
+   "sw03766",
+   "sw03768",
+   "sw03769",
+   "sw03770",
+   "sw03771",
+   "sw03772",
+   "sw03773",
+   "sw03774",
+   "sw03775",
+   "sw03776",
+   "sw03777",
+   "sw03778",
+   "sw03779",
+   "sw03780",
+   "sw03781",
+   "sw03782",
+   "sw03783",
+   "sw03784",
+   "sw03785",
+   "sw03786",
+   "sw03787",
+   "sw03788",
+   "sw03789",
+   "sw03790",
+   "sw03791",
+   "sw03792",
+   "sw03794",
+   "sw03796",
+   "sw03797",
+   "sw03798",
+   "sw03799",
+   "sw03800",
+   "sw03801",
+   "sw03802",
+   "sw03803",
+   "sw03804",
+   "sw03805",
+   "sw03806",
+   "sw03807",
+   "sw03808",
+   "sw03809",
+   "sw03810",
+   "sw03811",
+   "sw03812",
+   "sw03813",
+   "sw03814",
+   "sw03815",
+   "sw03816",
+   "sw03817",
+   "sw03819",
+   "sw03820",
+   "sw03821",
+   "sw03822",
+   "sw03823",
+   "sw03824",
+   "sw03825",
+   "sw03826",
+   "sw03827",
+   "sw03828",
+   "sw03830",
+   "sw03831",
+   "sw03832",
+   "sw03833",
+   "sw03834",
+   "sw03835",
+   "sw03836",
+   "sw03837",
+   "sw03838",
+   "sw03839",
+   "sw03840",
+   "sw03841",
+   "sw03842",
+   "sw03844",
+   "sw03845",
+   "sw03846",
+   "sw03847",
+   "sw03849",
+   "sw03851",
+   "sw03852",
+   "sw03853",
+   "sw03854",
+   "sw03855",
+   "sw03857",
+   "sw03858",
+   "sw03859",
+   "sw03860",
+   "sw03861",
+   "sw03862",
+   "sw03863",
+   "sw03864",
+   "sw03865",
+   "sw03866",
+   "sw03868",
+   "sw03869",
+   "sw03870",
+   "sw03871",
+   "sw03872",
+   "sw03873",
+   "sw03876",
+   "sw03877",
+   "sw03878",
+   "sw03879",
+   "sw03881",
+   "sw03882",
+   "sw03883",
+   "sw03884",
+   "sw03885",
+   "sw03886",
+   "sw03887",
+   "sw03889",
+   "sw03890",
+   "sw03891",
+   "sw03893",
+   "sw03894",
+   "sw03895",
+   "sw03896",
+   "sw03897",
+   "sw03898",
+   "sw03900",
+   "sw03901",
+   "sw03902",
+   "sw03903",
+   "sw03904",
+   "sw03905",
+   "sw03906",
+   "sw03907",
+   "sw03908",
+   "sw03909",
+   "sw03911",
+   "sw03913",
+   "sw03914",
+   "sw03916",
+   "sw03917",
+   "sw03918",
+   "sw03920",
+   "sw03921",
+   "sw03923",
+   "sw03924",
+   "sw03925",
+   "sw03926",
+   "sw03927",
+   "sw03929",
+   "sw03930",
+   "sw03931",
+   "sw03932",
+   "sw03933",
+   "sw03934",
+   "sw03935",
+   "sw03936",
+   "sw03937",
+   "sw03938",
+   "sw03939",
+   "sw03940",
+   "sw03941",
+   "sw03942",
+   "sw03943",
+   "sw03944",
+   "sw03945",
+   "sw03946",
+   "sw03947",
+   "sw03948",
+   "sw03949",
+   "sw03950",
+   "sw03951",
+   "sw03952",
+   "sw03953",
+   "sw03954",
+   "sw03955",
+   "sw03956",
+   "sw03957",
+   "sw03958",
+   "sw03959",
+   "sw03960",
+   "sw03961",
+   "sw03962",
+   "sw03963",
+   "sw03964",
+   "sw03965",
+   "sw03966",
+   "sw03967",
+   "sw03968",
+   "sw03969",
+   "sw03970",
+   "sw03971",
+   "sw03972",
+   "sw03973",
+   "sw03974",
+   "sw03975",
+   "sw03977",
+   "sw03978",
+   "sw03979",
+   "sw03980",
+   "sw03981",
+   "sw03982",
+   "sw03983",
+   "sw03985",
+   "sw03987",
+   "sw03988",
+   "sw03989",
+   "sw03991",
+   "sw03992",
+   "sw03993",
+   "sw03994",
+   "sw03995",
+   "sw03997",
+   "sw03999",
+   "sw04000",
+   "sw04001",
+   "sw04002",
+   "sw04003",
+   "sw04004",
+   "sw04005",
+   "sw04007",
+   "sw04008",
+   "sw04009",
+   "sw04010",
+   "sw04011",
+   "sw04013",
+   "sw04014",
+   "sw04015",
+   "sw04017",
+   "sw04018",
+   "sw04019",
+   "sw04020",
+   "sw04021",
+   "sw04022",
+   "sw04023",
+   "sw04024",
+   "sw04025",
+   "sw04026",
+   "sw04028",
+   "sw04029",
+   "sw04031",
+   "sw04032",
+   "sw04033",
+   "sw04034",
+   "sw04036",
+   "sw04038",
+   "sw04039",
+   "sw04040",
+   "sw04041",
+   "sw04042",
+   "sw04043",
+   "sw04044",
+   "sw04045",
+   "sw04046",
+   "sw04047",
+   "sw04048",
+   "sw04049",
+   "sw04050",
+   "sw04051",
+   "sw04052",
+   "sw04053",
+   "sw04055",
+   "sw04056",
+   "sw04057",
+   "sw04058",
+   "sw04059",
+   "sw04060",
+   "sw04062",
+   "sw04063",
+   "sw04064",
+   "sw04065",
+   "sw04066",
+   "sw04067",
+   "sw04068",
+   "sw04070",
+   "sw04071",
+   "sw04073",
+   "sw04075",
+   "sw04076",
+   "sw04077",
+   "sw04078",
+   "sw04079",
+   "sw04081",
+   "sw04082",
+   "sw04084",
+   "sw04085",
+   "sw04087",
+   "sw04088",
+   "sw04089",
+   "sw04091",
+   "sw04092",
+   "sw04093",
+   "sw04096",
+   "sw04098",
+   "sw04099",
+   "sw04100",
+   "sw04101",
+   "sw04102",
+   "sw04103",
+   "sw04104",
+   "sw04105",
+   "sw04106",
+   "sw04107",
+   "sw04108",
+   "sw04109",
+   "sw04110",
+   "sw04111",
+   "sw04114",
+   "sw04115",
+   "sw04116",
+   "sw04117",
+   "sw04118",
+   "sw04119",
+   "sw04120",
+   "sw04122",
+   "sw04123",
+   "sw04124",
+   "sw04126",
+   "sw04129",
+   "sw04130",
+   "sw04131",
+   "sw04132",
+   "sw04133",
+   "sw04134",
+   "sw04135",
+   "sw04136",
+   "sw04137",
+   "sw04138",
+   "sw04139"
+  ]
  },
  "splits_meta": {
   "total_sessions": 2438,

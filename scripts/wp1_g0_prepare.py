@@ -142,7 +142,14 @@ def main() -> None:
                     f"{', '.join(undeclared_missing)}"
                 )
 
-    for sess in iter_sessions(root, sessions=wanted, limit=args.limit, shard_glob=shard_glob):
+    # G0 只导出离散码与金标轨；列投影跳过两路 512 维连续 Mimi 特征，避免无用反序列化。
+    for sess in iter_sessions(
+        root,
+        sessions=wanted,
+        limit=args.limit,
+        shard_glob=shard_glob,
+        include_mimi_feat=False,
+    ):
         sdir = out_root / sess.session_id
         sdir.mkdir(parents=True, exist_ok=True)
         for ch in (0, 1):
