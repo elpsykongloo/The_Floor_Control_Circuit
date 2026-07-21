@@ -56,14 +56,15 @@
 
 <!-- FINGERPRINT:BEGIN -->
 
-指纹生成时间：2026-07-19T09:53:06.483598+00:00
+指纹生成时间：2026-07-21T06:57:48.280808+00:00
 
 | 文件 | sha256 |
 | --- | --- |
-| configs\events.yaml | `1eaeb1b762494f9bfa61f9b89b2d80bba5cc273cb01f56110af06630b6008675` |
-| configs\grids.yaml | `d7f64569148c1123856aabe2eafc906d1c84844ddda968942643f3ce17257813` |
+| configs\events.yaml | `e753cb73054f9fe6836b860949721e9f5d53e831414949777a02a64e563246fe` |
+| configs\grids.yaml | `ea208c224d057eaf2214343fb08dca6100573f21ace26eac809a3dd2d4146dae` |
 | configs\paths.windows.yaml | `f4523178302f90b513740e220238890b605261ee4ca38b22ab5949a5aa581b0d` |
 | configs\splits\candor.json | `0378ca258a5daebbf9bc5c966e552da7640a90499f2b3d9f0b21b465be93c02e` |
+| configs\splits\dualturn_train_confirm.json | `0b942044d6eee6402e6bc20803e22f2d2a7c672b585f6cd231e8214344fe6435` |
 | configs\splits\smoothconv.json | `5e8612883f3eb671a6a58d51707cd0d5a3f23232725338e9d7832e13730991b7` |
 | configs\stimuli.yaml | `50b86781124caa6b0fac27fd78f8fa5d361596b27a6c2108829c2828ea6703f5` |
 <!-- FINGERPRINT:END -->
