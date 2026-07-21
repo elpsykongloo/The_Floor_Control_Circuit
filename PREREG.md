@@ -56,12 +56,12 @@
 
 <!-- FINGERPRINT:BEGIN -->
 
-指纹生成时间：2026-07-21T07:13:00.856747+00:00
+指纹生成时间：2026-07-21T18:38:00.515441+00:00
 
 | 文件 | sha256 |
 | --- | --- |
 | configs\events.yaml | `2bd3085cbd16591e397b3609fb14f165e6fa8adff2998cd2488b38cc999815ed` |
-| configs\grids.yaml | `ea208c224d057eaf2214343fb08dca6100573f21ace26eac809a3dd2d4146dae` |
+| configs\grids.yaml | `36b0f42dd71d691972ee05685b2c775f595115ab1c8eea0acdfd7f450dfe7e69` |
 | configs\paths.windows.yaml | `f4523178302f90b513740e220238890b605261ee4ca38b22ab5949a5aa581b0d` |
 | configs\splits\candor.json | `0378ca258a5daebbf9bc5c966e552da7640a90499f2b3d9f0b21b465be93c02e` |
 | configs\splits\dualturn_train_confirm.json | `0b942044d6eee6402e6bc20803e22f2d2a7c672b585f6cd231e8214344fe6435` |
