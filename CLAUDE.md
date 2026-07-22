@@ -33,7 +33,8 @@
 - Moshi 正式 greedy 缓存按 `PREREG.md` #10 使用双卡各一个持久会话进程：会话级分片、双声道编码复用、显卡驻留缓冲与单步 CUDA Graph；历史有效 greedy 缓存由版本集合护栏续用。
 - **G0 已全线退役（PREREG #16，2026-07-21 用户裁决）**：标记为初期探索的不成熟想法（判据建立在 Mimi 重建音频上，不具真值性质），一切修复/确认/质检/论文义务取消；`wp1_g0_*` 工具链封存不再运行，历史结果只留 PREREG 登记。配套登记事实：**CANDOR 无人工话轮标注**（transcribe_output.json = AWS ASR 原始输出；Audiophile/Cliffhanger/Backbiter 均为算法化话轮模型）——CANDOR 标签效度支柱 = T4 人工核验（#13）+ G1 优势佐证，Backbiter 仅为算法化同侪参考。
 - **DuplexConv 下载未完**（2026-07-21：Edu_upper 45/45 与 edu_lower 19/19 完整；none_Edu 21/125、jsons.tar.gz 未下）：训练侧清单冻结顺延至补齐后（#16(b)），冻结前不得读取任何会话内容；**prereg-v1 前置修订为 #14 roster + #15 + 指纹回填**，不再等 DuplexConv。
-- **E1 缓存 v2（PREREG #16(c)/#17）**：`wp_e1_cache_plan.py` 生成计划 v2（主计划 + 243/257 加权双分片，plan_id 内容寻址，音频/权重/配置全量摘要 + 240 s PCM 前缀指纹）；`runners/moshi/run_batch.py --plan <shard>` 自动走 v2 分支（全 32 层连续堆叠 [T,L,H] 分片、512 步双缓冲、下一会话音频预取、Mimi 0.08 秒单帧与 LM 单步各用 CUDA Graph 并逐段释放、资源遥测、断点续跑）；运行器不含温控路径。`wp_e1_cache_audit.py` 审计、`wp_e1_cache_parity.py` 与历史 MVE 前 3000 步逐位核验；zarr 摄取支持堆叠布局流式写入。**全量统一重跑，不复用 MVE 4 层缓存**；旧 `mve_r1_greedy/` 封存禁改。
+- **E1 缓存 v2（PREREG #16(c)/#17）**：`wp_e1_cache_plan.py` 生成计划 v2（主计划 + 243/257 加权双分片，plan_id 内容寻址，音频/权重/配置全量摘要 + 240 s PCM 前缀指纹）；`runners/moshi/run_batch.py --plan <shard>` 自动走 v2 分支（全 32 层连续堆叠 [T,L,H] 分片、512 步双缓冲、下一会话音频预取、Mimi 0.08 秒单帧与 LM 单步各用 CUDA Graph 并逐段释放、资源遥测、断点续跑）；运行器不含温控路径。`wp_e1_cache_audit.py` 审计、`wp_e1_cache_parity.py` 与历史 MVE 前 3000 步逐位核验；zarr 摄取支持堆叠布局流式写入。**全量统一重跑，不复用 MVE 4 层缓存**；旧 `mve_r1_greedy/` 封存禁改。正式缓存已闭合（2026-07-22 审计 passed，1000/1000 路 789.5 GB）。
+- **E1 探针网格（PREREG #18，已实现待本机运行）**：`wp_e1_probe_grid.py` 五阶段 labels→parity→acoustic→run→finalize；10 规格 × 32 层 × 3 种子；G2 主目标预冻结 = T4；种子 = 会话级 90% 子抽样；多分类 macro-OVR AUC；torch-GPU 训练器有 sklearn 奇偶校验硬门；摄取用 `wp_e1_ingest.py`（勿用 wp5 批处理跑 E1 全量）。产物根 `<data_root>/e1_probe/`。
 
 ## 4. 文档地图
 

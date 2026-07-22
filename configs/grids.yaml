@@ -77,6 +77,40 @@ e1: # PREREG #15（2026-07-19 用户裁决 D1–D6）：E1 全量五模型设计
     top3_overlap_min: 2 # |∩_{3 种子} top-3 层集合| ≥ 2
     effective_rank_max: 16 # rank-k 投影性能曲线的有效秩 ≤ 16
     direction_cosine_min: 0.8 # 跨种子方向余弦（成对最小值，取绝对值）≥ 0.8
+  probe: # PREREG #18：E1 探针网格协议操作化（WP-E1-2/3）
+    c_grid: [0.0001, 0.001, 0.01, 0.1, 1.0] # 沿 #11 扩展五档，全目标×全层统一
+    seeds: [0, 1, 2]
+    inner_val_sessions: 80 # inner_val = probe_train[0:80]（固定切片，跨种子不变）
+    seed_subsample_pool: [80, 400] # 每种子从 probe_train[80:400] 无放回抽 seed_subsample_n
+    seed_subsample_n: 288 # 90% 会话级子抽样（#18(b)：使 G2 跨种子稳定性成为实质检验）
+    neg_ratio_t1: 5 # 仅 T1 负类下采样；T2/T3/T4/T5 无类别下采样
+    t5_step_stride: 4 # T5 逐步标签的确定性步长子抽样
+    multiclass_metric: macro_ovr_auc # 多分类主指标；辅助描述量 balanced_accuracy
+    trainer: # torch GPU LBFGS，与 sklearn(StandardScaler+LogisticRegression) 逐项等价
+      lbfgs_max_iter: 500
+      lbfgs_tolerance_grad: 1.0e-7
+      parity_max_auc_diff: 0.001 # 奇偶校验门：MVE 历史集上 torch vs sklearn
+      parity_min_direction_cos: 0.999
+    mlp: # 线性度对照（每目标，仅选中层 ℓ*；描述性）
+      hidden: 256
+      dropout: 0.1
+      lr: 1.0e-3
+      weight_decay: 1.0e-2
+      batch_size: 8192
+      max_epochs: 60
+      patience: 5
+      min_delta: 1.0e-4
+    gru: # 声学 GRU 基线（00 §6：RMS/F0/谱通量/ZCR，25 步窗）
+      hidden: 64
+      lr: 1.0e-3
+      batch_size: 4096
+      max_epochs: 40
+      patience: 5
+    effective_rank: # #18(f)：G2 主目标 ℓ* 处 rank-k 投影性能曲线
+      ks: [1, 2, 4, 8, 16, 24, 32, 64, 128]
+      retention: 0.95 # 有效秩 = min{k: (AUC_k−0.5) ≥ retention×(AUC_full−0.5)}
+    g2_primary_target: T4 # #18(g)：预先冻结，排除事后择优
+    bootstrap_n: 1000
   cache: # PREREG #16(c)/#17：E1 缓存工程规格 v2（工程参数，非科学判据；主 500 会话统一重跑）
     model: moshi
     n_layers: 32 # 层号严格 0..31（计划器展开为显式列表）

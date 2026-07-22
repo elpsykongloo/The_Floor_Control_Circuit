@@ -20,10 +20,22 @@ def ingest_one(src: Path, dest: Path | None) -> dict:
     dest = dest or src.with_name(src.name + "_zarr")
     manifest = ingest_npy_run(src, dest)
     checks: dict[str, bool] = {}
+    stacked_parts = sorted(src.glob("acts_part*.npy"))
+    stacked_reference = (
+        np.concatenate([np.load(path, allow_pickle=False) for path in stacked_parts], axis=0)
+        if stacked_parts
+        else None
+    )
     for layer in manifest.layers:
         stored = read_acts(dest, layer)
-        parts = sorted(src.glob(f"acts_L{layer}_part*.npy"))
-        reference = np.concatenate([np.load(path, allow_pickle=False) for path in parts], axis=0)
+        if stacked_reference is not None:  # stacked_tlh_v2（#16(d)）：逐层切片对比
+            position = manifest.layers.index(layer)
+            reference = stacked_reference[:, position]
+        else:
+            parts = sorted(src.glob(f"acts_L{layer}_part*.npy"))
+            reference = np.concatenate(
+                [np.load(path, allow_pickle=False) for path in parts], axis=0
+            )
         checks[f"acts_L{layer}"] = bool(np.array_equal(stored, reference.astype(np.float16)))
     if manifest.mimi_latent:
         stored = read_array(dest, "mimi_latent")
