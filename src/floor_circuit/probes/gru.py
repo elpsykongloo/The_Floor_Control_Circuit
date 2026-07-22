@@ -1,5 +1,5 @@
 """声学特征 GRU 基线（文档/00 §6-E1：RMS/F0/谱通量/ZCR + 2 s 上下文 GRU）。
-torch 延迟导入（已随 silero-vad 进入本仓库 uv 环境）；特征量小，CPU 可训。"""
+torch 延迟导入；训练设备由调用方显式指定。"""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ def predict_gru_batched(
     mean: np.ndarray,
     scale: np.ndarray,
     batch_size: int,
+    device: str = "cpu",
 ) -> np.ndarray:
     """固定小批推理，禁止验证或评估阶段物化整集 GRU 序列输出。"""
 
@@ -37,7 +38,8 @@ def predict_gru_batched(
     with torch.no_grad():
         for start in range(0, len(windows), batch_size):
             batch = (windows[start : start + batch_size] - mean) / scale
-            logits = model(torch.from_numpy(batch).float())
+            inputs = torch.from_numpy(batch).float().to(device)
+            logits = model(inputs)
             scores.append(logits.sigmoid().cpu().numpy())
     return np.concatenate(scores) if scores else np.empty(0, dtype=np.float32)
 
@@ -52,6 +54,7 @@ def train_eval_gru(
     batch_size: int = 512,
     lr: float = 1e-3,
     patience: int = 3,
+    device: str = "cpu",
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """train/val: [(windows, y)]；eval_sets: sid -> (windows, y)。
     返回 sid -> (y_true, y_score)，接口与探针一致，供 cluster bootstrap。"""
@@ -61,7 +64,8 @@ def train_eval_gru(
 
     torch.manual_seed(seed)
     np.random.seed(seed)
-    device = "cpu"
+    if torch.device(device).type == "cuda":
+        torch.cuda.manual_seed_all(seed)
 
     class GruHead(nn.Module):
         def __init__(self, d_in: int):
@@ -92,13 +96,13 @@ def train_eval_gru(
         perm = np.random.permutation(n)
         for i0 in range(0, n, batch_size):
             idx = perm[i0 : i0 + batch_size]
-            xb = torch.from_numpy(norm(X_tr[idx])).float()
-            yb = torch.from_numpy(y_tr[idx])
+            xb = torch.from_numpy(norm(X_tr[idx])).float().to(device)
+            yb = torch.from_numpy(y_tr[idx]).to(device)
             opt.zero_grad()
             loss = loss_fn(model(xb), yb)
             loss.backward()
             opt.step()
-        pv = predict_gru_batched(model, X_va, mu, sd, batch_size)
+        pv = predict_gru_batched(model, X_va, mu, sd, batch_size, device=device)
         auc = float(roc_auc_score(y_va, pv)) if len(np.unique(y_va)) > 1 else 0.5
         if auc > best_auc + 1e-4:
             best_auc, bad = auc, 0
@@ -112,6 +116,6 @@ def train_eval_gru(
     model.eval()
     out = {}
     for sid, (w, y) in eval_sets.items():
-        scores = predict_gru_batched(model, w, mu, sd, batch_size)
+        scores = predict_gru_batched(model, w, mu, sd, batch_size, device=device)
         out[sid] = (np.asarray(y, dtype=np.int64), scores.astype(np.float64))
     return out

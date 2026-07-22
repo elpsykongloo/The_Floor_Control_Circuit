@@ -5,6 +5,7 @@
            `wp_e1_run_missing_events.py --session-list <清单>` 增算，再平铺同步并登记 n_steps。
   parity   torch-GPU 训练器 vs sklearn 奇偶校验门（#18(d)）：T4 与 T1_d400 × 层 20，
            前 20 训练会话。未过则禁止 run。
+  baselines 提前运行只依赖标签的 hazard 与只依赖声学缓存的 GRU；无需等待 Zarr。
   run      层主序全网格：单进程共享层缓存，--devices cuda:0,cuda:1 按规格双 GPU
            并行；每层训练侧 800 路与评估侧 200 路分阶段载入。附带层无关基线
            （Mimi / hazard / GRU）。
@@ -267,10 +268,10 @@ def _role_steps_or_frozen(
     return {(sid, channel): n_steps for sid in sessions for channel in (0, 1)}
 
 
-def stage_labels(args) -> None:
-    roots = _roots()
-    train, evals = _sessions()
-    sessions = train + evals
+def _prepare_label_inputs(
+    roots: dict, sessions: list[str], *, verify_run_manifests: bool
+) -> tuple[list, list[list]]:
+    """校验并平铺标签；独立基线可先沿冻结窗生成同值角色规格。"""
     accepted_fingerprints = _accepted_label_fingerprints()
     label_files = []
     invalid = {}
@@ -301,22 +302,47 @@ def stage_labels(args) -> None:
         target = roots["labels"] / f"{sid}.parquet"
         source = _event_labels_path(roots, sid)
         _copy_label_if_needed(source, target)
+    _window_s, frozen_steps = _frozen_window_and_steps()
     roles = []
     for sid in sessions:
         for channel in (0, 1):
-            manifest = json.loads(
-                (roots["runs"] / f"{sid}_agent{channel}" / "manifest.json").read_text(encoding="utf-8")
-            )
-            if int(manifest["n_steps"]) != 3000:
-                raise SystemExit(f"{sid}_agent{channel} n_steps={manifest['n_steps']} ≠ 3000")
-            roles.append([sid, channel, int(manifest["n_steps"])])
+            n_steps = frozen_steps
+            if verify_run_manifests:
+                manifest = json.loads(
+                    (
+                        roots["runs"]
+                        / f"{sid}_agent{channel}"
+                        / "manifest.json"
+                    ).read_text(encoding="utf-8")
+                )
+                n_steps = int(manifest["n_steps"])
+                if n_steps != frozen_steps:
+                    raise SystemExit(
+                        f"{sid}_agent{channel} n_steps={n_steps} ≠ {frozen_steps}"
+                    )
+            roles.append([sid, channel, n_steps])
     roots["work"].mkdir(parents=True, exist_ok=True)
-    _run_specs_path(roots).write_text(
+    run_specs_path = _run_specs_path(roots)
+    tmp_path = run_specs_path.with_name(
+        f".{run_specs_path.name}.{os.getpid()}.tmp"
+    )
+    tmp_path.write_text(
         json.dumps(
             {"n_sessions": len(sessions), "roles": roles, "labels": label_files},
             ensure_ascii=False,
         ),
         encoding="utf-8",
+    )
+    tmp_path.replace(run_specs_path)
+    return label_files, roles
+
+
+def stage_labels(args) -> None:
+    roots = _roots()
+    train, evals = _sessions()
+    sessions = train + evals
+    _label_files, roles = _prepare_label_inputs(
+        roots, sessions, verify_run_manifests=True
     )
     write_report_json(
         "wp_e1_probe_labels.json",
@@ -940,10 +966,31 @@ def _baseline_pass(specs, seeds, inner, train_rows, eval_rows, probe_cfg, roots,
             future.result()
     mimi.clear()
     gc.collect()
-    _hazard_and_gru(specs, seeds, inner, train_rows, eval_rows, probe_cfg, roots, force)
+    _hazard_and_gru(
+        specs,
+        seeds,
+        inner,
+        train_rows,
+        eval_rows,
+        probe_cfg,
+        roots,
+        force,
+        device=devices[-1],
+    )
 
 
-def _hazard_and_gru(specs, seeds, inner, train_rows, eval_rows, probe_cfg, roots, force):
+def _hazard_and_gru(
+    specs,
+    seeds,
+    inner,
+    train_rows,
+    eval_rows,
+    probe_cfg,
+    roots,
+    force,
+    *,
+    device="cpu",
+):
     from floor_circuit.probes.baselines import fit_hazard, hazard_features
     from floor_circuit.probes.gru import make_windows, train_eval_gru
 
@@ -1025,6 +1072,7 @@ def _hazard_and_gru(specs, seeds, inner, train_rows, eval_rows, probe_cfg, roots
                     batch_size=int(gru_cfg["batch_size"]),
                     lr=float(gru_cfg["lr"]),
                     patience=int(gru_cfg["patience"]),
+                    device=device,
                 )
                 scores = {
                     sid: (y, np.stack([1.0 - p, p], axis=1)) for sid, (y, p) in result.items()
@@ -1032,7 +1080,13 @@ def _hazard_and_gru(specs, seeds, inner, train_rows, eval_rows, probe_cfg, roots
                 _save_cell(
                     gru_path,
                     scores,
-                    {"spec": spec.name, "feature": "gru", "layer": None, "seed": seed},
+                    {
+                        "spec": spec.name,
+                        "feature": "gru",
+                        "layer": None,
+                        "seed": seed,
+                        "device": str(device),
+                    },
                     None,
                 )
                 print(f"gru {spec.name} s{seed} 完成")
@@ -1199,6 +1253,32 @@ def stage_run(args) -> None:
             args.force,
         )
     print("run 阶段完成")
+
+
+def stage_baselines(args) -> None:
+    """在 Zarr 摄取期间提前生成可被 run/finalize 直接复用的独立基线格。"""
+    probe_cfg, _cache_cfg = _cfg()
+    roots = _roots()
+    _validate_devices([str(args.device)])
+    train, evals = _sessions()
+    _prepare_label_inputs(
+        roots, train + evals, verify_run_manifests=False
+    )
+    specs, seeds, inner, _pools, train_rows, eval_rows = _prepare_rows(
+        probe_cfg, roots, train, evals
+    )
+    _hazard_and_gru(
+        specs,
+        seeds,
+        inner,
+        train_rows,
+        eval_rows,
+        probe_cfg,
+        roots,
+        args.force,
+        device=str(args.device),
+    )
+    print(f"独立基线阶段完成：设备 {args.device}")
 
 
 def _cluster_auc_plan(cell, sids, n_classes):
@@ -1489,7 +1569,11 @@ def stage_finalize(args) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--stage", required=True, choices=["labels", "parity", "acoustic", "run", "finalize"])
+    ap.add_argument(
+        "--stage",
+        required=True,
+        choices=["labels", "parity", "acoustic", "baselines", "run", "finalize"],
+    )
     ap.add_argument("--device", default="cuda")
     ap.add_argument(
         "--devices",
@@ -1522,6 +1606,7 @@ def main() -> None:
         "labels": stage_labels,
         "parity": stage_parity,
         "acoustic": stage_acoustic,
+        "baselines": stage_baselines,
         "run": stage_run,
         "finalize": stage_finalize,
     }[args.stage](args)

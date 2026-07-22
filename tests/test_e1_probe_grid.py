@@ -413,6 +413,46 @@ class TestEngineScript:
         assert steps == {("session-a", 0): 3000, ("session-a", 1): 3000}
         assert (roots["labels"] / "session-a.parquet").read_bytes() == b"labels"
 
+    def test_early_baseline_inputs_do_not_require_zarr(self, tmp_path, monkeypatch):
+        import json
+        import shutil
+        import sys
+
+        scripts = REPO_ROOT / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        spec = importlib.util.spec_from_file_location(
+            "wp_e1_probe_grid_early_baselines", scripts / "wp_e1_probe_grid.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        roots = {
+            "events": tmp_path / "events",
+            "labels": tmp_path / "labels",
+            "runs": tmp_path / "missing-zarr-runs",
+            "work": tmp_path / "work",
+        }
+        roots["events"].mkdir()
+        source = roots["events"] / "session-a.labels.parquet"
+        source.write_bytes(b"labels")
+        monkeypatch.setattr(module, "_accepted_label_fingerprints", lambda: set())
+        monkeypatch.setattr(
+            module,
+            "_validated_label_record",
+            lambda _roots, sid, _accepted: ([sid], None),
+        )
+        monkeypatch.setattr(module, "_frozen_window_and_steps", lambda: (240.0, 3000))
+        monkeypatch.setattr(shutil, "copy2", shutil.copyfile)
+
+        _labels, roles = module._prepare_label_inputs(
+            roots, ["session-a"], verify_run_manifests=False
+        )
+
+        assert roles == [["session-a", 0, 3000], ["session-a", 1, 3000]]
+        payload = json.loads((roots["work"] / "run_specs.json").read_text("utf-8"))
+        assert payload["roles"] == roles
+        assert not roots["runs"].exists()
+
     def test_label_record_validates_marker_hash_and_audio(self, tmp_path):
         import hashlib
         import json
