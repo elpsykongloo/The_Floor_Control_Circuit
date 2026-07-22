@@ -77,8 +77,12 @@ class TestTrainerParity:
     def test_block_preparation_matches_single_matrix(self):
         x, y = self._make_binary(n=720, d=10, seed=13)
         reference = pg.fit_linear_probe(x, y, 2, 0.1, device="cpu")
+        first_x = x[:111].copy()
+        first_y = y[:111].copy()
+        first_x.setflags(write=False)
+        first_y.setflags(write=False)
         prepared = pg.prepare_linear_probe_blocks(
-            [(x[:111], y[:111]), (x[111:503], y[111:503]), (x[503:], y[503:])],
+            [(first_x, first_y), (x[111:503], y[111:503]), (x[503:], y[503:])],
             len(x),
             x.shape[1],
             2,
@@ -319,6 +323,95 @@ class TestEngineScript:
         cached_train, cached_eval = cached
         assert cached_train[("T4", 0)][0].session_id == "session-a"
         assert np.array_equal(cached_eval["T4"][0].steps, [2, 7])
+
+    def test_acoustic_prefix_is_bounded_and_output_is_atomic(self, tmp_path):
+        import sys
+
+        import soundfile as sf
+
+        from floor_circuit.probes.baselines import acoustic_frames
+
+        scripts = REPO_ROOT / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        spec = importlib.util.spec_from_file_location(
+            "wp_e1_probe_grid_acoustic", scripts / "wp_e1_probe_grid.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        sample_rate = 24_000
+        seconds = 2.0
+        timeline = np.arange(int(sample_rate * seconds)) / sample_rate
+        wav = (0.1 * np.sin(2 * np.pi * 180.0 * timeline)).astype(np.float32)
+        audio_path = tmp_path / "audio.wav"
+        output_path = tmp_path / "features.npy"
+        sf.write(audio_path, wav, sample_rate, subtype="FLOAT")
+
+        window_s = 1.0
+        n_steps = 12
+        full, sr = sf.read(audio_path, dtype="float32")
+        expected = acoustic_frames(full[: int(window_s * sr)], sr)[:n_steps]
+        module._extract_acoustic_role(
+            (str(audio_path), str(output_path), n_steps, window_s)
+        )
+
+        actual = np.load(output_path, allow_pickle=False)
+        assert np.array_equal(actual, expected.astype(np.float32))
+        assert module._valid_acoustic_output(output_path, n_steps)
+        assert not output_path.with_suffix(".tmp.npy").exists()
+
+        tasks = [
+            ("input", str(tmp_path / f"out-{index}.npy"), n_steps, window_s)
+            for index in range(6)
+        ]
+        shard0 = module._pending_acoustic_tasks(tasks, 2, 0, force=False)
+        shard1 = module._pending_acoustic_tasks(tasks, 2, 1, force=False)
+        assert shard0 == tasks[0::2]
+        assert shard1 == tasks[1::2]
+        assert set(shard0).isdisjoint(shard1)
+
+    def test_parity_can_use_frozen_partial_inputs(self, tmp_path, monkeypatch):
+        import json
+        import shutil
+        import sys
+
+        scripts = REPO_ROOT / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        spec = importlib.util.spec_from_file_location(
+            "wp_e1_probe_grid_early_parity", scripts / "wp_e1_probe_grid.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        roots = {
+            "events": tmp_path / "events",
+            "labels": tmp_path / "labels",
+            "runs": tmp_path / "runs",
+            "work": tmp_path / "work",
+        }
+        roots["events"].mkdir()
+        source = roots["events"] / "session-a.labels.parquet"
+        source.write_bytes(b"labels")
+        for channel in (0, 1):
+            role_dir = roots["runs"] / f"session-a_agent{channel}"
+            role_dir.mkdir(parents=True)
+            (role_dir / "manifest.json").write_text(
+                json.dumps({"n_steps": 3000}), encoding="utf-8"
+            )
+        monkeypatch.setattr(module, "_accepted_label_fingerprints", lambda: set())
+        monkeypatch.setattr(
+            module,
+            "_validated_label_record",
+            lambda _roots, sid, _accepted: ([sid], None),
+        )
+        monkeypatch.setattr(module, "_frozen_window_and_steps", lambda: (240.0, 3000))
+        monkeypatch.setattr(shutil, "copy2", shutil.copyfile)
+
+        steps = module._prepare_parity_inputs(roots, ["session-a"])
+
+        assert steps == {("session-a", 0): 3000, ("session-a", 1): 3000}
+        assert (roots["labels"] / "session-a.parquet").read_bytes() == b"labels"
 
     def test_label_record_validates_marker_hash_and_audio(self, tmp_path):
         import hashlib

@@ -46,6 +46,16 @@ def plan_mod(request):
 
 
 @pytest.fixture(scope="module")
+def ingest_mod():
+    import sys
+
+    scripts = REPO_ROOT / "scripts"
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    return _load_module("wp_e1_ingest_under_test", scripts / "wp_e1_ingest.py")
+
+
+@pytest.fixture(scope="module")
 def audit_mod():
     import sys
 
@@ -351,6 +361,39 @@ class TestStackedIngest:
         (run_dir / "manifest.json").write_text(json.dumps(payload), encoding="utf-8")
         with pytest.raises(ValueError, match="层轴"):
             ingest_npy_run(run_dir, tmp_path / "zarr")
+
+    def test_permission_error_is_retried_per_role(
+        self, tmp_path, monkeypatch, ingest_mod
+    ):
+        from types import SimpleNamespace
+
+        import floor_circuit.cachelib.zarr_io as zarr_io
+
+        run_dir = tmp_path / "run-retry"
+        run_dir.mkdir()
+        block = np.arange(6, dtype=np.float16).reshape(2, 1, 3)
+        np.save(run_dir / "acts_part00000.npy", block, allow_pickle=False)
+        dest = tmp_path / "dest-retry"
+        calls = 0
+
+        def fake_ingest(_run_dir, _dest):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise PermissionError("临时占用")
+            return SimpleNamespace(n_steps=2, layers=[0])
+
+        monkeypatch.setattr(ingest_mod, "_already_ingested", lambda *_args: False)
+        monkeypatch.setattr(ingest_mod, "_dest_for", lambda _run_dir: dest)
+        monkeypatch.setattr(ingest_mod.time, "sleep", lambda _seconds: None)
+        monkeypatch.setattr(zarr_io, "ingest_npy_run", fake_ingest)
+        monkeypatch.setattr(zarr_io, "read_acts", lambda _dest, _layer: block[:, 0])
+
+        result = ingest_mod.ingest_role((str(run_dir), [0], 2, 0))
+
+        assert result["status"] == "ok"
+        assert result["attempts"] == 2
+        assert calls == 2
 
 
 class TestAuditRole:

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -47,19 +48,55 @@ def ingest_role(task: tuple[str, list[int], int, int]) -> dict:
     dest = _dest_for(run_dir)
     if _already_ingested(dest, layers, n_steps):
         return {"run": run_dir.name, "status": "skipped"}
-    manifest = ingest_npy_run(run_dir, dest)
-    if manifest.n_steps != n_steps:
-        return {"run": run_dir.name, "status": "failed", "error": f"n_steps={manifest.n_steps}"}
-    stacked = np.concatenate(
-        [
-            np.load(path, allow_pickle=False)
-            for path in sorted(run_dir.glob("acts_part*.npy"))
-        ],
-        axis=0,
-    )
-    position = manifest.layers.index(check_layer)
-    ok = bool(np.array_equal(read_acts(dest, check_layer), stacked[:, position]))
-    return {"run": run_dir.name, "status": "ok" if ok else "failed", "roundtrip_layer": check_layer, "roundtrip_ok": ok}
+    retry_delays = (0, 2, 4, 8, 16)
+    for attempt, delay_s in enumerate(retry_delays, start=1):
+        if delay_s:
+            time.sleep(delay_s)
+        try:
+            for partial in (dest.rglob("*.partial") if dest.is_dir() else ()):
+                partial.unlink(missing_ok=True)
+            manifest = ingest_npy_run(run_dir, dest)
+            if manifest.n_steps != n_steps:
+                return {
+                    "run": run_dir.name,
+                    "status": "failed",
+                    "error": f"n_steps={manifest.n_steps}",
+                }
+            position = manifest.layers.index(check_layer)
+            stored = read_acts(dest, check_layer)
+            offset = 0
+            ok = True
+            for path in sorted(run_dir.glob("acts_part*.npy")):
+                block = np.load(path, allow_pickle=False)
+                rows = len(block)
+                if not np.array_equal(stored[offset : offset + rows], block[:, position]):
+                    ok = False
+                    break
+                offset += rows
+            ok = ok and offset == n_steps
+            return {
+                "run": run_dir.name,
+                "status": "ok" if ok else "failed",
+                "roundtrip_layer": check_layer,
+                "roundtrip_ok": ok,
+                "attempts": attempt,
+            }
+        except PermissionError as exc:
+            if attempt == len(retry_delays):
+                return {
+                    "run": run_dir.name,
+                    "status": "failed",
+                    "error": f"PermissionError: {exc}",
+                    "attempts": attempt,
+                }
+        except Exception as exc:
+            return {
+                "run": run_dir.name,
+                "status": "failed",
+                "error": f"{type(exc).__name__}: {exc}",
+                "attempts": attempt,
+            }
+    raise AssertionError("不可达的摄取重试分支")
 
 
 def main() -> None:

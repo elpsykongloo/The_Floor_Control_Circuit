@@ -61,6 +61,41 @@ def test_e1_event_session_list_is_exact_and_ordered(tmp_path):
     assert [path.name for path in selected] == ["session-c", "session-a"]
 
 
+def test_e1_event_session_shards_are_disjoint_and_ordered():
+    module = _load_e1_module()
+    sessions = [Path(f"session-{index}") for index in range(7)]
+
+    shard0 = module.shard_sessions(sessions, 2, 0)
+    shard1 = module.shard_sessions(sessions, 2, 1)
+
+    assert shard0 == sessions[0::2]
+    assert shard1 == sessions[1::2]
+    assert set(shard0).isdisjoint(shard1)
+    assert module.shard_sessions(sessions, 2, 1, limit=2) == sessions[1::2][:2]
+
+
+def test_e1_event_channel_load_releases_waveform_scope(tmp_path, monkeypatch):
+    module = _load_e1_module()
+    session = tmp_path / "session-a"
+    session.mkdir()
+    waveform = np.arange(16, dtype=np.float32)
+    seen = []
+
+    class FakeVad:
+        def segments(self, values, sample_rate):
+            seen.append((values.copy(), sample_rate))
+            return []
+
+    monkeypatch.setattr(module, "load_wav", lambda _path: (waveform.copy(), 8))
+
+    channel, duration_s = module.load_vad_channel(session, 0, FakeVad())
+
+    assert channel.va_segs == []
+    assert duration_s == 2.0
+    assert np.array_equal(seen[0][0], waveform)
+    assert seen[0][1] == 8
+
+
 def test_event_cache_requires_matching_completion_marker_and_hashes(tmp_path):
     module = _load_module()
     session_dir = tmp_path / "audio" / "session-a"

@@ -76,11 +76,33 @@ def load_session_list(root: Path, path: Path, limit: int | None = None) -> list[
     return sessions[:limit] if limit is not None else sessions
 
 
+def shard_sessions(
+    sessions: list[Path], num_shards: int, shard_id: int, limit: int | None = None
+) -> list[Path]:
+    """按清单固定顺序做互斥步长分片；limit 作用于分片结果。"""
+    if num_shards <= 0 or not 0 <= shard_id < num_shards:
+        raise ValueError("要求 num_shards > 0 且 0 <= shard_id < num_shards")
+    selected = sessions[shard_id::num_shards]
+    return selected[:limit] if limit is not None else selected
+
+
+def load_vad_channel(
+    session_dir: Path, channel: int, vad: SileroVad
+) -> tuple[SessionChannel, float]:
+    """单独载入并处理一路波形，让完整双通道不会同时驻留内存。"""
+    wav, sample_rate = load_wav(session_dir / f"audio_ch{channel}.wav")
+    duration_s = len(wav) / sample_rate
+    result = SessionChannel(va_segs=vad.segments(wav, sample_rate))
+    return result, duration_s
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--session-list", type=Path, required=True)
     ap.add_argument("--sessions-dir", type=Path, default=None)
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--num-shards", type=int, default=1)
+    ap.add_argument("--shard-id", type=int, default=0)
     ap.add_argument("--lang", default="en")
     ap.add_argument("--clock", default="moshi")
     args = ap.parse_args()
@@ -92,7 +114,17 @@ def main() -> None:
         cfg, grids, args.clock, args.lang, event_pipeline_code_sha256
     )
     root = args.sessions_dir or (data_root() / "candor_extracted")
-    sessions = load_session_list(root, args.session_list, args.limit)
+    if args.limit is not None and args.limit <= 0:
+        raise SystemExit("--limit 必须为正整数")
+    try:
+        sessions = shard_sessions(
+            load_session_list(root, args.session_list),
+            int(args.num_shards),
+            int(args.shard_id),
+            args.limit,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     out_dir = data_root() / "events" / "candor"
     out_dir.mkdir(parents=True, exist_ok=True)
     vad = SileroVad(cfg)
@@ -100,6 +132,8 @@ def main() -> None:
         "clock": args.clock,
         "session_list": str(args.session_list.resolve()),
         "n_sessions": len(sessions),
+        "num_shards": int(args.num_shards),
+        "shard_id": int(args.shard_id),
         "n_cached": 0,
         "n_processed": 0,
         "event_pipeline_code_sha256": event_pipeline_code_sha256,
@@ -119,11 +153,9 @@ def main() -> None:
                 f"标签 {cached['n_labels']} 行"
             )
             continue
-        wav0, sr0 = load_wav(sdir / "audio_ch0.wav")
-        wav1, sr1 = load_wav(sdir / "audio_ch1.wav")
-        total_dur = min(len(wav0) / sr0, len(wav1) / sr1)
-        ch0 = SessionChannel(va_segs=vad.segments(wav0, sr0))
-        ch1 = SessionChannel(va_segs=vad.segments(wav1, sr1))
+        ch0, dur0 = load_vad_channel(sdir, 0, vad)
+        ch1, dur1 = load_vad_channel(sdir, 1, vad)
+        total_dur = min(dur0, dur1)
         events, contexts, double_talk = process_session(
             ch0, ch1, total_dur, cfg, lang=args.lang
         )
@@ -145,7 +177,12 @@ def main() -> None:
         )
         summary["n_processed"] += 1
         print(f"{sid}: {total_dur:.0f}s，事件 {len(events)}，标签 {len(labels)} 行")
-    write_report_json("wp_e1_missing_events_summary.json", summary)
+    report_name = (
+        "wp_e1_missing_events_summary.json"
+        if int(args.num_shards) == 1
+        else f"wp_e1_missing_events_summary_s{args.shard_id}_of_{args.num_shards}.json"
+    )
+    write_report_json(report_name, summary)
 
 
 if __name__ == "__main__":

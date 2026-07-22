@@ -243,8 +243,8 @@ def prepare_linear_probe_blocks(
     label_max = -1
     offset = 0
     for feature_block, label_block in blocks:
-        matrix = np.ascontiguousarray(feature_block)
-        labels = np.ascontiguousarray(label_block, dtype=np.int64)
+        matrix = np.require(feature_block, requirements=["C", "W"])
+        labels = np.require(label_block, dtype=np.int64, requirements=["C", "W"])
         if matrix.ndim != 2 or matrix.shape[1] != n_dim or len(matrix) != len(labels):
             raise ValueError("分块特征与标签形状不一致")
         stop = offset + len(labels)

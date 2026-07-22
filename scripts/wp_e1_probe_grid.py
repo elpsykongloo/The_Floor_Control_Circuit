@@ -21,8 +21,9 @@ import ctypes
 import gc
 import hashlib
 import json
+import multiprocessing as mp
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -209,15 +210,8 @@ def _validated_label_record(
     return [sid, stat.st_size, stat.st_mtime_ns, *fingerprint], None
 
 
-def _load_run_specs(roots: dict) -> dict[tuple[str, int], int]:
-    payload = json.loads(_run_specs_path(roots).read_text(encoding="utf-8"))
-    return {(sid, int(ch)): int(n) for sid, ch, n in payload["roles"]}
-
-
-def stage_labels(args) -> None:
-    roots = _roots()
-    train, evals = _sessions()
-    sessions = train + evals
+def _accepted_label_fingerprints() -> set[tuple[str, str]]:
+    """返回当前生产指纹与已登记的 T1–T5 等价历史指纹。"""
     import wp1_run_events as wp1
     from wp_e1_run_missing_events import settings_sha256
 
@@ -226,10 +220,58 @@ def stage_labels(args) -> None:
     _step_s, _deltas, current_settings = settings_sha256(
         load_config("events"), grids, "moshi", "en", current_code
     )
-    accepted_fingerprints = {
+    return {
         (current_code, current_settings),
         *LEGACY_E1_LABEL_FINGERPRINTS,
     }
+
+
+def _copy_label_if_needed(source: Path, target: Path) -> None:
+    """按大小与时间跳过有效副本；需要更新时用同目录临时文件原子替换。"""
+    import shutil
+
+    if target.is_file():
+        source_stat = source.stat()
+        target_stat = target.stat()
+        if (
+            target_stat.st_size == source_stat.st_size
+            and target_stat.st_mtime_ns >= source_stat.st_mtime_ns
+        ):
+            return
+    tmp = target.with_suffix(".tmp.parquet")
+    shutil.copy2(source, tmp)
+    tmp.replace(target)
+
+
+def _load_run_specs(roots: dict) -> dict[tuple[str, int], int]:
+    payload = json.loads(_run_specs_path(roots).read_text(encoding="utf-8"))
+    return {(sid, int(ch)): int(n) for sid, ch, n in payload["roles"]}
+
+
+def _frozen_window_and_steps() -> tuple[float, int]:
+    """从冻结配置推导分析窗与步数，供标签清单尚未齐备的独立阶段使用。"""
+    grids = load_config("grids")
+    cache_cfg = grids["e1"]["cache"]
+    window_s = float(grids["e1"]["windows_s"][str(cache_cfg["model"])])
+    n_steps = round(window_s * FRAME_HZ)
+    return window_s, n_steps
+
+
+def _role_steps_or_frozen(
+    roots: dict, sessions: list[str]
+) -> dict[tuple[str, int], int]:
+    """优先读取 labels 阶段清单；缺失时沿冻结窗口生成同值步数。"""
+    if _run_specs_path(roots).is_file():
+        return _load_run_specs(roots)
+    _window_s, n_steps = _frozen_window_and_steps()
+    return {(sid, channel): n_steps for sid in sessions for channel in (0, 1)}
+
+
+def stage_labels(args) -> None:
+    roots = _roots()
+    train, evals = _sessions()
+    sessions = train + evals
+    accepted_fingerprints = _accepted_label_fingerprints()
     label_files = []
     invalid = {}
     for sid in sessions:
@@ -254,13 +296,11 @@ def stage_labels(args) -> None:
             "（仅处理清单内会话，已有有效缓存仍会复用），完成后重跑本阶段。"
         )
     roots["labels"].mkdir(parents=True, exist_ok=True)
-    import shutil
 
     for sid in sessions:
         target = roots["labels"] / f"{sid}.parquet"
         source = _event_labels_path(roots, sid)
-        if not target.is_file() or target.stat().st_mtime_ns < source.stat().st_mtime_ns:
-            shutil.copy2(source, target)
+        _copy_label_if_needed(source, target)
     roles = []
     for sid in sessions:
         for channel in (0, 1):
@@ -563,14 +603,61 @@ def _fit_cell(
     return final, meta
 
 
+def _prepare_parity_inputs(
+    roots: dict, sessions: list[str]
+) -> dict[tuple[str, int], int]:
+    """让 parity 只依赖冻结的前 20 会话，可与其余 Zarr 摄取和标签增算重叠。"""
+    if _run_specs_path(roots).is_file() and all(
+        (roots["labels"] / f"{sid}.parquet").is_file() for sid in sessions
+    ):
+        return _load_run_specs(roots)
+
+    accepted = _accepted_label_fingerprints()
+    roots["labels"].mkdir(parents=True, exist_ok=True)
+    invalid_labels = []
+    for sid in sessions:
+        record, reason = _validated_label_record(roots, sid, accepted)
+        if record is None:
+            invalid_labels.append(f"{sid}:{reason}")
+            continue
+        source = _event_labels_path(roots, sid)
+        target = roots["labels"] / f"{sid}.parquet"
+        _copy_label_if_needed(source, target)
+    if invalid_labels:
+        raise SystemExit(
+            "parity 前 20 会话存在无效标签：" + ", ".join(invalid_labels[:5])
+        )
+
+    _window_s, expected_steps = _frozen_window_and_steps()
+    missing_roles = []
+    for sid in sessions:
+        for channel in (0, 1):
+            manifest_path = roots["runs"] / f"{sid}_agent{channel}" / "manifest.json"
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                if int(manifest["n_steps"]) != expected_steps:
+                    raise ValueError("n_steps 不符")
+            except (KeyError, OSError, ValueError, json.JSONDecodeError):
+                missing_roles.append(f"{sid}_agent{channel}")
+    if missing_roles:
+        raise SystemExit(
+            f"parity 尚缺 {len(missing_roles)} 路完整 Zarr：{missing_roles[:5]}"
+        )
+    return {
+        (sid, channel): expected_steps
+        for sid in sessions
+        for channel in (0, 1)
+    }
+
+
 def stage_parity(args) -> None:
     _validate_devices([str(args.device)])
     probe_cfg, _ = _cfg()
     roots = _roots()
     train, _evals = _sessions()
-    n_steps = _load_run_specs(roots)
     layer = 20
     sessions = train[:20]
+    n_steps = _prepare_parity_inputs(roots, sessions)
     store = g.preload_layer(roots["runs"], [(sid, ch) for sid in sessions for ch in (0, 1)], layer)
     trainer = probe_cfg["trainer"]
     results = {}
@@ -951,34 +1038,124 @@ def _hazard_and_gru(specs, seeds, inner, train_rows, eval_rows, probe_cfg, roots
                 print(f"gru {spec.name} s{seed} 完成")
 
 
-def stage_acoustic(args) -> None:
-    """预计算 500 会话双通道声学帧特征（RMS/F0/谱通量/ZCR，可多进程分片）。"""
+def _valid_acoustic_output(path: Path, n_steps: int) -> bool:
+    """只读取 NPY 头验证断点，损坏或形状不符时重新计算。"""
+    if not path.is_file():
+        return False
+    try:
+        values = np.load(path, allow_pickle=False, mmap_mode="r")
+        return values.shape == (n_steps, 4) and values.dtype == np.float32
+    except (OSError, ValueError):
+        return False
+
+
+def _extract_acoustic_role(task: tuple[str, str, int, float]) -> dict:
+    """有界读取单路前缀并原子写入声学特征；函数保持顶层以支持 Windows 多进程。"""
+    import time
+
+    import soundfile as sf
+    from threadpoolctl import threadpool_limits
+
     from floor_circuit.probes.baselines import acoustic_frames
 
+    audio_s, output_s, n_steps, window_s = task
+    audio_path = Path(audio_s)
+    output_path = Path(output_s)
+    started = time.perf_counter()
+    with sf.SoundFile(str(audio_path)) as source:
+        if int(source.channels) != 1:
+            raise ValueError(f"声学输入必须为单通道：{audio_path}")
+        sample_rate = int(source.samplerate)
+        wav = source.read(
+            frames=int(window_s * sample_rate),
+            dtype="float32",
+            always_2d=False,
+        )
+    read_s = time.perf_counter() - started
+    feature_started = time.perf_counter()
+    with threadpool_limits(limits=1):
+        feats = acoustic_frames(wav, sample_rate)[:n_steps]
+    if len(feats) < n_steps:
+        feats = np.pad(feats, ((0, n_steps - len(feats)), (0, 0)))
+    values = feats.astype(np.float32, copy=False)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = output_path.with_suffix(".tmp.npy")
+    np.save(tmp, values, allow_pickle=False)
+    tmp.replace(output_path)
+    return {
+        "output": output_s,
+        "read_s": read_s,
+        "feature_s": time.perf_counter() - feature_started,
+    }
+
+
+def _pending_acoustic_tasks(
+    tasks: list[tuple[str, str, int, float]],
+    num_shards: int,
+    shard_id: int,
+    *,
+    force: bool,
+) -> list[tuple[str, str, int, float]]:
+    """先按完整任务表固定分片，再过滤断点，避免错峰启动导致分片漂移。"""
+    sharded = tasks[shard_id::num_shards]
+    return [
+        task
+        for task in sharded
+        if force or not _valid_acoustic_output(Path(task[1]), int(task[2]))
+    ]
+
+
+def stage_acoustic(args) -> None:
+    """预计算双通道声学帧特征；支持有界读取、原子断点和单进程受控工作池。"""
     roots = _roots()
     train, evals = _sessions()
+    sessions = train + evals
     out_dir = roots["work"] / "acoustic"
     out_dir.mkdir(parents=True, exist_ok=True)
-    n_steps = _load_run_specs(roots)
-    tasks = [
-        (sid, ch)
-        for sid in (train + evals)
-        for ch in (0, 1)
-        if not (out_dir / f"{sid}_ch{ch}.npy").is_file()
+    n_steps = _role_steps_or_frozen(roots, sessions)
+    window_s, _expected_steps = _frozen_window_and_steps()
+    all_tasks = [
+        (
+            str(roots["audio"] / sid / f"audio_ch{channel}.wav"),
+            str(out_dir / f"{sid}_ch{channel}.npy"),
+            n_steps[(sid, channel)],
+            window_s,
+        )
+        for sid in sessions
+        for channel in (0, 1)
     ]
-    tasks = tasks[args.shard_id :: args.num_shards]
-    import soundfile as sf
-
-    for index, (sid, channel) in enumerate(tasks, start=1):
-        wav, sr = sf.read(str(roots["audio"] / sid / f"audio_ch{channel}.wav"), dtype="float32")
-        wav = wav[: int(240.0 * sr)]
-        feats = acoustic_frames(wav, sr)[: n_steps[(sid, channel)]]
-        if len(feats) < n_steps[(sid, channel)]:
-            feats = np.pad(feats, ((0, n_steps[(sid, channel)] - len(feats)), (0, 0)))
-        np.save(out_dir / f"{sid}_ch{channel}.npy", feats.astype(np.float32), allow_pickle=False)
-        if index % 50 == 0:
-            print(f"声学特征 {index}/{len(tasks)}")
-    print(f"声学特征完成 {len(tasks)} 路（shard {args.shard_id}/{args.num_shards}）")
+    tasks = _pending_acoustic_tasks(
+        all_tasks,
+        int(args.num_shards),
+        int(args.shard_id),
+        force=bool(args.force),
+    )
+    if args.acoustic_limit is not None:
+        tasks = tasks[: int(args.acoustic_limit)]
+    workers = min(int(args.acoustic_workers), max(1, len(tasks)))
+    results = []
+    if workers == 1:
+        iterator = map(_extract_acoustic_role, tasks)
+        for index, result in enumerate(iterator, start=1):
+            results.append(result)
+            if index % 50 == 0:
+                print(f"声学特征 {index}/{len(tasks)}")
+    else:
+        with ProcessPoolExecutor(
+            max_workers=workers, mp_context=mp.get_context("spawn")
+        ) as pool:
+            for index, result in enumerate(
+                pool.map(_extract_acoustic_role, tasks, chunksize=1), start=1
+            ):
+                results.append(result)
+                if index % 50 == 0:
+                    print(f"声学特征 {index}/{len(tasks)}")
+    read_s = sum(float(result["read_s"]) for result in results)
+    feature_s = sum(float(result["feature_s"]) for result in results)
+    print(
+        f"声学特征完成 {len(tasks)} 路（shard {args.shard_id}/{args.num_shards}，"
+        f"workers={workers}，累计读取 {read_s:.1f}s，特征 {feature_s:.1f}s）"
+    )
 
 
 def stage_run(args) -> None:
@@ -1321,8 +1498,26 @@ def main() -> None:
     )
     ap.add_argument("--num-shards", type=int, default=1)
     ap.add_argument("--shard-id", type=int, default=0)
+    ap.add_argument(
+        "--acoustic-workers",
+        type=int,
+        default=1,
+        help="acoustic 阶段内部工作进程数；与外部分片二选一控制总并发",
+    )
+    ap.add_argument(
+        "--acoustic-limit",
+        type=int,
+        default=None,
+        help="仅处理当前 acoustic 分片的前 N 个未完成任务，用于并发压力探针",
+    )
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
+    if args.num_shards <= 0 or not 0 <= args.shard_id < args.num_shards:
+        raise SystemExit("要求 num-shards > 0 且 0 <= shard-id < num-shards")
+    if args.acoustic_workers <= 0:
+        raise SystemExit("--acoustic-workers 必须为正整数")
+    if args.acoustic_limit is not None and args.acoustic_limit <= 0:
+        raise SystemExit("--acoustic-limit 必须为正整数")
     {
         "labels": stage_labels,
         "parity": stage_parity,

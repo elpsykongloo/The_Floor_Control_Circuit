@@ -38,7 +38,7 @@ def _run_activation_layout(manifest: RunManifest) -> str:
 
 
 def _ingest_stacked_acts(src_dir: Path, grp, manifest: RunManifest) -> int:
-    """stacked_tlh_v2：逐分片流式写入每层 zarr 数组，避免整段拼接驻留内存。"""
+    """stacked_tlh_v2：顺序读取一次并按层整块写入，避免同一 Zarr 块反复改写。"""
     parts = _part_files(src_dir, "acts")
     if not parts:
         raise FileNotFoundError(f"{src_dir} 缺少 acts_part*.npy（stacked_tlh_v2）")
@@ -59,25 +59,20 @@ def _ingest_stacked_acts(src_dir: Path, grp, manifest: RunManifest) -> int:
     if manifest.hidden_dim not in (None, hidden):
         raise ValueError(f"分片列数 {hidden} 与 manifest.hidden_dim 不符")
     total = sum(shape[0] for shape in shapes)
-    arrays = {
-        layer: grp.create_array(
+    blocks = [np.load(path, allow_pickle=False) for path in parts]
+    stacked = np.concatenate(blocks, axis=0)
+    del blocks
+    if stacked.dtype != np.float16:
+        stacked = stacked.astype(np.float16)
+    for position, layer in enumerate(manifest.layers):
+        array = grp.create_array(
             name=f"acts_L{layer}",
             shape=(total, hidden),
             dtype="float16",
             chunks=(min(CHUNK_T, total), hidden),
             overwrite=True,
         )
-        for layer in manifest.layers
-    }
-    offset = 0
-    for path, shape in zip(parts, shapes, strict=True):
-        block = np.load(path, allow_pickle=False)
-        if block.dtype != np.float16:
-            block = block.astype(np.float16)
-        rows = shape[0]
-        for position, layer in enumerate(manifest.layers):
-            arrays[layer][offset : offset + rows] = block[:, position]
-        offset += rows
+        array[:] = stacked[:, position]
     return total
 
 
