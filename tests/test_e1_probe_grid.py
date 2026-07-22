@@ -333,6 +333,43 @@ class TestEffectiveRank:
 
 
 class TestEngineScript:
+    def test_prefetch_memory_error_falls_back_and_disables_future_prefetch(
+        self, monkeypatch
+    ):
+        import sys
+
+        scripts = REPO_ROOT / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        spec = importlib.util.spec_from_file_location(
+            "wp_e1_probe_grid_prefetch_fallback",
+            scripts / "wp_e1_probe_grid.py",
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        class FailedFuture:
+            def result(self):
+                raise MemoryError("模拟 Windows 提交量耗尽")
+
+        released = []
+        monkeypatch.setattr(
+            module, "_empty_cuda_cache", lambda device: released.append(device) or True
+        )
+        holder = [FailedFuture()]
+        state = {"enabled": True}
+        store, wall_s, wait_s, fell_back = module._resolve_prefetched_train(
+            holder,
+            lambda: ({("fallback", 0): np.ones((1, 1))}, 2.5),
+            ["cuda:0", "cuda:1"],
+            state,
+        )
+
+        assert fell_back and not state["enabled"]
+        assert holder == [] and released == ["cuda:0", "cuda:1"]
+        assert wall_s == 2.5 and wait_s >= 0.0
+        assert ("fallback", 0) in store
+
     def test_module_loads_and_cell_roundtrip(self, tmp_path, monkeypatch):
         import sys
 

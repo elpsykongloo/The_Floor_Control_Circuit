@@ -823,6 +823,37 @@ def _preload_train_layer(runs_root, run_keys, layer, train_row_indices):
     return store, perf_counter() - started
 
 
+def _empty_cuda_cache(device) -> bool:
+    """释放目标设备上已无引用的分配缓存，缓解 Windows 提交量压力。"""
+    import torch
+
+    target = torch.device(device)
+    if target.type != "cuda" or not torch.cuda.is_available():
+        return False
+    with torch.cuda.device(target):
+        torch.cuda.empty_cache()
+    return True
+
+
+def _resolve_prefetched_train(
+    future_holder, fallback_loader, devices, prefetch_state
+):
+    """接管预取结果；内存不足时原地关闭预取并调用完整层回退载入。"""
+    wait_started = perf_counter()
+    prefetched_train = future_holder.pop()
+    try:
+        store, preload_wall_s = prefetched_train.result()
+        return store, preload_wall_s, perf_counter() - wait_started, False
+    except MemoryError:
+        prefetch_state["enabled"] = False
+        prefetched_train = None
+        for device in devices:
+            _empty_cuda_cache(device)
+        gc.collect()
+        store, preload_wall_s = fallback_loader()
+        return store, preload_wall_s, perf_counter() - wait_started, True
+
+
 def _layer_pass(
     layer,
     specs,
@@ -838,6 +869,7 @@ def _layer_pass(
     prefetched_train=None,
     prefetch_pool=None,
     next_layer=None,
+    prefetch_state=None,
 ):
     layer_started = perf_counter()
     pending = [
@@ -871,27 +903,52 @@ def _layer_pass(
         }
     )
     if train_keys:
+        use_compact = (
+            train_row_indices
+            if prefetch_state is None or prefetch_state.get("enabled", False)
+            else None
+        )
         if prefetched_train is None:
             print(f"层 {layer}：载入训练侧 {len(train_keys)} 路")
             train_store, preload_wall_s = _preload_train_layer(
                 roots["runs"],
                 train_keys,
                 layer,
-                train_row_indices,
+                use_compact,
             )
             print(f"层 {layer}：训练侧同步载入完成，wall={preload_wall_s:.1f}s")
         else:
             print(f"层 {layer}：等待并接管预取训练侧 {len(train_keys)} 路")
-            wait_started = perf_counter()
-            train_store, preload_wall_s = prefetched_train.result()
-            wait_s = perf_counter() - wait_started
+            future_holder = [prefetched_train]
+            prefetched_train = None
+
+            def fallback_loader():
+                return _preload_train_layer(
+                    roots["runs"], train_keys, layer, None
+                )
+
+            train_store, preload_wall_s, wait_s, fell_back = (
+                _resolve_prefetched_train(
+                    future_holder,
+                    fallback_loader,
+                    devices,
+                    prefetch_state,
+                )
+            )
             missing_keys = set(train_keys) - set(train_store)
             if missing_keys:
                 raise ValueError(f"预取训练缓存缺 {len(missing_keys)} 路")
-            print(
-                f"层 {layer}：预取训练侧接管完成，"
-                f"后台 wall={preload_wall_s:.1f}s，关键路径等待={wait_s:.1f}s"
-            )
+            if fell_back:
+                print(
+                    f"层 {layer}：预取触发 MemoryError，已永久关闭预取并完成"
+                    f"完整层同步回退，wall={preload_wall_s:.1f}s，"
+                    f"关键路径等待={wait_s:.1f}s"
+                )
+            else:
+                print(
+                    f"层 {layer}：预取训练侧接管完成，"
+                    f"后台 wall={preload_wall_s:.1f}s，关键路径等待={wait_s:.1f}s"
+                )
     else:
         print(f"层 {layer}：全部复用拟合断点，跳过训练侧层缓存")
         train_store = {}
@@ -902,6 +959,7 @@ def _layer_pass(
         prefetch_pool is not None
         and next_layer is not None
         and train_row_indices is not None
+        and (prefetch_state is None or prefetch_state.get("enabled", False))
     ):
         next_keys = sorted(train_row_indices)
         print(f"层 {layer}：后台预取下一待运行层 {next_layer}（{len(next_keys)} 路）")
@@ -945,12 +1003,14 @@ def _layer_pass(
                 train_store,
                 device,
             )
+            cache_released = spec.name == "T5" and _empty_cuda_cache(device)
             meta.update(
                 {
                     "n_classes": spec.n_classes,
                     "fit_device": str(device),
                     "fit_wall_s": perf_counter() - started,
                     "fit_estimated_cost": int(estimated_cost),
+                    "cuda_cache_released": cache_released,
                 }
             )
             _save_fit(_fit_path(roots, spec.name, layer, seed), probe, meta)
@@ -958,7 +1018,8 @@ def _layer_pass(
             print(
                 f"L{layer} {spec.name} s{seed} 拟合："
                 f"inner={meta['inner_val_metric']:.4f} C={meta['chosen_c']} "
-                f"device={device} wall={meta['fit_wall_s']:.1f}s"
+                f"device={device} wall={meta['fit_wall_s']:.1f}s "
+                f"cache_released={cache_released}"
             )
         return local_fitted
 
@@ -1399,6 +1460,7 @@ def stage_run(args) -> None:
 
     if prefetch_enabled:
         prefetched_train = None
+        prefetch_state = {"enabled": True}
         with ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="e1-layer-prefetch"
         ) as prefetch_pool:
@@ -1423,6 +1485,7 @@ def stage_run(args) -> None:
                     prefetched_train=prefetched_train,
                     prefetch_pool=prefetch_pool,
                     next_layer=next_layer,
+                    prefetch_state=prefetch_state,
                 )
     else:
         for layer in pending_layers:
