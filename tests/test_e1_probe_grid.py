@@ -300,6 +300,47 @@ class TestEngineScript:
         )
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+        t1_spec = g.ProbeSpec("T1_d400", "T1", 400, 2, "neg5")
+        t5_spec = g.ProbeSpec("T5", "T5", None, 5, "stride")
+        train_rows = {
+            ("T1_d400", seed): [
+                g.RoleRows(
+                    "session-a",
+                    0,
+                    np.arange(20, dtype=np.int64),
+                    np.zeros(20, dtype=np.int64),
+                )
+            ]
+            for seed in (0, 1)
+        }
+        train_rows.update(
+            {
+                ("T5", seed): [
+                    g.RoleRows(
+                        "session-a",
+                        0,
+                        np.arange(10, dtype=np.int64),
+                        np.zeros(10, dtype=np.int64),
+                    )
+                ]
+                for seed in (0, 1, 2)
+            }
+        )
+        fit_tasks = module._ordered_fit_tasks(
+            [(t1_spec, [0, 1]), (t5_spec, [0, 1, 2])], train_rows
+        )
+        assert [(item[0].name, item[1]) for item in fit_tasks[:3]] == [
+            ("T5", 0),
+            ("T5", 1),
+            ("T5", 2),
+        ]
+        assert {(item[0].name, item[1]) for item in fit_tasks} == {
+            ("T1_d400", 0),
+            ("T1_d400", 1),
+            ("T5", 0),
+            ("T5", 1),
+            ("T5", 2),
+        }
         assert module._event_labels_path(
             {"events": tmp_path}, "session-a"
         ).name == "session-a.labels.parquet"

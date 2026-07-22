@@ -37,6 +37,7 @@
 - **E1 探针网格（PREREG #18/#19/#20/#21，已实现待本机运行）**：`wp_e1_probe_grid.py` 五阶段 labels→parity→acoustic→run→finalize；10 规格 × 32 层 × 3 种子；G2 主目标预冻结 = T4；种子 = 会话级 90% 子抽样；多分类 macro-OVR AUC；torch-GPU 训练器有 sklearn 奇偶校验硬门。#19 按本机 31.75 GiB 内存改为单进程双卡按规格并行，每层训练 800 路与评估 200 路分阶段载入，正式命令用 `--num-shards 1 --devices cuda:0,cuda:1`；Windows 仓库 uv 环境锁定官方 CUDA 12.8 torch。#20 修正生产标签后缀为 `<sid>.labels.parquet`；本机 500 个 E1 会话实测缺 339 个标签，须按 `e1_probe/missing_label_sessions.txt` 调用独立的 `wp_e1_run_missing_events.py --session-list` 精确增算，保持权威事件脚本源码指纹不变。摄取用 `wp_e1_ingest.py`（勿用 wp5 批处理跑 E1 全量）。产物根 `<data_root>/e1_probe/`。
 - **E1 格子落盘（PREREG #21）**：逐会话数组、键名、dtype 与原子替换语义不变，格子写入改为未压缩 NPZ；本机 D 盘 100 万行代表格实测写入由 0.352 s 降至 0.043 s，约增加 26% 文件体积。
 - **E1 前置并行（PREREG #22/#24/#25/#26）**：acoustic 只读取冻结前 240 s，支持原子 NPY 与 `--acoustic-workers`；parity 可在训练前 20 会话的标签和 40 路 Zarr 就绪后提前运行。声学 1000/1000 已完成、GPU1 parity 已通过，标签四分片 339/339 已闭合，Zarr 摄取 1000/1000 passed。缺失标签逐通道载入完整波形以收紧峰值内存；摄取 3 worker 与标签 4 个互斥分片重叠。`--stage baselines --device cuda:1` 可提前生成 hazard 与声学 GRU 正式格，主网格按格子断点直接复用。T5 正式五分类须排除审计专用 `OVERLAP_UNRESOLVED=5`，hazard 仍保留该状态并按当前重叠处理。
+- **E1 双卡动态调度（PREREG #27）**：正式 L0/L1 取证显示静态规格分卡会令 GPU1 每层提前约 80–98 s 清空队列；训练侧改为两个固定设备线程从共享的 `(spec, seed)` 优先队列动态取任务，评估侧按规格组动态取任务。逐格样本、C 路径、正式重训和原子断点不变；日志记录每任务设备/耗时及每层载入、拟合、评估分段耗时。
 - **E1 摄取单块单写（PREREG #23）**：stacked 布局先把 6 个源分片顺序拼接一次，再把每层 `(3000,4096)` Zarr 单块写一次；最终数组布局、压缩、dtype 与值不变，理论块写入量由约 4.72 GB/路降至 0.79 GB/路。单路 Windows 瞬时占用按 2/4/8/16 s 退避重试并只清理本路 `.partial`；回环改为保存层逐分片比较。旧摄取在 108/1000 因 WinError 5 退出后已从断点恢复。
 
 ## 4. 文档地图

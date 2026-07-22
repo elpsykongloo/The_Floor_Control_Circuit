@@ -6,8 +6,8 @@
   parity   torch-GPU 训练器 vs sklearn 奇偶校验门（#18(d)）：T4 与 T1_d400 × 层 20，
            前 20 训练会话。未过则禁止 run。
   baselines 提前运行只依赖标签的 hazard 与只依赖声学缓存的 GRU；无需等待 Zarr。
-  run      层主序全网格：单进程共享层缓存，--devices cuda:0,cuda:1 按规格双 GPU
-           并行；每层训练侧 800 路与评估侧 200 路分阶段载入。附带层无关基线
+  run      层主序全网格：单进程共享层缓存，--devices cuda:0,cuda:1 按规格×种子
+           动态双 GPU 调度；每层训练侧 800 路与评估侧 200 路分阶段载入。附带层无关基线
            （Mimi / hazard / GRU）。
   finalize 汇总全部格子 → 选层 → ℓ* 处 MLP/打乱标签/有效秩 → G2 判定 →
            bootstrap 优势 → reports/wp_e1_probe_summary.json + e1_探针网格报告.md。
@@ -26,6 +26,8 @@ import multiprocessing as mp
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
+from queue import Empty, Queue
+from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -759,6 +761,35 @@ def _assign_spec_groups(groups, train_rows, devices):
     return assignments
 
 
+def _ordered_fit_tasks(groups, train_rows):
+    """按估算量降序展开到规格×种子；共享队列用真实完成时刻自动再均衡。"""
+    weighted = []
+    for spec, pending_seeds in groups:
+        for seed in pending_seeds:
+            rows = sum(len(role.labels) for role in train_rows[(spec.name, seed)])
+            weighted.append((rows * spec.n_classes, spec, seed))
+    return [
+        (spec, seed, cost)
+        for cost, spec, seed in sorted(
+            weighted, key=lambda item: item[0], reverse=True
+        )
+    ]
+
+
+def _ordered_eval_groups(groups, eval_rows):
+    """优先评估预计较重的规格，同规格多个探针仍共用一次特征搬运。"""
+    weighted = []
+    for spec, pending_seeds in groups:
+        rows = sum(len(role.labels) for role in eval_rows[spec.name])
+        weighted.append((rows * spec.n_classes * len(pending_seeds), spec, pending_seeds))
+    return [
+        (spec, pending_seeds)
+        for _cost, spec, pending_seeds in sorted(
+            weighted, key=lambda item: item[0], reverse=True
+        )
+    ]
+
+
 def _layer_pass(
     layer,
     specs,
@@ -771,6 +802,7 @@ def _layer_pass(
     devices,
     force,
 ):
+    layer_started = perf_counter()
     pending = [
         (spec, seed)
         for spec in specs
@@ -785,7 +817,6 @@ def _layer_pass(
         for spec in specs
     ]
     pending_by_spec = [(spec, values) for spec, values in pending_by_spec if values]
-    assignments = _assign_spec_groups(pending_by_spec, train_rows, devices)
     cached_fits = {}
     if not force:
         for spec, pending_seeds in pending_by_spec:
@@ -808,41 +839,63 @@ def _layer_pass(
     else:
         print(f"层 {layer}：全部复用拟合断点，跳过训练侧层缓存")
         train_store = {}
+    train_loaded = perf_counter()
 
-    def fit_groups(device, assigned):
-        fitted = []
-        for spec, pending_seeds in assigned:
-            for seed in pending_seeds:
-                fit_path = _fit_path(roots, spec.name, layer, seed)
-                if (spec.name, seed) in cached_fits:
-                    probe, meta = cached_fits[(spec.name, seed)]
-                    print(f"L{layer} {spec.name} s{seed}：复用拟合断点")
-                else:
-                    probe, meta = _fit_cell(
-                        spec,
-                        probe_cfg,
-                        train_rows[(spec.name, seed)],
-                        inner,
-                        "acts",
-                        train_store,
-                        device,
-                    )
-                    meta["n_classes"] = spec.n_classes
-                    _save_fit(fit_path, probe, meta)
-                fitted.append((spec, seed, probe, meta, device))
-                print(
-                    f"L{layer} {spec.name} s{seed} 拟合："
-                    f"inner={meta['inner_val_metric']:.4f} C={meta['chosen_c']}"
-                )
-        return fitted
+    fitted = []
+    for spec, pending_seeds in pending_by_spec:
+        for seed in pending_seeds:
+            cached = cached_fits.get((spec.name, seed))
+            if cached is None:
+                continue
+            probe, meta = cached
+            fitted.append((spec, seed, probe, meta, None))
+            print(f"L{layer} {spec.name} s{seed}：复用拟合断点")
+
+    fit_queue: Queue = Queue()
+    for task in _ordered_fit_tasks(pending_by_spec, train_rows):
+        if (task[0].name, task[1]) not in cached_fits:
+            fit_queue.put(task)
+
+    def fit_tasks(device):
+        local_fitted = []
+        while True:
+            try:
+                spec, seed, estimated_cost = fit_queue.get_nowait()
+            except Empty:
+                break
+            started = perf_counter()
+            probe, meta = _fit_cell(
+                spec,
+                probe_cfg,
+                train_rows[(spec.name, seed)],
+                inner,
+                "acts",
+                train_store,
+                device,
+            )
+            meta.update(
+                {
+                    "n_classes": spec.n_classes,
+                    "fit_device": str(device),
+                    "fit_wall_s": perf_counter() - started,
+                    "fit_estimated_cost": int(estimated_cost),
+                }
+            )
+            _save_fit(_fit_path(roots, spec.name, layer, seed), probe, meta)
+            local_fitted.append((spec, seed, probe, meta, device))
+            print(
+                f"L{layer} {spec.name} s{seed} 拟合："
+                f"inner={meta['inner_val_metric']:.4f} C={meta['chosen_c']} "
+                f"device={device} wall={meta['fit_wall_s']:.1f}s"
+            )
+        return local_fitted
 
     with ThreadPoolExecutor(max_workers=len(devices), thread_name_prefix="e1-gpu") as pool:
-        futures = [
-            pool.submit(fit_groups, device, assigned)
-            for device, assigned in zip(devices, assignments, strict=True)
-            if assigned
-        ]
-        fitted = [item for future in futures for item in future.result()]
+        futures = [pool.submit(fit_tasks, device) for device in devices]
+        for future in futures:
+            fitted.extend(future.result())
+    fitted.sort(key=lambda item: (item[0].name, item[1]))
+    fit_finished = perf_counter()
     train_store.clear()
     gc.collect()
 
@@ -855,13 +908,22 @@ def _layer_pass(
     )
     print(f"层 {layer}：释放训练缓存，载入评估侧 {len(eval_keys)} 路")
     eval_store = g.preload_layer(roots["runs"], eval_keys, layer)
+    eval_loaded = perf_counter()
     fitted_by_spec = {
         spec.name: [item for item in fitted if item[0].name == spec.name]
         for spec, _ in pending_by_spec
     }
 
-    def evaluate_groups(device, assigned):
-        for spec, _pending_seeds in assigned:
+    eval_queue: Queue = Queue()
+    for group in _ordered_eval_groups(pending_by_spec, eval_rows):
+        eval_queue.put(group)
+
+    def evaluate_groups(device):
+        while True:
+            try:
+                spec, _pending_seeds = eval_queue.get_nowait()
+            except Empty:
+                break
             items = fitted_by_spec[spec.name]
             probes = [item[2] for item in items]
             score_sets = g.eval_cell_scores_many(
@@ -888,16 +950,20 @@ def _layer_pass(
                 print(f"L{layer} {item_spec.name} s{seed}：评估与断点写入完成")
 
     with ThreadPoolExecutor(max_workers=len(devices), thread_name_prefix="e1-eval") as pool:
-        futures = [
-            pool.submit(evaluate_groups, device, assigned)
-            for device, assigned in zip(devices, assignments, strict=True)
-            if assigned
-        ]
+        futures = [pool.submit(evaluate_groups, device) for device in devices]
         for future in futures:
             future.result()
+    eval_finished = perf_counter()
     eval_store.clear()
     fitted.clear()
     gc.collect()
+    print(
+        f"层 {layer} 分段耗时：训练载入={train_loaded - layer_started:.1f}s，"
+        f"拟合={fit_finished - train_loaded:.1f}s，"
+        f"评估载入={eval_loaded - fit_finished:.1f}s，"
+        f"评估与写盘={eval_finished - eval_loaded:.1f}s，"
+        f"总计={eval_finished - layer_started:.1f}s"
+    )
 
 
 def _baseline_pass(specs, seeds, inner, train_rows, eval_rows, probe_cfg, roots, devices, force):
