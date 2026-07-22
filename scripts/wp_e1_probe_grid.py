@@ -115,10 +115,14 @@ def _physical_memory_bytes() -> int | None:
         return None
 
 
-def _guard_layer_cache_memory(args, cache_cfg, train_rows) -> None:
+def _guard_layer_cache_memory(
+    args, cache_cfg, train_rows, compact_rows, *, n_layer_rows: int
+) -> bool:
+    """核对完整缓存旧模式，并判断单层预取是否满足 6 GiB 余量。"""
     physical = _physical_memory_bytes()
     if physical is None:
-        return
+        print("无法读取物理内存，关闭下一层预取")
+        return False
     train_keys = {
         (role.session_id, role.agent_channel)
         for roles in train_rows.values()
@@ -126,7 +130,7 @@ def _guard_layer_cache_memory(args, cache_cfg, train_rows) -> None:
     }
     bytes_per_process = (
         len(train_keys)
-        * 3000
+        * n_layer_rows
         * int(cache_cfg["expected_hidden_dim"])
         * np.dtype(str(cache_cfg["dtype"])).itemsize
     )
@@ -138,6 +142,23 @@ def _guard_layer_cache_memory(args, cache_cfg, train_rows) -> None:
             f"本机仅 {physical / (1 << 30):.1f} GiB。请改用单进程双卡："
             "--num-shards 1 --devices cuda:0,cuda:1"
         )
+    compact_bytes = (
+        sum(len(rows) for rows in compact_rows.values())
+        * int(cache_cfg["expected_hidden_dim"])
+        * np.dtype(str(cache_cfg["dtype"])).itemsize
+    )
+    reserve = 6 * (1 << 30)
+    prefetch_required = 2 * compact_bytes + reserve
+    full_rows = len(train_keys) * n_layer_rows
+    compact_count = sum(len(rows) for rows in compact_rows.values())
+    enabled = int(args.num_shards) == 1 and prefetch_required <= physical
+    print(
+        f"训练行压紧：{compact_count}/{full_rows}="
+        f"{compact_count / full_rows:.2%}，单层 {compact_bytes / (1 << 30):.2f} GiB；"
+        f"下一层预取={'启用' if enabled else '关闭'}（含护栏需 "
+        f"{prefetch_required / (1 << 30):.2f}/{physical / (1 << 30):.2f} GiB）"
+    )
+    return enabled
 
 
 def _roots() -> dict[str, Path]:
@@ -790,6 +811,18 @@ def _ordered_eval_groups(groups, eval_rows):
     ]
 
 
+def _preload_train_layer(runs_root, run_keys, layer, train_row_indices):
+    """返回层缓存与真实读取墙钟，便于区分后台耗时和关键路径等待。"""
+    started = perf_counter()
+    store = g.preload_layer(
+        runs_root,
+        run_keys,
+        layer,
+        row_indices=train_row_indices,
+    )
+    return store, perf_counter() - started
+
+
 def _layer_pass(
     layer,
     specs,
@@ -801,6 +834,10 @@ def _layer_pass(
     roots,
     devices,
     force,
+    train_row_indices=None,
+    prefetched_train=None,
+    prefetch_pool=None,
+    next_layer=None,
 ):
     layer_started = perf_counter()
     pending = [
@@ -834,12 +871,47 @@ def _layer_pass(
         }
     )
     if train_keys:
-        print(f"层 {layer}：载入训练侧 {len(train_keys)} 路")
-        train_store = g.preload_layer(roots["runs"], train_keys, layer)
+        if prefetched_train is None:
+            print(f"层 {layer}：载入训练侧 {len(train_keys)} 路")
+            train_store, preload_wall_s = _preload_train_layer(
+                roots["runs"],
+                train_keys,
+                layer,
+                train_row_indices,
+            )
+            print(f"层 {layer}：训练侧同步载入完成，wall={preload_wall_s:.1f}s")
+        else:
+            print(f"层 {layer}：等待并接管预取训练侧 {len(train_keys)} 路")
+            wait_started = perf_counter()
+            train_store, preload_wall_s = prefetched_train.result()
+            wait_s = perf_counter() - wait_started
+            missing_keys = set(train_keys) - set(train_store)
+            if missing_keys:
+                raise ValueError(f"预取训练缓存缺 {len(missing_keys)} 路")
+            print(
+                f"层 {layer}：预取训练侧接管完成，"
+                f"后台 wall={preload_wall_s:.1f}s，关键路径等待={wait_s:.1f}s"
+            )
     else:
         print(f"层 {layer}：全部复用拟合断点，跳过训练侧层缓存")
         train_store = {}
     train_loaded = perf_counter()
+
+    next_prefetch = None
+    if (
+        prefetch_pool is not None
+        and next_layer is not None
+        and train_row_indices is not None
+    ):
+        next_keys = sorted(train_row_indices)
+        print(f"层 {layer}：后台预取下一待运行层 {next_layer}（{len(next_keys)} 路）")
+        next_prefetch = prefetch_pool.submit(
+            _preload_train_layer,
+            roots["runs"],
+            next_keys,
+            next_layer,
+            train_row_indices,
+        )
 
     fitted = []
     for spec, pending_seeds in pending_by_spec:
@@ -964,6 +1036,7 @@ def _layer_pass(
         f"评估与写盘={eval_finished - eval_loaded:.1f}s，"
         f"总计={eval_finished - layer_started:.1f}s"
     )
+    return next_prefetch
 
 
 def _baseline_pass(specs, seeds, inner, train_rows, eval_rows, probe_cfg, roots, devices, force):
@@ -1287,25 +1360,84 @@ def stage_run(args) -> None:
         raise SystemExit("奇偶校验门未通过，禁止正式网格（PREREG #18(d)）")
     train, evals = _sessions()
     specs, seeds, inner, _pools, train_rows, eval_rows = _prepare_rows(probe_cfg, roots, train, evals)
-    _guard_layer_cache_memory(args, cache_cfg, train_rows)
     layers = list(range(int(cache_cfg["n_layers"])))[args.shard_id :: args.num_shards]
     print(
         f"shard {args.shard_id}/{args.num_shards}：层 {layers}；"
         f"设备 {devices}（单进程共享层缓存）"
     )
-    for layer in layers:
-        _layer_pass(
-            layer,
-            specs,
-            seeds,
-            inner,
-            train_rows,
-            eval_rows,
-            probe_cfg,
-            roots,
-            devices,
-            args.force,
+    pending_layers = [
+        layer
+        for layer in layers
+        if any(
+            args.force
+            or not _cell_path(roots, spec.name, "acts", layer, seed).is_file()
+            for spec in specs
+            for seed in seeds
         )
+    ]
+    for layer in layers:
+        if layer not in pending_layers:
+            print(f"层 {layer}：全部格子已存在，跳过")
+
+    prefetch_enabled = False
+    train_row_indices = None
+    if pending_layers:
+        n_steps = set(_load_run_specs(roots).values())
+        if len(n_steps) != 1:
+            raise ValueError(f"E1 角色层行数不统一：{sorted(n_steps)}")
+        n_layer_rows = int(next(iter(n_steps)))
+        train_row_indices = g.required_layer_rows(
+            train_rows.values(), n_rows=n_layer_rows
+        )
+        prefetch_enabled = _guard_layer_cache_memory(
+            args,
+            cache_cfg,
+            train_rows,
+            train_row_indices,
+            n_layer_rows=n_layer_rows,
+        )
+
+    if prefetch_enabled:
+        prefetched_train = None
+        with ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="e1-layer-prefetch"
+        ) as prefetch_pool:
+            for index, layer in enumerate(pending_layers):
+                next_layer = (
+                    pending_layers[index + 1]
+                    if index + 1 < len(pending_layers)
+                    else None
+                )
+                prefetched_train = _layer_pass(
+                    layer,
+                    specs,
+                    seeds,
+                    inner,
+                    train_rows,
+                    eval_rows,
+                    probe_cfg,
+                    roots,
+                    devices,
+                    args.force,
+                    train_row_indices=train_row_indices,
+                    prefetched_train=prefetched_train,
+                    prefetch_pool=prefetch_pool,
+                    next_layer=next_layer,
+                )
+    else:
+        for layer in pending_layers:
+            _layer_pass(
+                layer,
+                specs,
+                seeds,
+                inner,
+                train_rows,
+                eval_rows,
+                probe_cfg,
+                roots,
+                devices,
+                args.force,
+            )
     if args.shard_id == 0:
         _baseline_pass(
             specs,

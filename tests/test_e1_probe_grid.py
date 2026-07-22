@@ -247,6 +247,50 @@ class TestAssembly:
         assert np.array_equal(np.asarray(x[:, 0], dtype=np.float64), [15.0, 25.0])
         assert np.array_equal(y, [0, 1])
 
+    def test_compact_layer_assembly_matches_full_and_missing_row_fails(self):
+        full = np.arange(60, dtype=np.float16).reshape(10, 6)
+        roles = [
+            g.RoleRows(
+                "sess",
+                0,
+                np.array([1, 3, 6], dtype=np.int64),
+                np.array([0, 1, 0], dtype=np.int64),
+            )
+        ]
+        required = g.required_layer_rows([roles], n_rows=10)
+        rows = required[("sess", 0)]
+        compact = g.IndexedLayerArray(rows, np.ascontiguousarray(full[rows]))
+
+        expected = g.assemble(roles, "acts", {("sess", 0): full})
+        actual = g.assemble(roles, "acts", {("sess", 0): compact})
+        for left, right in zip(expected, actual, strict=True):
+            assert np.array_equal(left, right)
+
+        incomplete = g.IndexedLayerArray(rows[:-1], np.ascontiguousarray(full[rows[:-1]]))
+        with pytest.raises(ValueError, match="压紧层缺少请求行"):
+            g.assemble(roles, "acts", {("sess", 0): incomplete})
+
+    def test_preload_layer_keeps_only_requested_rows(self, tmp_path):
+        import zarr
+
+        role_root = tmp_path / "sess_agent0"
+        full = np.arange(48, dtype=np.float16).reshape(8, 6)
+        group = zarr.open_group(str(role_root), mode="w")
+        group.create_array("acts_L2", data=full, chunks=full.shape)
+        selected = np.array([1, 4, 7], dtype=np.int32)
+
+        store = g.preload_layer(
+            tmp_path,
+            [("sess", 0)],
+            2,
+            row_indices={("sess", 0): selected},
+        )
+
+        compact = store[("sess", 0)]
+        assert isinstance(compact, g.IndexedLayerArray)
+        assert np.array_equal(compact.rows, selected)
+        assert np.array_equal(compact.values, full[selected])
+
     def test_mimi_concat_self_other(self):
         store = {
             ("sess", 0): np.ones((6, 2), dtype=np.float16),

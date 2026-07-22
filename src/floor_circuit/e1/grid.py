@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,6 +75,14 @@ class RoleRows:
     agent_channel: int
     steps: np.ndarray
     labels: np.ndarray
+
+
+@dataclass(frozen=True)
+class IndexedLayerArray:
+    """只保留探针所需原始行的层数组；rows 与 values 第一维严格对应。"""
+
+    rows: np.ndarray
+    values: np.ndarray
 
 
 def _spec_rows(labels: pd.DataFrame, spec: ProbeSpec, channel: int, n_steps: int, stride: int) -> pd.DataFrame:
@@ -184,6 +193,29 @@ def sample_role_rows(
     return [r for r in roles if len(r.steps)]
 
 
+def required_layer_rows(
+    role_groups: Iterable[list[RoleRows]], *, n_rows: int
+) -> dict[tuple[str, int], np.ndarray]:
+    """汇总多个规格与种子的 acts 原始行并集，用布尔掩码约束内存。"""
+    if n_rows <= 0:
+        raise ValueError("层行数必须为正整数")
+    masks: dict[tuple[str, int], np.ndarray] = {}
+    for roles in role_groups:
+        for role in roles:
+            rows = np.asarray(feature_row_indices("acts", role.steps), dtype=np.int64)
+            if len(rows) and (int(rows.min()) < 0 or int(rows.max()) >= n_rows):
+                raise ValueError(
+                    f"{role.session_id}/agent{role.agent_channel} 特征行越界"
+                )
+            key = (role.session_id, role.agent_channel)
+            mask = masks.setdefault(key, np.zeros(n_rows, dtype=np.bool_))
+            mask[rows] = True
+    return {
+        key: np.flatnonzero(mask).astype(np.int32, copy=False)
+        for key, mask in masks.items()
+    }
+
+
 def io_jobs(n_tasks: int) -> int:
     try:
         jobs = int(os.environ.get("FLOOR_CIRCUIT_IO_JOBS", "8"))
@@ -193,17 +225,38 @@ def io_jobs(n_tasks: int) -> int:
 
 
 def preload_layer(
-    runs_root: Path, run_keys: list[tuple[str, int]], layer: int
-) -> dict[tuple[str, int], np.ndarray]:
-    """载入指定角色的某层 zarr 数组；run 分训练 800 路与评估 200 路调用。"""
+    runs_root: Path,
+    run_keys: list[tuple[str, int]],
+    layer: int,
+    *,
+    row_indices: dict[tuple[str, int], np.ndarray] | None = None,
+) -> dict[tuple[str, int], np.ndarray | IndexedLayerArray]:
+    """载入指定角色的某层；可在完整块解码后仅保留冻结探针行。"""
     import zarr
 
-    def read_one(key: tuple[str, int]) -> tuple[tuple[str, int], np.ndarray]:
+    def read_one(
+        key: tuple[str, int],
+    ) -> tuple[tuple[str, int], np.ndarray | IndexedLayerArray]:
         sid, channel = key
         group = zarr.open_group(str(runs_root / f"{sid}_agent{channel}"), mode="r")
-        return key, np.asarray(group[f"acts_L{layer}"][:], dtype=np.float16)
+        array = np.asarray(group[f"acts_L{layer}"][:], dtype=np.float16)
+        if row_indices is None:
+            return key, array
+        if key not in row_indices:
+            raise ValueError(f"{sid}/agent{channel} 缺少压紧行计划")
+        rows = np.asarray(row_indices[key], dtype=np.int64)
+        if len(rows) == 0:
+            raise ValueError(f"{sid}/agent{channel} 压紧行计划为空")
+        if (
+            int(rows[0]) < 0
+            or int(rows[-1]) >= len(array)
+            or np.any(rows[1:] <= rows[:-1])
+        ):
+            raise ValueError(f"{sid}/agent{channel} 压紧行计划无序、重复或越界")
+        values = np.ascontiguousarray(array[rows])
+        return key, IndexedLayerArray(rows.astype(np.int32), values)
 
-    loaded: dict[tuple[str, int], np.ndarray] = {}
+    loaded: dict[tuple[str, int], np.ndarray | IndexedLayerArray] = {}
     with ThreadPoolExecutor(max_workers=io_jobs(len(run_keys)), thread_name_prefix="e1-io") as pool:
         for key, array in pool.map(read_one, run_keys):
             loaded[key] = array
@@ -231,7 +284,7 @@ def preload_mimi(
 def assemble(
     roles: list[RoleRows],
     feature: str,
-    store: dict[tuple[str, int], np.ndarray],
+    store: dict[tuple[str, int], np.ndarray | IndexedLayerArray],
     *,
     dtype=np.float16,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -253,15 +306,18 @@ def assemble(
 def feature_layout(
     roles: list[RoleRows],
     feature: str,
-    store: dict[tuple[str, int], np.ndarray],
+    store: dict[tuple[str, int], np.ndarray | IndexedLayerArray],
 ) -> tuple[int, int]:
     """返回角色行域装配后的总行数与特征维度，不分配大矩阵。"""
     if not roles:
         return 0, 0
     sample = store[(roles[0].session_id, roles[0].agent_channel)]
     if feature == "acts":
-        dims = int(sample.shape[1])
+        values = sample.values if isinstance(sample, IndexedLayerArray) else sample
+        dims = int(values.shape[1])
     elif feature == "mimi":
+        if isinstance(sample, IndexedLayerArray):
+            raise ValueError("Mimi 特征不得使用压紧层数组")
         dims = int(sample.shape[1]) * 2
     else:
         raise ValueError(f"未知特征：{feature}")
@@ -271,17 +327,35 @@ def feature_layout(
 def feature_blocks(
     roles: list[RoleRows],
     feature: str,
-    store: dict[tuple[str, int], np.ndarray],
+    store: dict[tuple[str, int], np.ndarray | IndexedLayerArray],
 ):
     """逐角色生成对齐特征块；训练器可直接写入设备，避免主存整矩阵副本。"""
     dims = None
     for role in roles:
         rows = feature_row_indices("acts" if feature == "acts" else "mimi", role.steps)
         if feature == "acts":
-            block = store[(role.session_id, role.agent_channel)][rows]
+            source = store[(role.session_id, role.agent_channel)]
+            if isinstance(source, IndexedLayerArray):
+                positions = np.searchsorted(source.rows, rows)
+                valid = positions < len(source.rows)
+                if not np.all(valid) or not np.array_equal(
+                    source.rows[positions[valid]], np.asarray(rows)[valid]
+                ):
+                    raise ValueError(
+                        f"{role.session_id}/agent{role.agent_channel} 压紧层缺少请求行"
+                    )
+                block = source.values[positions]
+            else:
+                block = source[rows]
         elif feature == "mimi":
-            own = store[(role.session_id, role.agent_channel)][rows]
-            other = store[(role.session_id, 1 - role.agent_channel)][rows]
+            own_source = store[(role.session_id, role.agent_channel)]
+            other_source = store[(role.session_id, 1 - role.agent_channel)]
+            if isinstance(own_source, IndexedLayerArray) or isinstance(
+                other_source, IndexedLayerArray
+            ):
+                raise ValueError("Mimi 特征不得使用压紧层数组")
+            own = own_source[rows]
+            other = other_source[rows]
             block = np.concatenate([own, other], axis=1)
         else:
             raise ValueError(f"未知特征：{feature}")
