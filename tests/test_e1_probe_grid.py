@@ -134,7 +134,14 @@ class TestSampling:
         for step in range(100):
             t_end = 0.08 * (step + 1)
             rows.append(
-                {"agent_channel": 0, "target": "T5", "step": step, "t": t_end, "label": step % 5, "delta_ms": None}
+                {
+                    "agent_channel": 0,
+                    "target": "T5",
+                    "step": step,
+                    "t": t_end,
+                    "label": 5 if step == 8 else step % 5,
+                    "delta_ms": None,
+                }
             )
             rows.append(
                 {
@@ -158,6 +165,35 @@ class TestSampling:
         got5 = g.build_rows(tmp_path, ["sess"], n_steps, spec_t5, PROBE_CFG, 0, downsample=False)
         steps5 = np.concatenate([r.steps for r in got5])
         assert (steps5 % 4 == 0).all() and steps5.max() < g.usable_label_steps(100)
+        assert 8 not in steps5
+        assert max(np.concatenate([r.labels for r in got5])) < 5
+
+    def test_t5_unknown_state_still_fails(self, tmp_path):
+        import pandas as pd
+
+        pd.DataFrame(
+            [
+                {
+                    "agent_channel": 0,
+                    "target": "T5",
+                    "step": 0,
+                    "t": 0.08,
+                    "label": 6,
+                    "delta_ms": None,
+                }
+            ]
+        ).to_parquet(tmp_path / "sess.parquet")
+        spec_t5 = next(s for s in g.expand_specs(PROBE_CFG) if s.name == "T5")
+        with pytest.raises(ValueError, match="标签越界"):
+            g.build_rows(
+                tmp_path,
+                ["sess"],
+                {("sess", 0): 2, ("sess", 1): 2},
+                spec_t5,
+                PROBE_CFG,
+                0,
+                downsample=False,
+            )
 
     def test_multi_spec_reads_each_label_file_once(self, tmp_path, monkeypatch):
         import pandas as pd

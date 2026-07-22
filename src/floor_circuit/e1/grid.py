@@ -21,6 +21,7 @@ from floor_circuit.mve.alignment import (
     feature_row_indices,
     usable_label_steps,
 )
+from floor_circuit.schemas import State
 
 T1_DELTAS_MS = (0, 80, 160, 240, 400, 800)
 N_CLASSES = {"T1": 2, "T2": 2, "T3": 3, "T4": 2, "T5": 5}
@@ -79,6 +80,9 @@ def _spec_rows(labels: pd.DataFrame, spec: ProbeSpec, channel: int, n_steps: int
     sub = labels[(labels["target"] == spec.target) & (labels["agent_channel"] == channel)]
     if spec.target == "T1":
         sub = sub[sub["delta_ms"] == spec.delta_ms]
+    if spec.target == "T5":
+        # 状态 5 是无法判定去向的重叠，仅供标签审计与 hazard 当前态重建。
+        sub = sub[sub["label"] != State.OVERLAP_UNRESOLVED.value]
     sub = sub[(sub["step"] < usable_label_steps(n_steps)) & (sub["step"] >= MIN_ELIGIBLE_STEP)]
     if spec.sampling == "stride":
         sub = sub[sub["step"] % stride == 0]
