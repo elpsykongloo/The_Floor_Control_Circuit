@@ -96,18 +96,66 @@ def build_rows(
     downsample: bool,
 ) -> list[RoleRows]:
     """按会话→角色→步的全局固定顺序取行；T1 训练侧做全局 5:1 负类抽样。"""
+    roles = build_rows_multi(
+        labels_root, sessions, n_steps_by_role, [spec], probe_cfg
+    )[spec.name]
+    return sample_role_rows(roles, spec, probe_cfg, seed, downsample=downsample)
+
+
+def build_rows_multi(
+    labels_root: Path,
+    sessions: list[str],
+    n_steps_by_role: dict[tuple[str, int], int],
+    specs: list[ProbeSpec],
+    probe_cfg: dict,
+) -> dict[str, list[RoleRows]]:
+    """每个会话只读一次 parquet，同时构建全部规格的未下采样行域。"""
     stride = int(probe_cfg["t5_step_stride"])
-    roles: list[RoleRows] = []
-    for sid in sessions:
-        frame = pd.read_parquet(labels_root / f"{sid}.parquet")
-        for channel in (0, 1):
-            rows = _spec_rows(frame, spec, channel, n_steps_by_role[(sid, channel)], stride)
-            values = rows["label"].to_numpy(dtype=np.int64)
-            if values.size and (values.min() < 0 or values.max() >= spec.n_classes):
-                raise ValueError(f"{sid}/agent{channel}/{spec.name} 标签越界")
-            roles.append(
-                RoleRows(sid, channel, rows["step"].to_numpy(dtype=np.int64), values)
-            )
+    by_spec: dict[str, list[RoleRows]] = {spec.name: [] for spec in specs}
+
+    def read_one(sid: str) -> tuple[str, pd.DataFrame]:
+        return sid, pd.read_parquet(labels_root / f"{sid}.parquet")
+
+    with ThreadPoolExecutor(
+        max_workers=io_jobs(len(sessions)), thread_name_prefix="e1-labels"
+    ) as pool:
+        loaded = pool.map(read_one, sessions)
+        for sid, frame in loaded:
+            for channel in (0, 1):
+                for spec in specs:
+                    rows = _spec_rows(
+                        frame,
+                        spec,
+                        channel,
+                        n_steps_by_role[(sid, channel)],
+                        stride,
+                    )
+                    values = rows["label"].to_numpy(dtype=np.int64)
+                    if values.size and (
+                        values.min() < 0 or values.max() >= spec.n_classes
+                    ):
+                        raise ValueError(f"{sid}/agent{channel}/{spec.name} 标签越界")
+                    if len(values):
+                        by_spec[spec.name].append(
+                            RoleRows(
+                                sid,
+                                channel,
+                                rows["step"].to_numpy(dtype=np.int64),
+                                values,
+                            )
+                        )
+    return by_spec
+
+
+def sample_role_rows(
+    roles: list[RoleRows],
+    spec: ProbeSpec,
+    probe_cfg: dict,
+    seed: int,
+    *,
+    downsample: bool,
+) -> list[RoleRows]:
+    """在已构建行域上执行冻结的 T1 全局负类下采样。"""
     if downsample and spec.sampling == "neg5":
         ratio = int(probe_cfg["neg_ratio_t1"])
         all_labels = np.concatenate([r.labels for r in roles]) if roles else np.empty(0, np.int64)
@@ -143,7 +191,7 @@ def io_jobs(n_tasks: int) -> int:
 def preload_layer(
     runs_root: Path, run_keys: list[tuple[str, int]], layer: int
 ) -> dict[tuple[str, int], np.ndarray]:
-    """一次性把 1000 路某层 zarr 数组载入内存（fp16，≈24.6 GB @ Moshi 全量）。"""
+    """载入指定角色的某层 zarr 数组；run 分训练 800 路与评估 200 路调用。"""
     import zarr
 
     def read_one(key: tuple[str, int]) -> tuple[tuple[str, int], np.ndarray]:
@@ -184,10 +232,45 @@ def assemble(
     dtype=np.float16,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """按 #8 行映射装配 (X, y, session_index)；mimi 拼接 [self, other]。"""
+    n_rows, dims = feature_layout(roles, feature, store)
+    features = np.empty((n_rows, dims), dtype=dtype)
+    y = np.empty(n_rows, dtype=np.int64)
+    sid_codes = np.empty(n_rows, dtype=np.int64)
+    offset = 0
+    for role, block in feature_blocks(roles, feature, store):
+        stop = offset + len(role.labels)
+        features[offset:stop] = block
+        y[offset:stop] = role.labels
+        sid_codes[offset:stop] = hash(role.session_id) % (1 << 62)
+        offset = stop
+    return features, y, sid_codes
+
+
+def feature_layout(
+    roles: list[RoleRows],
+    feature: str,
+    store: dict[tuple[str, int], np.ndarray],
+) -> tuple[int, int]:
+    """返回角色行域装配后的总行数与特征维度，不分配大矩阵。"""
+    if not roles:
+        return 0, 0
+    sample = store[(roles[0].session_id, roles[0].agent_channel)]
+    if feature == "acts":
+        dims = int(sample.shape[1])
+    elif feature == "mimi":
+        dims = int(sample.shape[1]) * 2
+    else:
+        raise ValueError(f"未知特征：{feature}")
+    return sum(len(role.labels) for role in roles), dims
+
+
+def feature_blocks(
+    roles: list[RoleRows],
+    feature: str,
+    store: dict[tuple[str, int], np.ndarray],
+):
+    """逐角色生成对齐特征块；训练器可直接写入设备，避免主存整矩阵副本。"""
     dims = None
-    blocks: list[np.ndarray] = []
-    labels: list[np.ndarray] = []
-    session_ids: list[np.ndarray] = []
     for role in roles:
         rows = feature_row_indices("acts" if feature == "acts" else "mimi", role.steps)
         if feature == "acts":
@@ -202,13 +285,7 @@ def assemble(
             dims = block.shape[1]
         elif dims != block.shape[1]:
             raise ValueError("特征维度跨角色不一致")
-        blocks.append(np.asarray(block, dtype=dtype))
-        labels.append(role.labels)
-        session_ids.append(np.full(len(role.labels), hash(role.session_id) % (1 << 62)))
-    features = np.concatenate(blocks) if blocks else np.empty((0, dims or 0), dtype=dtype)
-    y = np.concatenate(labels) if labels else np.empty(0, np.int64)
-    sid_codes = np.concatenate(session_ids) if session_ids else np.empty(0, np.int64)
-    return features, y, sid_codes
+        yield role, block
 
 
 def t5_state_array(labels_frame: pd.DataFrame, channel: int, n_steps: int) -> np.ndarray:
@@ -244,6 +321,34 @@ def eval_cell_scores(
             continue
         out[sid] = (y, probe.predict_proba(np.asarray(features, dtype=np.float32)))
     return out
+
+
+def eval_cell_scores_many(
+    probes: list,
+    roles: list[RoleRows],
+    feature: str,
+    store: dict[tuple[str, int], np.ndarray],
+    *,
+    device: str,
+) -> list[dict[str, tuple[np.ndarray, np.ndarray]]]:
+    """一次装配与搬运同时评估多个探针，仍按会话保留 cluster 边界。"""
+    from floor_circuit.e1.probe_gpu import LinearProbeBatchPredictor
+
+    predictor = LinearProbeBatchPredictor(probes, device=device)
+    by_session: dict[str, list[RoleRows]] = {}
+    for role in roles:
+        by_session.setdefault(role.session_id, []).append(role)
+    outputs: list[dict[str, tuple[np.ndarray, np.ndarray]]] = [
+        {} for _ in probes
+    ]
+    for sid, group in by_session.items():
+        features, y, _ = assemble(group, feature, store)
+        if not len(y):
+            continue
+        probabilities = predictor.predict_proba(features)
+        for out, probs in zip(outputs, probabilities, strict=True):
+            out[sid] = (y.copy(), probs)
+    return outputs
 
 
 def pooled_primary_metric(scores: dict[str, tuple[np.ndarray, np.ndarray]], n_classes: int) -> float:

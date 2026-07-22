@@ -74,6 +74,34 @@ class TestTrainerParity:
         scores[y == 1] += 0.4
         assert abs(pg._binary_auc(y, scores) - roc_auc_score(y, scores)) < 1e-12
 
+    def test_block_preparation_matches_single_matrix(self):
+        x, y = self._make_binary(n=720, d=10, seed=13)
+        reference = pg.fit_linear_probe(x, y, 2, 0.1, device="cpu")
+        prepared = pg.prepare_linear_probe_blocks(
+            [(x[:111], y[:111]), (x[111:503], y[111:503]), (x[503:], y[503:])],
+            len(x),
+            x.shape[1],
+            2,
+            device="cpu",
+        )
+        blocked = prepared.fit(0.1)
+        assert np.allclose(blocked.mean, reference.mean, atol=1e-6)
+        assert np.allclose(blocked.scale, reference.scale, atol=1e-6)
+        assert np.allclose(
+            blocked.predict_proba(x), reference.predict_proba(x), atol=2e-5
+        )
+
+    def test_batch_predictor_reuses_feature_block(self):
+        x, y = self._make_binary(n=500, d=8, seed=17)
+        probes = [
+            pg.fit_linear_probe(x, y, 2, c_value, device="cpu")
+            for c_value in (0.01, 0.1, 1.0)
+        ]
+        predictor = pg.LinearProbeBatchPredictor(probes, device="cpu")
+        outputs = predictor.predict_proba(x)
+        for probe, output in zip(probes, outputs, strict=True):
+            assert np.allclose(output, probe.predict_proba(x), atol=2e-6)
+
 
 class TestSampling:
     def test_seed_pool_composition(self):
@@ -126,6 +154,48 @@ class TestSampling:
         got5 = g.build_rows(tmp_path, ["sess"], n_steps, spec_t5, PROBE_CFG, 0, downsample=False)
         steps5 = np.concatenate([r.steps for r in got5])
         assert (steps5 % 4 == 0).all() and steps5.max() < g.usable_label_steps(100)
+
+    def test_multi_spec_reads_each_label_file_once(self, tmp_path, monkeypatch):
+        import pandas as pd
+
+        frame = pd.DataFrame(
+            [
+                {
+                    "agent_channel": channel,
+                    "target": target,
+                    "step": step,
+                    "t": 0.08 * (step + 1),
+                    "label": step % (5 if target == "T5" else 2),
+                    "delta_ms": 400 if target == "T1" else None,
+                }
+                for channel in (0, 1)
+                for target in ("T1", "T5")
+                for step in range(12)
+            ]
+        )
+        frame.to_parquet(tmp_path / "sess.parquet")
+        calls = 0
+        original = g.pd.read_parquet
+
+        def counted(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(g.pd, "read_parquet", counted)
+        specs = [
+            next(s for s in g.expand_specs(PROBE_CFG) if s.name == "T1_d400"),
+            next(s for s in g.expand_specs(PROBE_CFG) if s.name == "T5"),
+        ]
+        result = g.build_rows_multi(
+            tmp_path,
+            ["sess"],
+            {("sess", 0): 12, ("sess", 1): 12},
+            specs,
+            PROBE_CFG,
+        )
+        assert calls == 1
+        assert set(result) == {"T1_d400", "T5"}
 
 
 class TestAssembly:
@@ -190,6 +260,9 @@ class TestEngineScript:
         )
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+        assert module._event_labels_path(
+            {"events": tmp_path}, "session-a"
+        ).name == "session-a.labels.parquet"
         scores = {
             "sid-a": (np.array([0, 1, 1]), np.array([[0.8, 0.2], [0.3, 0.7], [0.4, 0.6]])),
         }
@@ -200,6 +273,119 @@ class TestEngineScript:
         assert np.allclose(weight, [1.0, 2.0])
         assert np.array_equal(loaded["sid-a"][0], [0, 1, 1])
         assert np.allclose(loaded["sid-a"][1], scores["sid-a"][1])
+
+        probe = pg.LinearProbe(
+            mean=np.array([0.1, 0.2], dtype=np.float32),
+            scale=np.array([1.0, 2.0], dtype=np.float32),
+            weight=np.array([[0.3, -0.4]], dtype=np.float32),
+            bias=np.array([0.5], dtype=np.float32),
+            n_classes=2,
+            c_value=0.01,
+            converged=True,
+        )
+        fit_path = tmp_path / "fit.npz"
+        module._save_fit(
+            fit_path,
+            probe,
+            {"chosen_c": 0.01, "converged": True, "n_classes": 2},
+        )
+        loaded_probe, loaded_meta = module._load_fit(fit_path)
+        assert loaded_meta["chosen_c"] == 0.01
+        assert np.array_equal(loaded_probe.weight, probe.weight)
+        assert np.array_equal(loaded_probe.mean, probe.mean)
+
+        row_spec = g.ProbeSpec("T4", "T4", None, 2, "none")
+        row_roles = [
+            g.RoleRows(
+                "session-a",
+                1,
+                np.array([2, 7], dtype=np.int64),
+                np.array([0, 1], dtype=np.int64),
+            )
+        ]
+        row_path = tmp_path / "rows.npz"
+        module._save_row_plan(
+            row_path,
+            "signature",
+            [row_spec],
+            [0],
+            {("T4", 0): row_roles},
+            {"T4": row_roles},
+        )
+        cached = module._load_row_plan(
+            row_path, "signature", [row_spec], [0]
+        )
+        assert cached is not None
+        cached_train, cached_eval = cached
+        assert cached_train[("T4", 0)][0].session_id == "session-a"
+        assert np.array_equal(cached_eval["T4"][0].steps, [2, 7])
+
+    def test_label_record_validates_marker_hash_and_audio(self, tmp_path):
+        import hashlib
+        import json
+        import sys
+        import wave
+
+        scripts = REPO_ROOT / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        spec = importlib.util.spec_from_file_location(
+            "wp_e1_probe_grid_label_record", scripts / "wp_e1_probe_grid.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        roots = {
+            "events": tmp_path / "events",
+            "audio": tmp_path / "audio",
+        }
+        roots["events"].mkdir()
+        session_audio = roots["audio"] / "session-a"
+        session_audio.mkdir(parents=True)
+        source_audio = {}
+        for channel in (0, 1):
+            path = session_audio / f"audio_ch{channel}.wav"
+            with wave.open(str(path), "wb") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(24_000)
+                handle.writeframes(np.zeros(32, dtype="<i2").tobytes())
+            stat = path.stat()
+            source_audio[path.name] = {
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        label_path = roots["events"] / "session-a.labels.parquet"
+        label_path.write_bytes(b"label-payload")
+        marker = {
+            "schema_version": 1,
+            "session": "session-a",
+            "input": {
+                "event_pipeline_code_sha256": "code",
+                "settings_sha256": "settings",
+                "source_audio": source_audio,
+            },
+            "outputs": {
+                "labels": {
+                    "name": label_path.name,
+                    "size": label_path.stat().st_size,
+                    "sha256": hashlib.sha256(label_path.read_bytes()).hexdigest(),
+                }
+            },
+        }
+        (roots["events"] / "session-a.complete.json").write_text(
+            json.dumps(marker), encoding="utf-8"
+        )
+
+        record, reason = module._validated_label_record(
+            roots, "session-a", {("code", "settings")}
+        )
+
+        assert reason is None and record is not None
+        label_path.write_bytes(b"tampered")
+        record, reason = module._validated_label_record(
+            roots, "session-a", {("code", "settings")}
+        )
+        assert record is None and reason in {"size", "sha256"}
 
     def test_bootstrap_adv_sign(self, tmp_path):
         import sys
@@ -226,3 +412,102 @@ class TestEngineScript:
             base_cells.append(cell_b)
         out = module._bootstrap_adv(probe_cells, base_cells, 2, 200)
         assert out["advantage"] > 0 and out["ci95"][0] > 0
+
+    def test_fast_bootstrap_matches_literal_resampling(self):
+        import sys
+
+        scripts = REPO_ROOT / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        spec = importlib.util.spec_from_file_location(
+            "wp_e1_probe_grid_boot_exact", scripts / "wp_e1_probe_grid.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        rng = np.random.default_rng(23)
+        probe_cells, base_cells = [], []
+        for seed in range(2):
+            probe_cell, base_cell = {}, {}
+            for sid_index in range(5):
+                y = np.array([0, 1, 0, 1, 0, 1], dtype=np.int64)
+                good = y + rng.normal(0, 0.25 + 0.02 * seed, len(y))
+                weak = y + rng.normal(0, 0.9 + 0.03 * sid_index, len(y))
+                probe_cell[f"s{sid_index}"] = (y, np.stack([-good, good], axis=1))
+                base_cell[f"s{sid_index}"] = (y, np.stack([-weak, weak], axis=1))
+            probe_cells.append(probe_cell)
+            base_cells.append(base_cell)
+
+        def literal(take):
+            def mean_metric(cells):
+                values = []
+                for cell in cells:
+                    y = np.concatenate([cell[sid][0] for sid in take])
+                    p = np.concatenate([cell[sid][1] for sid in take])
+                    values.append(pg.primary_metric(y, p, 2))
+                return float(np.mean(values))
+
+            return mean_metric(probe_cells) - mean_metric(base_cells)
+
+        sids = sorted(probe_cells[0])
+        expected_point = literal(sids)
+        boot_rng = np.random.default_rng(20260717)
+        expected_samples = [
+            literal([sids[i] for i in boot_rng.integers(0, len(sids), len(sids))])
+            for _ in range(120)
+        ]
+        expected_ci = np.percentile(expected_samples, [2.5, 97.5])
+        result = module._bootstrap_adv(
+            probe_cells, base_cells, 2, 120, seed=20260717
+        )
+        assert result["advantage"] == pytest.approx(expected_point, abs=1e-12)
+        assert result["ci95"] == pytest.approx(expected_ci, abs=1e-12)
+
+    def test_fast_bootstrap_matches_multiclass_resampling(self):
+        import sys
+
+        scripts = REPO_ROOT / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        spec = importlib.util.spec_from_file_location(
+            "wp_e1_probe_grid_boot_multi", scripts / "wp_e1_probe_grid.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        rng = np.random.default_rng(31)
+        probe_cell, base_cell = {}, {}
+        for sid_index in range(6):
+            y = np.tile(np.arange(3, dtype=np.int64), 3)
+            good_logits = rng.normal(0, 0.5, (len(y), 3))
+            weak_logits = rng.normal(0, 1.0, (len(y), 3))
+            good_logits[np.arange(len(y)), y] += 1.5
+            weak_logits[np.arange(len(y)), y] += 0.4
+
+            def softmax(logits):
+                expv = np.exp(logits - logits.max(axis=1, keepdims=True))
+                return expv / expv.sum(axis=1, keepdims=True)
+
+            probe_cell[f"s{sid_index}"] = (y, softmax(good_logits))
+            base_cell[f"s{sid_index}"] = (y, softmax(weak_logits))
+        sids = sorted(probe_cell)
+
+        def literal(take):
+            y_probe = np.concatenate([probe_cell[sid][0] for sid in take])
+            p_probe = np.concatenate([probe_cell[sid][1] for sid in take])
+            y_base = np.concatenate([base_cell[sid][0] for sid in take])
+            p_base = np.concatenate([base_cell[sid][1] for sid in take])
+            return pg.primary_metric(y_probe, p_probe, 3) - pg.primary_metric(
+                y_base, p_base, 3
+            )
+
+        boot_rng = np.random.default_rng(77)
+        samples = [
+            literal([sids[i] for i in boot_rng.integers(0, len(sids), len(sids))])
+            for _ in range(80)
+        ]
+        result = module._bootstrap_adv(
+            [probe_cell], [base_cell], 3, 80, seed=77
+        )
+        assert result["advantage"] == pytest.approx(literal(sids), abs=1e-12)
+        assert result["ci95"] == pytest.approx(
+            np.percentile(samples, [2.5, 97.5]), abs=1e-12
+        )

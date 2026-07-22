@@ -25,12 +25,40 @@ def _load_module():
     return module
 
 
+def _load_e1_module():
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    spec = importlib.util.spec_from_file_location(
+        "wp_e1_run_missing_events_test",
+        REPO_ROOT / "scripts" / "wp_e1_run_missing_events.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _write_wav(path: Path) -> None:
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
         handle.setsampwidth(2)
         handle.setframerate(24_000)
         handle.writeframes(np.zeros(240, dtype="<i2").tobytes())
+
+
+def test_e1_event_session_list_is_exact_and_ordered(tmp_path):
+    module = _load_e1_module()
+    root = tmp_path / "audio"
+    for sid in ("session-a", "session-b", "session-c"):
+        session = root / sid
+        session.mkdir(parents=True)
+        _write_wav(session / "audio_ch0.wav")
+        _write_wav(session / "audio_ch1.wav")
+    listing = tmp_path / "missing.txt"
+    listing.write_text("session-c\nsession-a\n", encoding="utf-8")
+
+    selected = module.load_session_list(root, listing)
+
+    assert [path.name for path in selected] == ["session-c", "session-a"]
 
 
 def test_event_cache_requires_matching_completion_marker_and_hashes(tmp_path):

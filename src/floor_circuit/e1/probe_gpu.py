@@ -9,6 +9,7 @@ LBFGS（strong-wolfe）满批优化。凸问题下与 sklearn lbfgs 收敛到同
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import numpy as np
@@ -23,16 +24,14 @@ def _binary_auc(y: np.ndarray, scores: np.ndarray) -> float:
     if pos == 0 or neg == 0:
         raise ValueError("AUC 需要正负类同时存在")
     order = np.argsort(scores, kind="mergesort")
-    ranks = np.empty(len(scores), dtype=np.float64)
     sorted_scores = scores[order]
-    ranks_sorted = np.arange(1, len(scores) + 1, dtype=np.float64)
-    start = 0
-    for stop in range(1, len(scores) + 1):
-        if stop == len(scores) or sorted_scores[stop] != sorted_scores[start]:
-            ranks_sorted[start:stop] = ranks_sorted[start:stop].mean()
-            start = stop
-    ranks[order] = ranks_sorted
-    return float((ranks[y == 1].sum() - pos * (pos + 1) / 2) / (pos * neg))
+    starts = np.r_[0, np.flatnonzero(sorted_scores[1:] != sorted_scores[:-1]) + 1]
+    stops = np.r_[starts[1:], len(scores)]
+    # 一次向量化归并并列分数，避免 bootstrap 中逐行执行 Python 循环。
+    positive_per_tie = np.add.reduceat((y[order] == 1).astype(np.int64), starts)
+    average_ranks = (starts.astype(np.float64) + 1.0 + stops) * 0.5
+    positive_rank_sum = float(positive_per_tie @ average_ranks)
+    return float((positive_rank_sum - pos * (pos + 1) / 2) / (pos * neg))
 
 
 def macro_ovr_auc(y: np.ndarray, probs: np.ndarray, n_classes: int) -> tuple[float, dict]:
@@ -118,11 +117,157 @@ class LinearProbe:
 
 def _standardize_stats(features: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """与 sklearn StandardScaler 同口径（总体方差 ddof=0；零方差列 σ→1）。"""
-    x64 = np.asarray(features, dtype=np.float64)
-    mean = x64.mean(axis=0)
-    scale = x64.std(axis=0)
+    matrix = np.asarray(features)
+    mean = matrix.mean(axis=0, dtype=np.float64)
+    scale = np.sqrt(matrix.var(axis=0, dtype=np.float64))
     scale[scale == 0.0] = 1.0
     return mean.astype(np.float32), scale.astype(np.float32)
+
+
+def _merge_moments(
+    count: int,
+    mean: np.ndarray,
+    m2: np.ndarray,
+    block: np.ndarray,
+) -> tuple[int, np.ndarray, np.ndarray]:
+    """用 Chan 公式合并分块总体矩，避免构造整矩阵 float64 副本。"""
+    block_count = len(block)
+    if block_count == 0:
+        return count, mean, m2
+    block_mean = block.mean(axis=0, dtype=np.float64)
+    block_m2 = block.var(axis=0, dtype=np.float64) * block_count
+    if count == 0:
+        return block_count, block_mean, block_m2
+    total = count + block_count
+    delta = block_mean - mean
+    merged_mean = mean + delta * (block_count / total)
+    merged_m2 = m2 + block_m2 + delta * delta * (count * block_count / total)
+    return total, merged_mean, merged_m2
+
+
+@dataclass
+class PreparedLinearData:
+    """已在目标设备标准化的数据；同一 C 路径只统计、搬运和标准化一次。"""
+
+    mean: np.ndarray
+    scale: np.ndarray
+    n_classes: int
+    x: object
+    y: object
+
+    def fit(
+        self,
+        c_value: float,
+        *,
+        max_iter: int = 500,
+        tolerance_grad: float = 1e-7,
+        init: LinearProbe | None = None,
+    ) -> LinearProbe:
+        import torch
+
+        x = self.x
+        y = self.y
+        n_rows, n_dim = x.shape
+        n_out = 1 if self.n_classes == 2 else self.n_classes
+        weight = torch.zeros(
+            (n_out, n_dim), dtype=torch.float32, device=x.device, requires_grad=True
+        )
+        bias = torch.zeros(n_out, dtype=torch.float32, device=x.device, requires_grad=True)
+        if init is not None and init.weight.shape == (n_out, n_dim):
+            with torch.no_grad():
+                weight.copy_(torch.from_numpy(init.weight).to(x.device))
+                bias.copy_(torch.from_numpy(init.bias).to(x.device))
+        y_float = y.to(torch.float32) if self.n_classes == 2 else None
+        optimizer = torch.optim.LBFGS(
+            [weight, bias],
+            max_iter=max_iter,
+            history_size=10,
+            tolerance_grad=tolerance_grad,
+            tolerance_change=1e-12,
+            line_search_fn="strong_wolfe",
+        )
+        inv_cn = 1.0 / (float(c_value) * float(n_rows))
+
+        def closure():
+            optimizer.zero_grad(set_to_none=True)
+            logits = torch.nn.functional.linear(x, weight, bias)
+            if self.n_classes == 2:
+                loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                    logits[:, 0], y_float
+                )
+            else:
+                loss = torch.nn.functional.cross_entropy(logits, y)
+            loss = loss + 0.5 * inv_cn * weight.pow(2).sum()
+            loss.backward()
+            return loss
+
+        optimizer.step(closure)
+        grad_norm = (
+            float(torch.cat([weight.grad.reshape(-1), bias.grad.reshape(-1)]).abs().max())
+            if weight.grad is not None
+            else float("nan")
+        )
+        return LinearProbe(
+            mean=self.mean.copy(),
+            scale=self.scale.copy(),
+            weight=weight.detach().cpu().numpy().astype(np.float32),
+            bias=bias.detach().cpu().numpy().astype(np.float32),
+            n_classes=self.n_classes,
+            c_value=float(c_value),
+            converged=bool(grad_norm < 1e-3),
+        )
+
+
+def prepare_linear_probe_blocks(
+    blocks: Iterable[tuple[np.ndarray, np.ndarray]],
+    n_rows: int,
+    n_dim: int,
+    n_classes: int,
+    *,
+    device: str = "cpu",
+) -> PreparedLinearData:
+    """把分块特征直接写入设备，主存仅保留源缓存和一个角色级临时块。"""
+    import torch
+
+    if n_rows <= 0 or n_dim <= 0:
+        raise ValueError("探针训练矩阵不能为空")
+    if n_classes < 2:
+        raise ValueError("n_classes 必须 ≥ 2")
+    dev = torch.device(device)
+    x = torch.empty((n_rows, n_dim), dtype=torch.float32, device=dev)
+    y = torch.empty(n_rows, dtype=torch.int64, device=dev)
+    count = 0
+    mean = np.zeros(n_dim, dtype=np.float64)
+    m2 = np.zeros(n_dim, dtype=np.float64)
+    label_min = n_classes
+    label_max = -1
+    offset = 0
+    for feature_block, label_block in blocks:
+        matrix = np.ascontiguousarray(feature_block)
+        labels = np.ascontiguousarray(label_block, dtype=np.int64)
+        if matrix.ndim != 2 or matrix.shape[1] != n_dim or len(matrix) != len(labels):
+            raise ValueError("分块特征与标签形状不一致")
+        stop = offset + len(labels)
+        if stop > n_rows:
+            raise ValueError("分块行数超过预声明 n_rows")
+        count, mean, m2 = _merge_moments(count, mean, m2, matrix)
+        x[offset:stop].copy_(torch.from_numpy(matrix))
+        y[offset:stop].copy_(torch.from_numpy(labels))
+        if len(labels):
+            label_min = min(label_min, int(labels.min()))
+            label_max = max(label_max, int(labels.max()))
+        offset = stop
+    if offset != n_rows or count != n_rows:
+        raise ValueError(f"分块实际行数 {offset} 与预声明 {n_rows} 不符")
+    if label_min < 0 or label_max >= n_classes:
+        raise ValueError("标签越出类别范围")
+    scale = np.sqrt(m2 / count)
+    scale[scale == 0.0] = 1.0
+    mean32 = mean.astype(np.float32)
+    scale32 = scale.astype(np.float32)
+    with torch.no_grad():
+        x.sub_(torch.from_numpy(mean32).to(dev)).div_(torch.from_numpy(scale32).to(dev))
+    return PreparedLinearData(mean32, scale32, n_classes, x, y)
 
 
 def fit_linear_probe(
@@ -137,67 +282,65 @@ def fit_linear_probe(
     init: LinearProbe | None = None,
 ) -> LinearProbe:
     """LBFGS 满批拟合；init 提供 C 路径热启动（凸问题只影响速度不影响解）。"""
-    import torch
-
     labels = np.asarray(labels, dtype=np.int64)
     if features.ndim != 2 or len(features) != len(labels):
         raise ValueError("特征与标签形状不一致")
-    if n_classes < 2:
-        raise ValueError("n_classes 必须 ≥ 2")
-    if labels.min() < 0 or labels.max() >= n_classes:
-        raise ValueError("标签越出类别范围")
-    mean, scale = _standardize_stats(features)
-    dev = torch.device(device)
-    x = torch.from_numpy(np.ascontiguousarray(features)).to(dev)
-    mu = torch.from_numpy(mean).to(dev)
-    sigma = torch.from_numpy(scale).to(dev)
-    y = torch.from_numpy(labels).to(dev)
-    n_rows, n_dim = x.shape
-    n_out = 1 if n_classes == 2 else n_classes
-    weight = torch.zeros((n_out, n_dim), dtype=torch.float32, device=dev, requires_grad=True)
-    bias = torch.zeros(n_out, dtype=torch.float32, device=dev, requires_grad=True)
-    if init is not None and init.weight.shape == (n_out, n_dim):
-        with torch.no_grad():
-            weight.copy_(torch.from_numpy(init.weight).to(dev))
-            bias.copy_(torch.from_numpy(init.bias).to(dev))
-    y_float = y.to(torch.float32) if n_classes == 2 else None
-    optimizer = torch.optim.LBFGS(
-        [weight, bias],
+    prepared = prepare_linear_probe_blocks(
+        [(features, labels)], len(labels), features.shape[1], n_classes, device=device
+    )
+    return prepared.fit(
+        c_value,
         max_iter=max_iter,
-        history_size=10,
         tolerance_grad=tolerance_grad,
-        tolerance_change=1e-12,
-        line_search_fn="strong_wolfe",
+        init=init,
     )
-    inv_cn = 1.0 / (float(c_value) * float(n_rows))
 
-    def closure():
-        optimizer.zero_grad(set_to_none=True)
-        z = (x.to(torch.float32) - mu) / sigma
-        logits = torch.nn.functional.linear(z, weight, bias)
-        if n_classes == 2:
-            loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                logits[:, 0], y_float
+
+class LinearProbeBatchPredictor:
+    """复用一次设备参数初始化，对多个探针共享同一评估特征搬运。"""
+
+    def __init__(self, probes: list[LinearProbe], device: str = "cpu") -> None:
+        if not probes:
+            raise ValueError("至少需要一个探针")
+        import torch
+
+        self.probes = probes
+        self.device = torch.device(device)
+        self.params = [
+            (
+                torch.from_numpy(probe.mean).to(self.device),
+                torch.from_numpy(probe.scale).to(self.device),
+                torch.from_numpy(probe.weight).to(self.device),
+                torch.from_numpy(probe.bias).to(self.device),
             )
-        else:
-            loss = torch.nn.functional.cross_entropy(logits, y)
-        loss = loss + 0.5 * inv_cn * weight.pow(2).sum()
-        loss.backward()
-        return loss
+            for probe in probes
+        ]
 
-    optimizer.step(closure)
-    grad_norm = float(
-        torch.cat([weight.grad.reshape(-1), bias.grad.reshape(-1)]).abs().max()
-    ) if weight.grad is not None else float("nan")
-    return LinearProbe(
-        mean=mean,
-        scale=scale,
-        weight=weight.detach().cpu().numpy().astype(np.float32),
-        bias=bias.detach().cpu().numpy().astype(np.float32),
-        n_classes=n_classes,
-        c_value=float(c_value),
-        converged=bool(grad_norm < 1e-3),
-    )
+    def predict_proba(self, features: np.ndarray) -> list[np.ndarray]:
+        import torch
+
+        matrix = np.ascontiguousarray(features)
+        x = torch.from_numpy(matrix).to(self.device, dtype=torch.float32)
+        outputs = []
+        with torch.inference_mode():
+            for probe, (mean, scale, weight, bias) in zip(
+                self.probes, self.params, strict=True
+            ):
+                logits = torch.nn.functional.linear((x - mean) / scale, weight, bias)
+                logits_np = logits.cpu().numpy()
+                out = np.empty((len(matrix), probe.n_classes), dtype=np.float64)
+                if probe.n_classes == 2 and logits_np.shape[1] == 1:
+                    p1 = 1.0 / (1.0 + np.exp(-logits_np[:, 0].astype(np.float64)))
+                    out[:, 0] = 1.0 - p1
+                    out[:, 1] = p1
+                else:
+                    shifted = logits_np.astype(np.float64) - logits_np.max(
+                        axis=1, keepdims=True
+                    )
+                    expv = np.exp(shifted)
+                    out[:] = expv / expv.sum(axis=1, keepdims=True)
+                outputs.append(out)
+        return outputs
 
 
 def fit_mlp_probe(
@@ -311,18 +454,20 @@ def effective_rank(
         train_features, train_labels, n_classes, c_value, device=device
     )
     auc_full = primary_metric(eval_labels, full.predict_proba(eval_features), n_classes)
+    valid_ks = [k for k in sorted({int(k) for k in ks}) if k <= vt.shape[0]]
+    if not valid_ks:
+        raise ValueError("有效秩网格没有可用 k")
+    max_k = max(valid_ks)
+    basis_max = vt[:max_k]
+    train_proj_max = (centered @ basis_max.T).astype(np.float32)
+    eval64 = np.asarray(eval_features, dtype=np.float64)
+    eval_proj_max = ((eval64 - center) @ basis_max.T).astype(np.float32)
+    del centered, x64, eval64
     curve: dict[int, float] = {}
     rank = None
-    for k in sorted({int(k) for k in ks}):
-        if k > vt.shape[0]:
-            break
-        basis = vt[:k]
-        train_proj = ((np.asarray(train_features, np.float64) - center) @ basis.T).astype(
-            np.float32
-        )
-        eval_proj = ((np.asarray(eval_features, np.float64) - center) @ basis.T).astype(
-            np.float32
-        )
+    for k in valid_ks:
+        train_proj = train_proj_max[:, :k]
+        eval_proj = eval_proj_max[:, :k]
         probe_k = fit_linear_probe(train_proj, train_labels, n_classes, c_value, device=device)
         auc_k = primary_metric(eval_labels, probe_k.predict_proba(eval_proj), n_classes)
         curve[k] = auc_k

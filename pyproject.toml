@@ -27,6 +27,8 @@ dependencies = [
     "statsmodels>=0.14",
     "tabulate>=0.9",
     "tqdm>=4.66",
+    "torch==2.11.0; sys_platform == 'win32'",
+    "torchaudio==2.11.0; sys_platform == 'win32'",
     "typer>=0.12",
     "zarr>=2.18",
 ]
@@ -44,6 +46,19 @@ dev = [
 [tool.uv]
 link-mode = "copy"
 package = false
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+]
+torchaudio = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [tool.pytest.ini_options]
 addopts = "-ra"
