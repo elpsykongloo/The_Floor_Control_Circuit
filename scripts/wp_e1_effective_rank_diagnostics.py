@@ -448,6 +448,37 @@ def _rank_from_records(records: dict[int, dict], mode: str) -> int | None:
     return None
 
 
+def _crossing_detail(records: dict[int, dict], mode: str) -> dict | None:
+    """返回首次过线点及其前一个已扫描整数点的门线裕量。"""
+    rank = _rank_from_records(records, mode)
+    if rank is None:
+        return None
+    ordered = sorted(records)
+    position = ordered.index(rank)
+    current = records[rank]
+    previous_k = ordered[position - 1] if position > 0 else None
+    previous_margin = None
+    if previous_k is not None:
+        previous = records[previous_k]
+        previous_margin = float(
+            previous[mode]["auc"] - previous["threshold_auc"]
+        )
+    return {
+        "rank": rank,
+        "previous_k": previous_k,
+        "previous_margin_to_threshold": previous_margin,
+        "rank_margin_to_threshold": float(
+            current[mode]["auc"] - current["threshold_auc"]
+        ),
+        "chosen_c_at_rank": float(
+            current[mode].get("chosen_c", current[mode].get("c"))
+        ),
+        "pca_cumulative_variance_at_rank": float(
+            current["pca_cumulative_variance"]
+        ),
+    }
+
+
 def _validate_formal_replay(
     records: dict[int, dict[int, dict[int, dict]]], summary: dict, seeds: list[int]
 ) -> dict[str, float]:
@@ -482,11 +513,18 @@ def _summarize(
             task_records = records[layer][seed]
             fixed_rank = _rank_from_records(task_records, "fixed_c")
             nested_rank = _rank_from_records(task_records, "nested_c")
+            fixed_crossing = _crossing_detail(task_records, "fixed_c")
+            nested_crossing = _crossing_detail(task_records, "nested_c")
             seed_rows[str(seed)] = {
                 "full_auc": task_records[min(task_records)]["full_auc"],
                 "threshold_auc": task_records[min(task_records)]["threshold_auc"],
                 "fixed_c_rank": fixed_rank,
                 "nested_c_rank": nested_rank,
+                "fixed_c_crossing": fixed_crossing,
+                "nested_c_crossing": nested_crossing,
+                "pca_cumulative_variance_at_k16": task_records[16][
+                    "pca_cumulative_variance"
+                ],
                 "nested_c_by_k": {
                     str(k): task_records[k]["nested_c"]["chosen_c"]
                     for k in sorted(task_records)
@@ -513,6 +551,55 @@ def _summarize(
                 None if any(value is None for value in nested_values) else max(nested_values)
             ),
         }
+    flat_records = [
+        record
+        for layer_records in records.values()
+        for seed_records in layer_records.values()
+        for record in seed_records.values()
+    ]
+    crossing_details = [
+        row[mode]
+        for layer in layers.values()
+        for row in layer["by_seed"].values()
+        for mode in ("fixed_c_crossing", "nested_c_crossing")
+        if row[mode] is not None
+    ]
+    variance_at_16 = [
+        row["pca_cumulative_variance_at_k16"]
+        for layer in layers.values()
+        for row in layer["by_seed"].values()
+    ]
+    variance_at_crossing = [
+        detail["pca_cumulative_variance_at_rank"] for detail in crossing_details
+    ]
+    fit_audit = {
+        "records": len(flat_records),
+        "candidate_fits": sum(
+            len(record["nested_c"]["candidate_converged"])
+            for record in flat_records
+        ),
+        "candidate_nonconverged": sum(
+            sum(not value for value in record["nested_c"]["candidate_converged"])
+            for record in flat_records
+        ),
+        "nested_refit_nonconverged": sum(
+            not record["nested_c"]["converged"] for record in flat_records
+        ),
+        "fixed_refit_nonconverged": sum(
+            not record["fixed_c"]["converged"] for record in flat_records
+        ),
+        "fit_wall_seconds_sum": float(
+            sum(record["wall_seconds"] for record in flat_records)
+        ),
+        "smallest_positive_crossing_margin": min(
+            detail["rank_margin_to_threshold"] for detail in crossing_details
+        ),
+        "smallest_previous_abs_margin": min(
+            abs(detail["previous_margin_to_threshold"])
+            for detail in crossing_details
+            if detail["previous_margin_to_threshold"] is not None
+        ),
+    }
     return {
         "kind": "post_hoc_descriptive_non_decisive",
         "formal_g2_unchanged": True,
@@ -520,6 +607,13 @@ def _summarize(
         "protocol": protocol,
         "protocol_hash": protocol_hash,
         "formal_replay": replay,
+        "fit_audit": fit_audit,
+        "pca_variance_audit": {
+            "k16_min": min(variance_at_16),
+            "k16_max": max(variance_at_16),
+            "crossing_min": min(variance_at_crossing),
+            "crossing_max": max(variance_at_crossing),
+        },
         "layers": layers,
     }
 
@@ -558,6 +652,8 @@ def _write_markdown(result: dict) -> Path:
                 f"{row['nested_c_rank']} |"
             )
     replay = result["formal_replay"]
+    fit_audit = result["fit_audit"]
+    variance_audit = result["pca_variance_audit"]
     fixed_ranks = [
         result["layers"][str(layer)]["fixed_c_conservative_rank"] for layer in LAYERS
     ]
@@ -567,12 +663,33 @@ def _write_markdown(result: dict) -> Path:
     lines.extend(
         [
             "",
-            "## 解释边界",
+            "## 三项诊断结论",
+            "",
+            "1. **逐 k 重选 C**：L29 的保守秩保持 84；L30 从 68 降到 57；"
+            "L31 保持 66。低维正则失配只解释 L30 的约 11 维，无法把任一层降到 16。",
+            "2. **相邻层复查**：固定 C 的最佳层为 L31（66），嵌套选 C 的最佳层为 "
+            "L30（57）。相邻高分层确实更集中，最佳结果仍为门限的 3.56 倍。",
+            "3. **64–128 细扫**：正式层 L29 的固定 C 过线点为 "
+            "79/84/81，保守值 84。原网格 128 是首个预设过线点；细扫缩小了数值位置，"
+            "正式冻结结果仍为 128，G2 仍失败。",
+            "",
+            "## 数值与解释边界",
             "",
             f"- L29 原网格固定 C 曲线复现最大绝对 AUC 差：{replay['max_abs_auc_diff']:.3g}。",
             f"- 三层固定 C 保守有效秩：{fixed_ranks}；逐 k 嵌套选 C：{nested_ranks}。",
-            "- 若嵌套选 C 仍明显高于 16，低维正则失配不足以解释正式失败。",
-            "- 若 L30/L31 仍明显高于 16，单纯把 ℓ* 移到相邻高分层不足以满足 G2。",
+            f"- {fit_audit['records']} 个断点中的 {fit_audit['candidate_fits']} 个候选拟合、"
+            f"{fit_audit['records']} 个嵌套重训"
+            f"与固定 C 路径均收敛；未收敛计数为 "
+            f"{fit_audit['candidate_nonconverged']}/"
+            f"{fit_audit['nested_refit_nonconverged']}/"
+            f"{fit_audit['fixed_refit_nonconverged']}。",
+            f"- 前 16 个主成分只解释总激活方差的 "
+            f"{variance_audit['k16_min']:.1%}–{variance_audit['k16_max']:.1%}；"
+            f"实际过线点累计解释 {variance_audit['crossing_min']:.1%}–"
+            f"{variance_audit['crossing_max']:.1%}。",
+            f"- 最贴近门线的首次过线正裕量为 "
+            f"{fit_audit['smallest_positive_crossing_margin']:.2g} AUC，"
+            "整数位置可能受极小数值扰动影响；它与 16 维门限之间仍相隔至少 41 维。",
             "- 65–128 的逐整数点用于定位局部首次过线位置；正式预设网格与正式有效秩仍保持 128。",
             "",
             "完整逐 k AUC、PCA 累积方差及所选 C 见 `wp_e1_effective_rank_diagnostics.json`。",
@@ -747,7 +864,12 @@ def run(args) -> dict:
         "git_head": _git_head(),
         "devices": devices,
         "checkpoint_root": str(checkpoint_root),
-        "new_points": new_points,
+        "invocation_new_points": new_points,
+        "checkpoint_count": sum(
+            len(seed_records)
+            for layer_records in records.values()
+            for seed_records in layer_records.values()
+        ),
     }
     write_report_json("wp_e1_effective_rank_diagnostics.json", result)
     _write_markdown(result)
