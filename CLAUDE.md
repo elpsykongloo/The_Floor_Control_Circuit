@@ -20,12 +20,17 @@
 5. **冻结参数不得擅改**。事件本体参数（文档/00 §2）、假设判据（§1.2）、划分方案（§4.3）均已冻结；确需变更必须先在 `PREREG.md` 的变更记录中登记理由，再改配置并重跑受影响的校准。已生成的 `configs/splits/*.json` 同样冻结（代码里有防覆盖与防篡改校验）。
 6. **执行环境的分工**：模型与数据全部在用户的 Windows 本机（`C:\` 与 `D:\` 路径），云端/容器会话访问不到它们。云端会话的职责是文档、代码、计划、审查；任何需要真实跑模型/数据的步骤，只能写成可在本机执行的脚本与说明，不要假装已经跑过。**本机脚本会把小结写进 `reports/`，用户提交推送后远端会话读 `reports/` 获知实跑结果**——这是两端协作的反馈回路。
 7. **不建 PR**，除非用户明确要求。
+8. **工具缓存统一外置**：测试与静态检查默认使用
+   `pwsh -NoProfile -File scripts/run_checks.ps1 <all|pytest|ruff|mypy>`；pytest 临时数据固定写入
+   `<data_root>\tmp\pytest`，pytest/ruff/mypy 缓存固定写入 `<data_root>\cache\tooling`。禁止在仓库根目录
+   创建 `.pytest_tmp_*` 或把 `--basetemp` 指回仓库；历史缓存统一用
+   `pwsh -NoProfile -File scripts/clean_repo_caches.ps1` 清理。
 
 ## 3. 环境事实
 
 - 本机仓库路径：`C:\artificial_intelligence\repos\The_Floor_Control_Circuit`；Python 3.12 + uv（`.venv`，`link-mode = copy`）。共享信号工具从仓库根目录用 `uv run` 调用：silero-vad 5.1.2、praat-parselmouth、pyloudnorm、环境内 ffmpeg 7.1（imageio-ffmpeg，系统 PATH 无独立 ffmpeg）。torch / torchaudio / onnxruntime 已随 silero-vad 进入 uv 锁文件，轻量基线模型（如声学 GRU）可直接在本仓库环境训练。
 - 五个受试模型各有独立 `.venv`（路径见 文档/01 §3），互不混装；跨环境协作只走"CLI 契约 + 磁盘 schema"（见 文档/02 附录 C），不做跨环境 import。
-- 本地模型适配高频坑（①–③ 见 文档/00 §11；④ 起为本机实测新增）：① HF 缓存符号链接 → 设 `HF_HUB_DISABLE_SYMLINKS=1` 并开 LongPathsEnabled；② DataLoader 多进程 → 脚本必须有 `if __name__ == "__main__":` 守卫；③ 音频 IO 统一用环境内 ffmpeg，避免 sox 链路；④ pytest 遇 `PermissionError: ...\Temp\pytest-of-<用户>` → 旧临时目录 ACL 损坏，用 `uv run pytest --basetemp=D:\data_storage\The_Floor_Control_Circuit\tmp\pytest`（或删除该旧目录）；⑤ transformers `trust_remote_code` 模型目录名含 `.`（如 `MiniCPM-o-4.5`）→ 动态模块名被点号切分报 `ModuleNotFoundError: transformers_modules.MiniCPM-o-4`，`runners/minicpm_o/run.py` 已内置并核验无点 junction 别名；MiniCPM-o 4.5 上游纯读出仍会无条件初始化 TTS，runner 在 `generate_audio=false` 时临时跳过该无用初始化；⑥ PersonaPlex 的 Mimi 未暴露 `frame_size`，runner 仅在 `sample_rate/frame_rate` 可精确整除时推导帧长（本机为 24000/12.5=1920）。
+- 本地模型适配高频坑（①–③ 见 文档/00 §11；④ 起为本机实测新增）：① HF 缓存符号链接 → 设 `HF_HUB_DISABLE_SYMLINKS=1` 并开 LongPathsEnabled；② DataLoader 多进程 → 脚本必须有 `if __name__ == "__main__":` 守卫；③ 音频 IO 统一用环境内 ffmpeg，避免 sox 链路；④ pytest 遇 `PermissionError: ...\Temp\pytest-of-<用户>` → 旧临时目录 ACL 损坏，统一改走 `scripts/run_checks.ps1 pytest`，由脚本使用 D 盘固定临时根目录和进程锁；⑤ transformers `trust_remote_code` 模型目录名含 `.`（如 `MiniCPM-o-4.5`）→ 动态模块名被点号切分报 `ModuleNotFoundError: transformers_modules.MiniCPM-o-4`，`runners/minicpm_o/run.py` 已内置并核验无点 junction 别名；MiniCPM-o 4.5 上游纯读出仍会无条件初始化 TTS，runner 在 `generate_audio=false` 时临时跳过该无用初始化；⑥ PersonaPlex 的 Mimi 未暴露 `frame_size`，runner 仅在 `sample_rate/frame_rate` 可精确整除时推导帧长（本机为 24000/12.5=1920）。
 - 本机有双卡（24 GB+），长音频 KV cache 可跨卡；GPU 任务（TTS 合成 vs 激活缓存前向）应分卡或错峰。
 - E1 GPU 长任务由用户人工保障散热（PREREG #17，2026-07-22）；运行器不读取温度、不轮询 `nvidia-smi`，也不执行自动温控中止。
 - Moshi 的 600 秒整段 `lm(codes)` 压力路径继续禁跑；长序列仅按 `PREREG.md` 变更记录 #3 的有状态分块方案执行。

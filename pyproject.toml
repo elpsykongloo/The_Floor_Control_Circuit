@@ -64,6 +64,9 @@ explicit = true
 addopts = "-ra"
 testpaths = ["tests"]
 pythonpath = ["src"]
+# 统一入口会把临时根目录放到 D 盘；直接调用 pytest 时只保留最近一次失败用例。
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"
 
 [tool.ruff]
 # 本仓库中文文档字符串较长，行宽取 120（2026-07-17 起）

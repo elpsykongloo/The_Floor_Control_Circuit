@@ -12,6 +12,10 @@
 6. **环境分工**：模型与数据只在用户 Windows 本机可用（`C:\`、`D:\`）；云端会话无法访问，只做文档、代码、计划、审查，不得虚报"已跑通"。
 7. **Python 环境**：本仓库统一用 uv（`uv run`，Python 3.12）；五个受试模型各用自己的 `.venv`（路径见 文档/01 §3）；不新建全局环境，不跨环境 import。
 8. **不建 PR**，除非用户明确要求。
+9. **工具缓存统一外置**：测试与静态检查默认使用
+   `pwsh -NoProfile -File scripts/run_checks.ps1 <all|pytest|ruff|mypy>`；pytest 临时数据写入
+   `<data_root>\tmp\pytest`，工具缓存写入 `<data_root>\cache\tooling`。禁止在仓库根目录新建
+   `.pytest_tmp_*`，历史缓存用 `scripts/clean_repo_caches.ps1` 清理。
 
 ## 仓库速览
 

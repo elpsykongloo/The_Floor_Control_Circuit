@@ -49,6 +49,9 @@ AGENTS.md            智能体核心规则（精简版）
 - 本仓库共享环境：`uv sync` 后用 `uv run` 调用（silero-vad、praat-parselmouth、pyloudnorm、环境内 ffmpeg 7.1、torch）。
 - 五个受试模型各有独立 `.venv`，与本仓库环境隔离；跨环境只走 CLI 契约 + 磁盘 schema。
 - 大型中间产物（激活缓存、刺激音频、生成音频）统一写入 `D:\data_storage\The_Floor_Control_Circuit`，**不入 Git**。
+- 测试与静态检查统一使用 `pwsh -NoProfile -File scripts/run_checks.ps1 all`；定向运行可把
+  `all` 换成 `pytest`、`ruff` 或 `mypy`。临时目录与工具缓存统一写入 D 盘，详见
+  [`文档/01_本地路径.md`](文档/01_本地路径.md) §10.1。
 - Windows 注意事项（符号链接、`__main__` 守卫、ffmpeg 链路）见 文档/00 §11。
 
 ## 工作流
