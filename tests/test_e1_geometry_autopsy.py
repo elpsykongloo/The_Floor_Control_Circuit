@@ -1,7 +1,8 @@
-"""E1 几何解剖脚本（PREREG #32）的合成数据测试。
+"""E1 几何解剖脚本（PREREG #32/#35）的合成数据测试。
 
-核心覆盖：一维投影恒等式（分析支柱）、错向几何下的能量谱/对齐秩、
-方向剔除与主轴剔除、diff-in-means、Mimi 岭回归、事件窗与会话级 bootstrap。
+核心覆盖：一维投影恒等式（分析支柱）、错向几何下的能量谱/对齐秩、INLP 冗余谱
+的区分度（同质一维 vs 双尺度方向束）、均值差擦除的数学必然性（LEACE，仅自检）、
+sup-t 同时带的假阳性控制、方向符号核验、C 网格重训与事件窗/bootstrap 工具。
 """
 
 from __future__ import annotations
@@ -32,6 +33,10 @@ def _load_module():
     return module
 
 
+def _fit_fn(x_block, y_block):
+    return pg.fit_linear_probe(x_block, y_block, 2, 0.1, device="cpu")
+
+
 def _misaligned_dataset(n_rows: int = 4000, seed: int = 7):
     """已知几何：前 4 维大方差噪声，信号方向 = e4（中排序主轴），其余小噪声。"""
     rng = np.random.default_rng(seed)
@@ -41,6 +46,35 @@ def _misaligned_dataset(n_rows: int = 4000, seed: int = 7):
     x[:, :4] = rng.standard_normal((n_rows, 4)) * np.array([10.0, 9.0, 8.0, 7.0])
     x[:, 4] = (2.0 * y - 1.0) * 1.0 + rng.standard_normal(n_rows) * 0.3
     x[:, 5:] = rng.standard_normal((n_rows, n_dims - 5)) * 0.2
+    return x.astype(np.float32), y
+
+
+def _one_dim_isotropic_dataset(n_rows: int = 4000, seed: int = 11):
+    """同质一维码：信号沿跨 8 列方向 u，噪声各向同性 + 正交大方差干扰轴。"""
+    rng = np.random.default_rng(seed)
+    n_dims = 16
+    u = np.zeros(n_dims)
+    u[:8] = 1.0
+    u /= np.linalg.norm(u)
+    y = (rng.random(n_rows) < 0.5).astype(np.int64)
+    x = rng.standard_normal((n_rows, n_dims)) * 0.5
+    x[:, 8:12] += rng.standard_normal((n_rows, 4)) * 6.0
+    x += np.outer((2.0 * y - 1.0) * 1.2, u)
+    return x.astype(np.float32), y, u
+
+
+def _dual_scale_bundle_dataset(n_rows: int = 4000, seed: int = 13):
+    """双尺度方向束：均值差同时落在低噪声轴 e1 与高噪声轴 e0 上。
+
+    白化最优方向 Σ⁻¹d 几乎纯 e1；剔除它后 e0 上仍有强可读均值信号——
+    INLP r1 保留率应当高（"厚方向束"分支的最小合成实现）。
+    """
+    rng = np.random.default_rng(seed)
+    n_dims = 16
+    y = (rng.random(n_rows) < 0.5).astype(np.int64)
+    x = rng.standard_normal((n_rows, n_dims)) * 0.3
+    x[:, 0] = rng.standard_normal(n_rows) * 1.0 + (2.0 * y - 1.0) * 1.0
+    x[:, 1] = rng.standard_normal(n_rows) * 0.2 + (2.0 * y - 1.0) * 1.0
     return x.astype(np.float32), y
 
 
@@ -104,24 +138,39 @@ def test_top_pc_removal_keeps_misaligned_signal():
     assert float(np.abs(np.asarray(x_no_dir, np.float64) @ v_star).max()) < 1e-3
 
 
-def test_iterative_nulling_collapses_planted_one_dim_signal_quickly():
-    """单次剔除对方向估计误差不稳健（残留分量可被重训重新聚焦），
-    迭代剔除必须在少数轮内把一维信号打到崩塌线以下。"""
+def test_inlp_retention_separates_one_dim_code_from_direction_bundle():
+    """#35 核心区分度检验：INLP r1 保留率必须能分开两种几何。
+
+    同质一维码（各向同性噪声）：剔除首轮探针方向后仅剩估计角误差残留 → 保留率低。
+    双尺度方向束：白化最优方向 ≈ 低噪声轴，剔除后高噪声轴上的均值信号仍强可读
+    → 保留率高。均值差擦除对这两种情形都"一轮归零"，正因此被降级为自检（见下）。
+    """
     module = _load_module()
-    x, y = _misaligned_dataset()
-
-    def fit_fn(x_block, y_block):
-        return pg.fit_linear_probe(x_block, y_block, 2, 0.1, device="cpu")
-
-    result = module.iterative_nulling(
-        x, y, x, y, fit_fn=fit_fn, max_directions=6, stop_auc=0.55
+    x1, y1, _u = _one_dim_isotropic_dataset()
+    one_dim = module.inlp_redundancy_spectrum(
+        x1, y1, x1, y1, fit_fn=_fit_fn, max_removals=2
     )
-    assert result["collapsed"]
-    assert result["rounds_to_collapse"] is not None
-    assert result["rounds_to_collapse"] <= 3
-    assert result["auc_sequence"][0] > 0.9
-    # 序列单调不增的大趋势：末端显著低于首端。
-    assert result["auc_sequence"][-1] <= 0.55
+    assert one_dim["auc_sequence"][0] > 0.95
+    assert one_dim["retention_after_1"] < 0.3
+
+    x2, y2 = _dual_scale_bundle_dataset()
+    bundle = module.inlp_redundancy_spectrum(
+        x2, y2, x2, y2, fit_fn=_fit_fn, max_removals=2
+    )
+    assert bundle["auc_sequence"][0] > 0.95
+    assert bundle["retention_after_1"] > 0.7
+
+
+def test_mean_erasure_is_mathematically_forced_to_chance():
+    """LEACE 事实固化：均值差擦除后训练集质心相等，重训 AUC≈0.5——
+    对一维信号与方向束**同样**成立，因此它没有任何区分度，只能作实现自检。"""
+    module = _load_module()
+    for maker in (_one_dim_isotropic_dataset, _dual_scale_bundle_dataset):
+        made = maker()
+        x, y = made[0], made[1]
+        check = module.mean_erasure_check(x, y, x, y, fit_fn=_fit_fn)
+        assert check["train_mean_gap_after_erasure"] < 1e-4
+        assert abs(check["train_auc"] - 0.5) < 0.03
 
 
 def test_diff_in_means_aligns_with_planted_direction():
@@ -135,11 +184,32 @@ def test_diff_in_means_aligns_with_planted_direction():
         module.diff_in_means(x[y == 1], y[y == 1])
 
 
+def test_refit_auc_grid_reports_all_c_and_max():
+    module = _load_module()
+    x, y = _misaligned_dataset(n_rows=1500)
+    trainer = {"lbfgs_max_iter": 200, "lbfgs_tolerance_grad": 1e-6}
+    result = module.refit_auc_grid(x, y, x, y, [0.001, 0.1], trainer, "cpu")
+    assert set(result["auc_by_c"]) == {"0.001", "0.1"}
+    assert result["max_auc"] == pytest.approx(max(result["auc_by_c"].values()))
+    assert result["max_auc"] > 0.9
+
+
 def test_sign_aligned_mean_flips_opposite_directions():
     module = _load_module()
     base = module.unit(np.array([1.0, 2.0, 3.0]))
     mean = module.sign_aligned_mean([base, -base, base])
     assert module.abs_cosine(mean, base) == pytest.approx(1.0)
+
+
+def test_mean_direction_label1_verifies_orientation():
+    module = _load_module()
+    v = np.array([1.0, 0.0])
+    good = {"mean_pos": 1.0, "mean_neg": -1.0}
+    bad = {"mean_pos": -1.0, "mean_neg": 1.0}
+    mean = module.mean_direction_label1([v, v], [good, good])
+    assert module.abs_cosine(mean, v) == pytest.approx(1.0)
+    with pytest.raises(ValueError):
+        module.mean_direction_label1([v, v], [good, bad])
 
 
 def test_orig_space_direction_validates_inputs():
@@ -182,21 +252,51 @@ def test_extract_event_windows_drops_boundary_events():
     assert windows[0, :, 0].tolist() == [7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0]
 
 
-def test_cluster_bootstrap_detects_planted_separation():
+def test_sustained_onset_requires_consecutive_run():
     module = _load_module()
-    rng = np.random.default_rng(5)
-    n_sessions, n_offsets = 30, 7
+    flags = np.array([False, True, False, True, True, True, False])
+    assert module.sustained_onset(flags, 3) == 3
+    assert module.sustained_onset(flags, 4) is None
+    assert module.sustained_onset(np.zeros(5, dtype=bool), 3) is None
+
+
+def test_cluster_bootstrap_sup_t_controls_null_false_positives():
+    """#35 高风险 1：零效应数据在逐点 CI 下假阳性率≈1；sup-t 同时带 + 连续
+    约束下固定种子零效应必须不产生持续显著起点。"""
+    module = _load_module()
+    rng = np.random.default_rng(21)
+    n_sessions, n_offsets = 30, 51
     count_pos = rng.integers(3, 8, size=n_sessions).astype(np.float64)
     count_neg = rng.integers(3, 8, size=n_sessions).astype(np.float64)
-    shift = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+    sum_pos = count_pos[:, None] * rng.standard_normal((n_sessions, n_offsets)) * 0.3
+    sum_neg = count_neg[:, None] * rng.standard_normal((n_sessions, n_offsets)) * 0.3
+    result = module.cluster_bootstrap_separation(
+        sum_pos, count_pos, sum_neg, count_neg, 300, 5, min_consecutive=3
+    )
+    assert result["onset_index_sustained"] is None
+    # 同时带阈值必须比逐点 1.96σ 更宽——这就是逐点判定假阳性率≈1 的修正来源。
+    assert result["sup_t_quantile_95"] > 1.96
+
+
+def test_cluster_bootstrap_detects_planted_sustained_separation():
+    module = _load_module()
+    rng = np.random.default_rng(5)
+    n_sessions, n_offsets = 30, 9
+    count_pos = rng.integers(4, 9, size=n_sessions).astype(np.float64)
+    count_neg = rng.integers(4, 9, size=n_sessions).astype(np.float64)
+    shift = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
     sum_pos = count_pos[:, None] * (shift[None, :] + rng.standard_normal((n_sessions, n_offsets)) * 0.05)
     sum_neg = count_neg[:, None] * (rng.standard_normal((n_sessions, n_offsets)) * 0.05)
-    result = module.cluster_bootstrap_separation(sum_pos, count_pos, sum_neg, count_neg, 200, 3)
-    assert result["first_offset_index_ci_excludes_zero"] == 3
+    result = module.cluster_bootstrap_separation(
+        sum_pos, count_pos, sum_neg, count_neg, 300, 3, min_consecutive=3
+    )
+    assert result["onset_index_sustained"] == 3
     assert result["separation"][3] == pytest.approx(1.0, abs=0.1)
-    assert result["ci_lower"][3] > 0.5
+    assert result["simultaneous_lower"][3] > 0.5
     with pytest.raises(ValueError):
-        module.cluster_bootstrap_separation(sum_pos, count_pos * 0, sum_neg, count_neg, 10, 3)
+        module.cluster_bootstrap_separation(
+            sum_pos, count_pos * 0, sum_neg, count_neg, 10, 3
+        )
 
 
 def test_projection_stats_reports_both_classes():

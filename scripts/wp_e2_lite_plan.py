@@ -65,14 +65,30 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="E2-lite 计划生成（PREREG #34）")
     parser.add_argument("--audio-root", default=None, help="覆盖音频根（默认 <data_root>/candor_extracted）")
     parser.add_argument("--n-sessions", type=int, default=None, help="覆盖会话数（默认取配置）")
+    parser.add_argument(
+        "--directions-npz",
+        default=None,
+        help=(
+            "覆盖方向文件（e1x-directions-v1 schema）。默认 <data_root>/e1x/directions/"
+            "T4_L29.npz（E1-X geometry 产物）；几何解剖支线的等价来源为 "
+            "<data_root>/e1_probe/geometry/steering_L29.npz（#35，两条支线互为备援）"
+        ),
+    )
     args = parser.parse_args()
 
     grids = load_config("grids")
     cfg = grids["e1"]["e2_lite"]
     base = data_root()
-    directions_npz = base / "e1x" / "directions" / "T4_L29.npz"
+    directions_npz = (
+        Path(args.directions_npz)
+        if args.directions_npz
+        else base / "e1x" / "directions" / "T4_L29.npz"
+    )
     if not directions_npz.is_file():
-        raise SystemExit(f"缺方向文件 {directions_npz}：先跑 wp_e1x_suite.py --stage geometry")
+        raise SystemExit(
+            f"缺方向文件 {directions_npz}：先跑 wp_e1x_suite.py --stage geometry，"
+            "或用 --directions-npz 指向 wp_e1_geometry_autopsy.py spectrum 的 steering_L29.npz"
+        )
     with np.load(directions_npz, allow_pickle=False) as payload:
         meta = json.loads(bytes(payload["__meta__"]).decode())
         direction_names = [k for k in payload.files if k != "__meta__"]

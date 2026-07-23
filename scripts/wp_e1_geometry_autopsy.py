@@ -1,4 +1,4 @@
-"""E1 几何解剖第一梯队（PREREG #32，探索性、严格非裁决）。
+"""E1 几何解剖第一梯队（PREREG #32/#35，探索性、严格非裁决）。
 
 对 G2 有效秩失败做机制解剖（文档/04 §2）：T4 的线性读出在数学上是一维方向
 v* = (w/σ)/‖w/σ‖（AUC 对单调变换不变），本脚本量化该方向与激活方差主轴的
@@ -6,13 +6,23 @@ v* = (w/σ)/‖w/σ‖（AUC 对单调变换不变），本脚本量化该方向
 
   directions  零激活载入：8 个二分类规格 × 32 层 × 3 种子的原始空间方向族
               （来自 work/fits 断点），层间传播、跨种子稳定性、T1×T4 方向关系；
-  spectrum    L29/L30/L31 × 3 种子：PCA 能量谱与对齐秩、方向剔除/补空间重训、
-              diff-in-means、Mimi 主轴内容鉴定、转向向量分片；
-  trajectory  评估集事件锁定轨迹：对方 IPU 末步 ±25 步窗内 v*/d 投影按
-              complete/incomplete 分组的会话级 bootstrap 均值带；
+  spectrum    L29/L30/L31 × 3 种子：PCA 能量谱与对齐秩、INLP 冗余谱、均值差
+              擦除自检、补空间重训、Mimi 主轴鉴定、转向向量包（e1x schema）；
+  trajectory  评估集事件锁定轨迹：对方 IPU 末步 ±25 步窗内方向投影按
+              complete/incomplete 分组的会话级 bootstrap 均值带（sup-t 同时带）；
   finalize    汇总判读矩阵（文档/04 §2.2）并写 reports/。
 
-一切结果不回写正式汇总，不改变 G2=fail；断点按协议哈希隔离，重复启动只算缺失点。
+必要性度量的两条数学约束（#35 修订，二者都由合成测试固化）：
+  (1) 擦除训练集 diff-in-means 会使两类质心精确相等，凸损失 + L2 下零权重成为
+      全局最优——"一轮崩塌"是算子的数学必然（LEACE 线性 guardedness 定理），
+      对 1 维与 k 维均值信号毫无区分度，绝不可作判读；本脚本仅将其保留为
+      实现正确性自检（mean_erasure_check）。
+  (2) 均值信号的线性擦除秩恒为 1，因此"擦除轮数"不度量信息维数；冗余结构
+      改由 INLP 冗余谱刻画：逐轮剔除重训探针方向，看次优正交读出保留多少
+      超机会性能（retention_after_1）。
+
+一切结果不回写正式汇总，不改变 G2=fail；断点按协议哈希（v2：绑定脚本与核心库
+源码摘要、行域签名、正式汇总摘要）隔离，重复启动只算缺失点。
 """
 
 from __future__ import annotations
@@ -35,8 +45,8 @@ from floor_circuit.e1 import grid as g
 from floor_circuit.e1 import probe_gpu as pg
 from floor_circuit.mve.alignment import ANALYSIS_MAX_LABEL_STEP
 
-SCHEMA_VERSION = 1
-PROTOCOL_NAME = "geometry-autopsy-v1"
+SCHEMA_VERSION = 2
+PROTOCOL_NAME = "geometry-autopsy-v2"
 TARGET = "T4"
 SPECTRUM_LAYERS = (29, 30, 31)
 BINARY_SPECS = ("T1_d0", "T1_d80", "T1_d160", "T1_d240", "T1_d400", "T1_d800", "T2", "T4")
@@ -46,12 +56,14 @@ ENERGY_KS = (1, 2, 4, 8, 16, 24, 32, 64, 128, 256, 512)
 ALIGN_RHOS = (0.5, 0.8, 0.95)
 MIMI_TOP_PCS = 32
 RIDGE_LAMBDA_SCALE = 1e-3
-NULLING_MAX_DIRECTIONS = 6
-NULLING_STOP_AUC = 0.55
+INLP_MAX_REMOVALS = 4
+STEERING_N_RANDOM = 2
 TRAJ_HALF_WINDOW = 25
 TRAJ_N_BOOT = 1000
 TRAJ_SEED = 20260723
+TRAJ_MIN_CONSECUTIVE = 3
 IDENTITY_AUC_TOLERANCE = 1e-3
+FULL_REFIT_TOLERANCE = 5e-3
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +99,11 @@ def abs_cosine(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def sign_aligned_mean(directions: list[np.ndarray]) -> np.ndarray:
-    """以第一个方向为符号参考，翻转反向者后平均并单位化。"""
+    """以第一个方向为符号参考，翻转反向者后平均并单位化。
+
+    仅用于**无自然符号**的方向（PCA 主轴等）。有标签语义的方向（探针方向、
+    diff-means）必须走 mean_direction_label1，保证 +v 指向 label=1。
+    """
     if not directions:
         raise ValueError("至少需要一个方向")
     reference = unit(directions[0])
@@ -96,6 +112,20 @@ def sign_aligned_mean(directions: list[np.ndarray]) -> np.ndarray:
         v = unit(vector)
         stacked.append(-v if float(np.dot(reference, v)) < 0 else v)
     return unit(np.mean(np.stack(stacked), axis=0))
+
+
+def mean_direction_label1(directions: list[np.ndarray], stats: list[dict]) -> np.ndarray:
+    """对已按 label=1 取向的方向组做平均单位化；成员取向错误则硬失败。
+
+    E2 注入依赖符号约定"+v 指向 T4 label=1"；这里用各成员的训练集类条件投影
+    统计（mean_pos/mean_neg）显式核验取向，不做静默翻转。
+    """
+    if len(directions) != len(stats) or not directions:
+        raise ValueError("方向与统计数量不一致或为空")
+    for index, stat in enumerate(stats):
+        if not float(stat["mean_pos"]) > float(stat["mean_neg"]):
+            raise ValueError(f"方向 {index} 未指向 label=1（mean_pos ≤ mean_neg）")
+    return unit(np.mean(np.stack([unit(v) for v in directions]), axis=0))
 
 
 def projection_auc(labels: np.ndarray, scores: np.ndarray) -> float:
@@ -193,48 +223,126 @@ def projection_stats(scores: np.ndarray, labels: np.ndarray) -> dict[str, float]
     }
 
 
-def iterative_nulling(
+def inlp_redundancy_spectrum(
     x_train: np.ndarray,
     y_train: np.ndarray,
     x_eval: np.ndarray,
     y_eval: np.ndarray,
     *,
     fit_fn,
-    max_directions: int,
-    stop_auc: float,
+    max_removals: int,
 ) -> dict:
-    """迭代均值差擦除：每轮重训探针记录 AUC，再剔除当前训练集 diff-in-means 方向。
+    """INLP 冗余谱：每轮重训探针、记录评估 AUC、剔除其原始空间方向。
 
-    擦除方向必须用 diff-in-means 而非探针方向：剔除样本均值差方向使训练集两类
-    均值差精确归零（一阶信号被完整擦除），而剔除"探针方向"存在固定点病理——
-    估计方向与真方向的角误差每轮留下等比例残余、列内信噪比不变，AUC 永不崩塌
-    （合成数据实测卡在固定值；与概念擦除文献 INLP→LEACE 的结论一致）。
-    auc_sequence[i] 是已擦除 i 个方向后的重训 AUC；rounds_to_collapse 为首个
-    AUC ≤ stop_auc 的擦除数——它度量"承载均值可分性的方向数"。
-    fit_fn(x_tr, y_tr) 返回训练好的二分类 LinearProbe（注入以便测试与设备解耦）。
+    数学约束（#35）：均值信号的线性擦除秩恒为 1（LEACE guardedness 定理——
+    擦除 diff-in-means 一轮后凸损失下零权重最优，AUC 必然 0.5，对任意维数的
+    均值信号都成立），因此"擦除轮数"不度量信息维数，不作判读。本谱度量的
+    是**读出方向的冗余结构**：r_0 = 完整特征重训 AUC，r_i = 已剔除 i 个探针
+    方向后次优正交读出的 AUC。retention_after_1 = (r_1−0.5)/(r_0−0.5)：
+    同质一维码 → 低；上下文异质方向混合（真·厚方向束）→ 高。序列平台化
+    （信号与噪声共线的病理几何）由 auc_sequence 自身呈现，归 indeterminate。
+    fit_fn(x_tr, y_tr) 返回二分类 LinearProbe（注入以便测试与设备解耦）。
     """
     x_tr = np.array(x_train, dtype=np.float32, copy=True)
     x_ev = np.array(x_eval, dtype=np.float32, copy=True)
     auc_sequence: list[float] = []
-    rounds_to_collapse: int | None = None
-    for removed in range(int(max_directions) + 1):
+    removed_cos_to_first: list[float] = []
+    nonconverged = 0
+    first_direction: np.ndarray | None = None
+    for removed in range(int(max_removals) + 1):
         probe = fit_fn(x_tr, y_train)
+        nonconverged += int(not probe.converged)
         auc = float(pg.primary_metric(y_eval, probe.predict_proba(x_ev), 2))
         auc_sequence.append(auc)
-        if auc <= float(stop_auc):
-            rounds_to_collapse = removed
+        if removed == int(max_removals):
             break
-        if removed == int(max_directions):
-            break
-        direction = unit(diff_in_means(x_tr, y_train))
+        direction = orig_space_direction(probe.weight[0], probe.scale)
+        if first_direction is None:
+            first_direction = direction
+            removed_cos_to_first.append(1.0)
+        else:
+            removed_cos_to_first.append(abs_cosine(direction, first_direction))
         x_tr = remove_directions(x_tr, direction)
         x_ev = remove_directions(x_ev, direction)
+    base = auc_sequence[0] - 0.5
+    retention = None if base <= 0 else max(auc_sequence[1] - 0.5, 0.0) / base
     return {
         "auc_sequence": auc_sequence,
-        "rounds_to_collapse": rounds_to_collapse,
-        "collapsed": rounds_to_collapse is not None,
-        "stop_auc": float(stop_auc),
-        "max_directions": int(max_directions),
+        "retention_after_1": retention,
+        "removed_abs_cos_to_first": removed_cos_to_first,
+        "nonconverged": nonconverged,
+        "max_removals": int(max_removals),
+    }
+
+
+def mean_erasure_check(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_eval: np.ndarray,
+    y_eval: np.ndarray,
+    *,
+    fit_fn,
+) -> dict:
+    """LEACE 自检（非判据）：擦除训练集 diff-in-means 后重训。
+
+    训练集两类质心被精确置零 ⇒ 凸损失 + L2 下重训 AUC 必然 ≈0.5——这是对
+    实现正确性的 sanity check；评估侧残余偏移是"样本外均值泄漏 + 非均值线性
+    结构"的描述量。任何把本检验当"崩塌证据"的解读都是错的（#35）。
+    """
+    direction = unit(diff_in_means(x_train, y_train))
+    x_tr = remove_directions(x_train, direction)
+    x_ev = remove_directions(x_eval, direction)
+    residual_mean_gap = float(np.linalg.norm(diff_in_means(x_tr, y_train)))
+    probe = fit_fn(x_tr, y_train)
+    train_auc = float(pg.primary_metric(y_train, probe.predict_proba(x_tr), 2))
+    eval_auc = float(pg.primary_metric(y_eval, probe.predict_proba(x_ev), 2))
+    return {
+        "train_auc": train_auc,
+        "eval_auc": eval_auc,
+        "train_mean_gap_after_erasure": residual_mean_gap,
+        "converged": bool(probe.converged),
+        "expectation": "train_auc≈0.5 为数学必然（LEACE），仅作实现自检",
+    }
+
+
+def refit_auc_grid(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_eval: np.ndarray,
+    y_eval: np.ndarray,
+    c_grid: list[float],
+    trainer: dict,
+    device: str,
+) -> dict:
+    """变换后特征的全 C 档 warm-start 重训；评估集取最大 AUC。
+
+    残余信号判定不得沿用原始探针选出的正则强度（#35 中风险）：取全网格
+    评估集最大值给残余信号最大机会，作为"信号仍在吗"的敏感性上界（非正式
+    性能声明，正式口径仍是 inner_val 嵌套选择）。
+    """
+    warm = None
+    auc_by_c: dict[str, float] = {}
+    nonconverged = 0
+    for c_value in c_grid:
+        probe = pg.fit_linear_probe(
+            x_train,
+            y_train,
+            2,
+            float(c_value),
+            device=device,
+            max_iter=int(trainer["lbfgs_max_iter"]),
+            tolerance_grad=float(trainer["lbfgs_tolerance_grad"]),
+            init=warm,
+        )
+        warm = probe
+        nonconverged += int(not probe.converged)
+        auc_by_c[str(float(c_value))] = float(
+            pg.primary_metric(y_eval, probe.predict_proba(x_eval), 2)
+        )
+    return {
+        "auc_by_c": auc_by_c,
+        "max_auc": max(auc_by_c.values()),
+        "nonconverged": nonconverged,
     }
 
 
@@ -293,6 +401,18 @@ def extract_event_windows(
     return windows, keep
 
 
+def sustained_onset(excludes: np.ndarray, min_consecutive: int) -> int | None:
+    """首个"连续 ≥min_consecutive 个偏移均显著"的起始索引；无则 None。"""
+    flags = np.asarray(excludes, dtype=bool)
+    window = int(min_consecutive)
+    if window <= 0:
+        raise ValueError("min_consecutive 必须为正")
+    for start in range(len(flags) - window + 1):
+        if flags[start : start + window].all():
+            return start
+    return None
+
+
 def cluster_bootstrap_separation(
     sum_pos: np.ndarray,
     count_pos: np.ndarray,
@@ -300,10 +420,18 @@ def cluster_bootstrap_separation(
     count_neg: np.ndarray,
     n_boot: int,
     seed: int,
+    *,
+    min_consecutive: int = TRAJ_MIN_CONSECUTIVE,
 ) -> dict:
-    """会话级 cluster bootstrap：分组均值差 sep(t) 的点估计与 95% CI。
+    """会话级 cluster bootstrap：sep(t) 点估计、逐点 CI 与 sup-t 同时置信带。
 
-    输入均为 [n_sessions, n_offsets]（sum）或 [n_sessions]（count）。
+    51 个偏移逐点 95% CI 的"首次排除零"在零效应下假阳性率接近 1（#35 高风险）。
+    显著性判定因此改为双重校正：(1) studentized sup-t 同时带——对每个 bootstrap
+    抽样计算 max_t |sep_b(t)−sep(t)|/se(t)，取其 95 分位数 q，同时带 = sep ±
+    q·se(t)，把全曲线族错误率控制在 5%；(2) 起点须连续 ≥min_consecutive 个偏移
+    同时带排除零（与 e1x/trajectory.divergence_step 的持续性约束对齐）。
+    逐点 CI 仍输出，仅作描述。输入为 [n_sessions, n_offsets]（sum）与
+    [n_sessions]（count）。
     """
     sum_pos = np.asarray(sum_pos, dtype=np.float64)
     sum_neg = np.asarray(sum_neg, dtype=np.float64)
@@ -327,15 +455,29 @@ def cluster_bootstrap_separation(
             dropped += 1
             continue
         draws[b] = sum_pos[take].sum(axis=0) / pos_n - sum_neg[take].sum(axis=0) / neg_n
-    lower = np.nanpercentile(draws, 2.5, axis=0)
-    upper = np.nanpercentile(draws, 97.5, axis=0)
-    excludes = (lower > 0) | (upper < 0)
-    first = np.flatnonzero(excludes)
+    pointwise_lower = np.nanpercentile(draws, 2.5, axis=0)
+    pointwise_upper = np.nanpercentile(draws, 97.5, axis=0)
+    se = np.nanstd(draws, axis=0, ddof=1)
+    positive_se = se > 0
+    if not positive_se.any():
+        raise ValueError("bootstrap 标准误全为零，无法构造同时带")
+    standardized = np.abs(draws[:, positive_se] - point[positive_se]) / se[positive_se]
+    sup_stats = np.nanmax(standardized, axis=1)
+    sup_quantile = float(np.nanpercentile(sup_stats, 95.0))
+    simultaneous_lower = point - sup_quantile * se
+    simultaneous_upper = point + sup_quantile * se
+    excludes = (simultaneous_lower > 0) | (simultaneous_upper < 0)
+    onset = sustained_onset(excludes, min_consecutive)
     return {
         "separation": point,
-        "ci_lower": lower,
-        "ci_upper": upper,
-        "first_offset_index_ci_excludes_zero": int(first[0]) if len(first) else None,
+        "pointwise_ci_lower": pointwise_lower,
+        "pointwise_ci_upper": pointwise_upper,
+        "bootstrap_se": se,
+        "sup_t_quantile_95": sup_quantile,
+        "simultaneous_lower": simultaneous_lower,
+        "simultaneous_upper": simultaneous_upper,
+        "min_consecutive": int(min_consecutive),
+        "onset_index_sustained": onset,
         "bootstrap_dropped_draws": dropped,
     }
 
@@ -391,12 +533,12 @@ def _geometry_root(roots: dict) -> Path:
     return roots["work"] / "geometry"
 
 
-def _protocol(probe_cfg: dict, summary: dict) -> tuple[dict, str]:
+def _protocol(probe_cfg: dict, summary: dict, roots: dict, train: list[str], evals: list[str]) -> tuple[dict, str]:
     if summary.get("g2", {}).get("verdict", {}).get("verdict") != "fail":
         raise SystemExit("正式汇总不再是 G2=fail，#32 几何解剖前提失效，请先复核")
     protocol = {
         "name": PROTOCOL_NAME,
-        "prereg": 32,
+        "prereg": [32, 35],
         "target": TARGET,
         "binary_specs": list(BINARY_SPECS),
         "n_layers": N_LAYERS,
@@ -406,17 +548,28 @@ def _protocol(probe_cfg: dict, summary: dict) -> tuple[dict, str]:
         "align_rhos": list(ALIGN_RHOS),
         "mimi_top_pcs": MIMI_TOP_PCS,
         "ridge_lambda_scale": RIDGE_LAMBDA_SCALE,
-        "nulling": {"max_directions": NULLING_MAX_DIRECTIONS, "stop_auc": NULLING_STOP_AUC},
+        "inlp": {"max_removals": INLP_MAX_REMOVALS},
+        "mean_erasure": "sanity_check_only_not_a_criterion",
+        "refit_c_policy": "full_c_grid_eval_max_sensitivity_bound",
+        "steering": {"schema": "e1x-directions-v1", "n_random": STEERING_N_RANDOM},
         "trajectory": {
             "half_window": TRAJ_HALF_WINDOW,
             "n_boot": TRAJ_N_BOOT,
             "seed": TRAJ_SEED,
+            "min_consecutive": TRAJ_MIN_CONSECUTIVE,
+            "band": "studentized_sup_t_95_simultaneous",
         },
         "identity_auc_tolerance": IDENTITY_AUC_TOLERANCE,
-        "c_source": "fit_meta_chosen_c",
+        "full_refit_tolerance": FULL_REFIT_TOLERANCE,
+        "c_grid": [float(c) for c in probe_cfg["c_grid"]],
         "trainer": probe_cfg["trainer"],
         "pca_solver": "numpy.linalg.svd/full_matrices=False/float64",
         "formal_summary_sha256": _sha256(Path(REPO_ROOT) / "reports" / "wp_e1_probe_summary.json"),
+        # 源码与行域绑定（#35 高风险 2）：代码或冻结行域变化必须令旧断点失效。
+        "script_sha256": _sha256(Path(__file__)),
+        "probe_gpu_sha256": _sha256(Path(pg.__file__)),
+        "grid_sha256": _sha256(Path(g.__file__)),
+        "row_plan_signature": engine._row_plan_signature(probe_cfg, roots, train, evals),
     }
     encoded = json.dumps(protocol, ensure_ascii=False, sort_keys=True).encode()
     return protocol, hashlib.sha256(encoded).hexdigest()
@@ -438,7 +591,7 @@ def _load_cell_direction(path: Path) -> np.ndarray | None:
 
 
 def _load_fit_directions(roots: dict, spec_name: str, layer: int, seed: int) -> dict:
-    """从正式 fit 断点取双空间方向与 chosen_c；缺失时抛出带路径的错误。"""
+    """从正式 fit 断点取双空间方向、chosen_c 与文件摘要；缺失时抛出带路径的错误。"""
     path = engine._fit_path(roots, spec_name, layer, seed)
     if not path.is_file():
         raise FileNotFoundError(str(path))
@@ -451,7 +604,20 @@ def _load_fit_directions(roots: dict, spec_name: str, layer: int, seed: int) -> 
         "orig": orig_space_direction(weight, probe.scale),
         "chosen_c": float(meta["chosen_c"]),
         "scale": np.asarray(probe.scale, dtype=np.float64),
+        "sha256": _sha256(path),
     }
+
+
+def _npz_meta_valid(path: Path, protocol_hash: str) -> bool:
+    """向量/转向 NPZ 的协议校验：__meta__.protocol_hash 必须匹配（#35 高风险 2）。"""
+    if not path.is_file():
+        return False
+    try:
+        with np.load(path, allow_pickle=False) as payload:
+            meta = json.loads(bytes(payload["__meta__"]).decode())
+    except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        return False
+    return meta.get("protocol_hash") == protocol_hash
 
 
 # ---------------------------------------------------------------------------
@@ -529,17 +695,33 @@ def stage_directions(args, protocol: dict, protocol_hash: str) -> dict:
         t4_propagation[str(layer)] = entry
 
     cross_spec = {}
+    cross_spec_signed = {}
     for layer in range(N_LAYERS):
-        matrix = {
+        cross_spec[str(layer)] = {
             a: {b: abs_cosine(mean_dirs[(a, layer)], mean_dirs[(b, layer)]) for b in BINARY_SPECS}
             for a in BINARY_SPECS
         }
-        cross_spec[str(layer)] = matrix
+        # 带符号余弦：各规格方向均指向各自 label=1，符号本身携带"同向/反向编码"语义。
+        cross_spec_signed[str(layer)] = {
+            a: {
+                b: float(np.dot(unit(mean_dirs[(a, layer)]), unit(mean_dirs[(b, layer)])))
+                for b in BINARY_SPECS
+            }
+            for a in BINARY_SPECS
+        }
     t1_vs_t4 = {
         spec_name: {str(layer): cross_spec[str(layer)][spec_name][TARGET] for layer in SPECTRUM_LAYERS}
         for spec_name in BINARY_SPECS
         if spec_name.startswith("T1_")
     }
+    fits_aggregate = hashlib.sha256(
+        "\n".join(
+            f"{spec_name}|{layer}|{seed}|{bank[(spec_name, layer, seed)]['sha256']}"
+            for spec_name in BINARY_SPECS
+            for layer in range(N_LAYERS)
+            for seed in seeds
+        ).encode()
+    ).hexdigest()
 
     arrays: dict[str, np.ndarray] = {
         "__meta__": np.frombuffer(
@@ -558,10 +740,12 @@ def stage_directions(args, protocol: dict, protocol_hash: str) -> dict:
         "protocol_hash": protocol_hash,
         "stage": "directions",
         "n_fit_files": len(bank),
+        "fits_aggregate_sha256": fits_aggregate,
         "min_fit_vs_cell_abs_cos": min_cell_cos,
         "per_spec": per_spec,
         "t4_layer_propagation": t4_propagation,
         "cross_spec_abs_cos_by_layer": cross_spec,
+        "cross_spec_signed_cos_by_layer": cross_spec_signed,
         "t1_vs_t4_abs_cos": t1_vs_t4,
         "bank_path": str(root / "directions_bank.npz"),
         "wall_seconds": perf_counter() - started,
@@ -587,25 +771,80 @@ def _vectors_path(root: Path, layer: int, seed: int) -> Path:
     return root / "vectors" / f"L{layer}__s{seed}.npz"
 
 
-def _refit_auc(
-    x_train: np.ndarray,
-    y_train: np.ndarray,
+def _steering_path(root: Path, layer: int) -> Path:
+    return root / f"steering_L{layer}.npz"
+
+
+def _write_steering(
+    root: Path,
+    layer: int,
+    seeds: list[int],
     x_eval: np.ndarray,
-    y_eval: np.ndarray,
-    chosen_c: float,
-    trainer: dict,
-    device: str,
-) -> float:
-    probe = pg.fit_linear_probe(
-        x_train,
-        y_train,
-        2,
-        chosen_c,
-        device=device,
-        max_iter=int(trainer["lbfgs_max_iter"]),
-        tolerance_grad=float(trainer["lbfgs_tolerance_grad"]),
+    protocol_hash: str,
+) -> None:
+    """合成文档/04 §2.1-G 承诺的转向包（schema 兼容 e1x-directions-v1）。
+
+    键名与 wp_e2_lite_plan.py 的消费口径一致：probe_s{seed}/probe_meanseed/
+    diffmeans_s{seed}/diffmeans/random_r{i}；__meta__.proj_std 提供 α·s_v 标定。
+    逐种子方向的 s_v 取各自训练集口径（fragment 的 pooled_std）；种子均值方向与
+    随机方向在评估集上直接计算（meta 注明来源）。符号约定：+v 指向 T4 label=1，
+    由 mean_direction_label1 显式核验，不做静默翻转。
+    """
+    directions: dict[str, np.ndarray] = {}
+    proj_std: dict[str, float] = {}
+    probe_dirs: list[np.ndarray] = []
+    diff_dirs: list[np.ndarray] = []
+    probe_stats: list[dict] = []
+    diff_stats: list[dict] = []
+    for seed in seeds:
+        with np.load(_vectors_path(root, layer, seed), allow_pickle=False) as payload:
+            v_star = np.asarray(payload["v_star"], dtype=np.float64)
+            d_vec = np.asarray(payload["d"], dtype=np.float64)
+        record = _load_json_checkpoint(
+            _spectrum_checkpoint_path(root, layer, seed), protocol_hash, {"layer": layer, "seed": seed}
+        )
+        if record is None:
+            raise RuntimeError(f"steering 合成缺少 L{layer}/s{seed} 的 spectrum 断点")
+        stats = record["projection_stats"]
+        directions[f"probe_s{seed}"] = unit(v_star)
+        directions[f"diffmeans_s{seed}"] = unit(d_vec)
+        proj_std[f"probe_s{seed}"] = float(stats["v_star"]["pooled_std"])
+        proj_std[f"diffmeans_s{seed}"] = float(stats["d"]["pooled_std"])
+        probe_dirs.append(v_star)
+        diff_dirs.append(d_vec)
+        probe_stats.append(stats["v_star"])
+        diff_stats.append(stats["d"])
+    directions["probe_meanseed"] = mean_direction_label1(probe_dirs, probe_stats)
+    directions["diffmeans"] = mean_direction_label1(diff_dirs, diff_stats)
+    rng = np.random.default_rng(TRAJ_SEED + layer)
+    for index in range(STEERING_N_RANDOM):
+        directions[f"random_r{index}"] = unit(rng.standard_normal(len(probe_dirs[0])))
+    eval64 = np.asarray(x_eval, dtype=np.float64)
+    for name in ("probe_meanseed", "diffmeans", *[f"random_r{i}" for i in range(STEERING_N_RANDOM)]):
+        proj_std[name] = float((eval64 @ directions[name]).std())
+    del eval64
+    npz_payload = {name: vec.astype(np.float32) for name, vec in directions.items()}
+    npz_payload["__meta__"] = np.frombuffer(
+        json.dumps(
+            {
+                "schema": "e1x-directions-v1",
+                "source": "wp_e1_geometry_autopsy.spectrum",
+                "protocol_hash": protocol_hash,
+                "layer": layer,
+                "sign": "+v 指向 T4 label=1（对方话轮 complete）",
+                "scale": "steer = alpha * proj_std[name] * unit(v)",
+                "proj_std": proj_std,
+                "proj_std_source": {
+                    "per_seed": "train_pooled",
+                    "meanseed_and_random": "eval_pooled",
+                },
+            },
+            ensure_ascii=False,
+        ).encode(),
+        dtype=np.uint8,
     )
-    return float(pg.primary_metric(y_eval, probe.predict_proba(x_eval), 2))
+    _atomic_write_npz(_steering_path(root, layer), npz_payload)
+    print(f"L{layer}：转向包已写入 {_steering_path(root, layer)}", flush=True)
 
 
 def _run_spectrum_task(
@@ -619,7 +858,9 @@ def _run_spectrum_task(
     mimi_train: np.ndarray,
     mimi_eval: np.ndarray,
     fit_entry: dict,
+    fit_sha256: str,
     formal_auc: float,
+    c_grid: list[float],
     trainer: dict,
     device: str,
 ) -> tuple[dict, dict[str, np.ndarray]]:
@@ -645,6 +886,8 @@ def _run_spectrum_task(
             f"L{layer}/s{seed} 一维投影恒等自检失败：|{identity_auc:.6f}−{formal_auc:.6f}|"
             f"={identity_gap:.6f} > {IDENTITY_AUC_TOLERANCE}"
         )
+    if identity_auc <= 0.5:
+        raise RuntimeError(f"L{layer}/s{seed} 探针方向未指向 label=1（AUC={identity_auc:.4f}）")
 
     d_raw = diff_in_means(x_train, y_train)
     d_unit = unit(d_raw)
@@ -656,22 +899,30 @@ def _run_spectrum_task(
     cum_v = profile_v["cumulative"]
     cum_d = profile_d["cumulative"]
 
-    removals: dict[str, float] = {
-        "full_refit": _refit_auc(x_train, y_train, x_eval, y_eval, chosen_c, trainer, device)
+    # 变换后重训一律全 C 档取评估集最大（敏感性上界，#35 中风险 1）。
+    removals: dict[str, dict] = {
+        "full_refit": refit_auc_grid(x_train, y_train, x_eval, y_eval, c_grid, trainer, device)
     }
+    formal_c_refit = float(removals["full_refit"]["auc_by_c"][str(chosen_c)])
+    full_refit_gap = abs(formal_c_refit - float(formal_auc))
+    if full_refit_gap > FULL_REFIT_TOLERANCE:
+        raise RuntimeError(
+            f"L{layer}/s{seed} 正式 C 全维重训复现失败：|{formal_c_refit:.6f}−{formal_auc:.6f}|"
+            f"={full_refit_gap:.6f} > {FULL_REFIT_TOLERANCE}"
+        )
     for name, direction in (("v_star", v_star), ("d", d_unit)):
         x_tr_removed = remove_directions(x_train, direction)
         x_ev_removed = remove_directions(x_eval, direction)
-        removals[f"remove_dir_{name}"] = _refit_auc(
-            x_tr_removed, y_train, x_ev_removed, y_eval, chosen_c, trainer, device
+        removals[f"remove_dir_{name}"] = refit_auc_grid(
+            x_tr_removed, y_train, x_ev_removed, y_eval, c_grid, trainer, device
         )
         del x_tr_removed, x_ev_removed
         gc.collect()
     for k in REMOVE_TOP_PC_KS:
         x_tr_removed = remove_top_pcs(x_train, center, vt, k)
         x_ev_removed = remove_top_pcs(x_eval, center, vt, k)
-        removals[f"remove_top_pc_{k}"] = _refit_auc(
-            x_tr_removed, y_train, x_ev_removed, y_eval, chosen_c, trainer, device
+        removals[f"remove_top_pc_{k}"] = refit_auc_grid(
+            x_tr_removed, y_train, x_ev_removed, y_eval, c_grid, trainer, device
         )
         del x_tr_removed, x_ev_removed
         gc.collect()
@@ -687,15 +938,11 @@ def _run_spectrum_task(
             tolerance_grad=float(trainer["lbfgs_tolerance_grad"]),
         )
 
-    nulling = iterative_nulling(
-        x_train,
-        y_train,
-        x_eval,
-        y_eval,
-        fit_fn=_fit,
-        max_directions=NULLING_MAX_DIRECTIONS,
-        stop_auc=NULLING_STOP_AUC,
+    inlp = inlp_redundancy_spectrum(
+        x_train, y_train, x_eval, y_eval, fit_fn=_fit, max_removals=INLP_MAX_REMOVALS
     )
+    gc.collect()
+    erasure = mean_erasure_check(x_train, y_train, x_eval, y_eval, fit_fn=_fit)
     gc.collect()
 
     # 目标投影用 f32 输入（train 侧避免再造 float64 大副本；R²/统计在 float64 汇总）。
@@ -722,9 +969,17 @@ def _run_spectrum_task(
 
     stats_v = projection_stats(train_proj_v, y_train)
     stats_d = projection_stats(train_proj_d, y_train)
+    for name, stat in (("v_star", stats_v), ("d", stats_d)):
+        if not stat["mean_pos"] > stat["mean_neg"]:
+            raise RuntimeError(f"L{layer}/s{seed} 方向 {name} 未指向 label=1，符号约定被破坏")
     del eval64, targets_train, targets_eval
     gc.collect()
 
+    nonconverged_total = (
+        sum(entry["nonconverged"] for entry in removals.values())
+        + inlp["nonconverged"]
+        + int(not erasure["converged"])
+    )
     record = {
         "schema_version": SCHEMA_VERSION,
         "stage": "spectrum",
@@ -734,8 +989,10 @@ def _run_spectrum_task(
         "n_eval_rows": len(y_eval),
         "formal_auc": float(formal_auc),
         "chosen_c": chosen_c,
+        "fit_sha256": fit_sha256,
         "identity_projection_auc": identity_auc,
         "identity_gap": identity_gap,
+        "full_refit_gap_at_formal_c": full_refit_gap,
         "diff_means": {"auc": d_auc, "abs_cos_to_v_star": cos_d_vstar},
         "energy_v_star": {
             "at_k": energy_at_ks(cum_v, ENERGY_KS),
@@ -749,9 +1006,11 @@ def _run_spectrum_task(
         },
         "pca_variance_cum_at_k": energy_at_ks(variance_cum, ENERGY_KS),
         "removal_auc": removals,
-        "nulling": nulling,
+        "inlp": inlp,
+        "mean_erasure_check": erasure,
         "mimi_r2": mimi_r2,
         "projection_stats": {"v_star": stats_v, "d": stats_d},
+        "nonconverged_fits": nonconverged_total,
         "wall_seconds": perf_counter() - started,
     }
     vectors = {
@@ -789,10 +1048,21 @@ def stage_spectrum(args, protocol: dict, protocol_hash: str) -> None:
             _spectrum_checkpoint_path(root, layer, seed), protocol_hash, {"layer": layer, "seed": seed}
         )
         is None
-        or not _vectors_path(root, layer, seed).is_file()
+        or not _npz_meta_valid(_vectors_path(root, layer, seed), protocol_hash)
     ]
-    print(f"spectrum：待计算 {len(pending)}/{len(layers) * len(seeds)} 个层×种子任务", flush=True)
-    if not pending:
+    steering_pending = [
+        layer
+        for layer in layers
+        if args.force
+        or any((layer, seed) in pending for seed in seeds)
+        or not _npz_meta_valid(_steering_path(root, layer), protocol_hash)
+    ]
+    print(
+        f"spectrum：待计算 {len(pending)}/{len(layers) * len(seeds)} 个层×种子任务，"
+        f"待合成转向包 {len(steering_pending)} 层",
+        flush=True,
+    )
+    if not pending and not steering_pending:
         return
 
     n_steps = engine._load_run_specs(roots)
@@ -818,7 +1088,7 @@ def stage_spectrum(args, protocol: dict, protocol_hash: str) -> None:
 
     for layer in layers:
         layer_pending = [seed for seed in seeds if (layer, seed) in pending]
-        if not layer_pending:
+        if not layer_pending and layer not in steering_pending:
             continue
         load_started = perf_counter()
         print(f"L{layer}：载入 {len(run_keys)} 路压紧层缓存", flush=True)
@@ -841,7 +1111,9 @@ def stage_spectrum(args, protocol: dict, protocol_hash: str) -> None:
                 mimi_train=mimi_train,
                 mimi_eval=mimi_eval,
                 fit_entry=fit_entry,
+                fit_sha256=fit_entry["sha256"],
                 formal_auc=float(auc_table[str(seed)][str(layer)]),
+                c_grid=[float(c) for c in probe_cfg["c_grid"]],
                 trainer=probe_cfg["trainer"],
                 device=str(args.device),
             )
@@ -857,15 +1129,18 @@ def stage_spectrum(args, protocol: dict, protocol_hash: str) -> None:
             _atomic_write_json(_spectrum_checkpoint_path(root, layer, seed), record)
             print(
                 f"L{layer}/s{seed} 完成：E(16)={record['energy_v_star']['at_k']['16']:.4f}，"
-                f"剔除 v* 后 AUC={record['removal_auc']['remove_dir_v_star']:.4f}，"
-                f"迭代剔除崩塌轮数={record['nulling']['rounds_to_collapse']}，"
+                f"INLP r1 保留率={_format_metric(record['inlp']['retention_after_1'])}，"
+                f"LEACE 自检 train AUC={record['mean_erasure_check']['train_auc']:.4f}，"
                 f"cos(d,v*)={record['diff_means']['abs_cos_to_v_star']:.4f}，"
+                f"未收敛拟合={record['nonconverged_fits']}，"
                 f"耗时 {record['wall_seconds']:.1f}s",
                 flush=True,
             )
             del x_train, y_train
             gc.collect()
             engine._empty_cuda_cache(str(args.device))
+        if layer in steering_pending:
+            _write_steering(root, layer, seeds, x_eval, protocol_hash)
         store.clear()
         del store, x_eval, y_eval
         gc.collect()
@@ -892,36 +1167,28 @@ def stage_trajectory(args, protocol: dict, protocol_hash: str) -> dict:
             print("trajectory 断点已存在，跳过（--force 重算）")
             return cached
 
-    fragments = []
+    steering_file = _steering_path(root, layer)
+    if not _npz_meta_valid(steering_file, protocol_hash):
+        raise SystemExit(f"缺少或过期的转向包 {steering_file}——trajectory 依赖 spectrum 完成该层")
+    with np.load(steering_file, allow_pickle=False) as payload:
+        steering_meta = json.loads(bytes(payload["__meta__"]).decode())
+        directions = {
+            "probe_meanseed": np.asarray(payload["probe_meanseed"], dtype=np.float64),
+            "diffmeans": np.asarray(payload["diffmeans"], dtype=np.float64),
+            "random": np.asarray(payload["random_r0"], dtype=np.float64),
+        }
+    pc1_members = []
     for seed in seeds:
         path = _vectors_path(root, layer, seed)
-        if not path.is_file():
-            raise SystemExit(f"缺少 {path}——trajectory 依赖 spectrum 阶段先完成该层三种子")
+        if not _npz_meta_valid(path, protocol_hash):
+            raise SystemExit(f"缺少或过期的 {path}——请先以当前协议重跑 spectrum")
         with np.load(path, allow_pickle=False) as payload:
-            meta = json.loads(bytes(payload["__meta__"]).decode())
-            if meta.get("protocol_hash") != protocol_hash:
-                raise SystemExit(f"{path} 协议哈希不匹配，请先以当前协议重跑 spectrum")
-            fragments.append(
-                {key: np.asarray(payload[key], dtype=np.float64) for key in ("v_star", "d", "pc1")}
-            )
-    stats = {}
-    for seed in seeds:
-        record = _load_json_checkpoint(
-            _spectrum_checkpoint_path(root, layer, seed), protocol_hash, {"layer": layer, "seed": seed}
-        )
-        if record is None:
-            raise SystemExit(f"缺少 L{layer}/s{seed} 的 spectrum 断点")
-        stats[seed] = record["projection_stats"]
-
-    directions = {
-        "v_star": sign_aligned_mean([fragment["v_star"] for fragment in fragments]),
-        "d": sign_aligned_mean([fragment["d"] for fragment in fragments]),
-        "pc1": sign_aligned_mean([fragment["pc1"] for fragment in fragments]),
-        "random": unit(np.random.default_rng(TRAJ_SEED).standard_normal(len(fragments[0]["v_star"]))),
-    }
+            pc1_members.append(np.asarray(payload["pc1"], dtype=np.float64))
+    directions["pc1"] = sign_aligned_mean(pc1_members)
+    # σ 标准化用转向包里种子均值方向自身的投影标准差（评估集口径，#35 中风险 4）。
     projection_norms = {
-        "v_star": float(np.mean([stats[seed]["v_star"]["pooled_std"] for seed in seeds])),
-        "d": float(np.mean([stats[seed]["d"]["pooled_std"] for seed in seeds])),
+        "probe_meanseed": float(steering_meta["proj_std"]["probe_meanseed"]),
+        "diffmeans": float(steering_meta["proj_std"]["diffmeans"]),
     }
 
     roles = eval_rows[TARGET]
@@ -965,18 +1232,28 @@ def stage_trajectory(args, protocol: dict, protocol_hash: str) -> dict:
     curves = {}
     for name in names:
         boot = cluster_bootstrap_separation(
-            sums[name][1], counts[name][1], sums[name][0], counts[name][0], TRAJ_N_BOOT, TRAJ_SEED
+            sums[name][1],
+            counts[name][1],
+            sums[name][0],
+            counts[name][0],
+            TRAJ_N_BOOT,
+            TRAJ_SEED,
+            min_consecutive=TRAJ_MIN_CONSECUTIVE,
         )
-        norm = projection_norms.get(name, 1.0)
-        first_index = boot["first_offset_index_ci_excludes_zero"]
+        norm = projection_norms.get(name)
+        onset_index = boot["onset_index_sustained"]
         curves[name] = {
             "mean_label1": (sums[name][1].sum(axis=0) / counts[name][1].sum()).tolist(),
             "mean_label0": (sums[name][0].sum(axis=0) / counts[name][0].sum()).tolist(),
             "separation": boot["separation"].tolist(),
-            "separation_in_train_sigma": (boot["separation"] / norm).tolist() if name in projection_norms else None,
-            "ci_lower": boot["ci_lower"].tolist(),
-            "ci_upper": boot["ci_upper"].tolist(),
-            "first_offset_ms_ci_excludes_zero": (None if first_index is None else offsets_ms[first_index]),
+            "separation_in_sigma": (boot["separation"] / norm).tolist() if norm else None,
+            "pointwise_ci_lower": boot["pointwise_ci_lower"].tolist(),
+            "pointwise_ci_upper": boot["pointwise_ci_upper"].tolist(),
+            "simultaneous_lower": boot["simultaneous_lower"].tolist(),
+            "simultaneous_upper": boot["simultaneous_upper"].tolist(),
+            "sup_t_quantile_95": boot["sup_t_quantile_95"],
+            "onset_ms_sustained": (None if onset_index is None else offsets_ms[onset_index]),
+            "min_consecutive": boot["min_consecutive"],
             "bootstrap_dropped_draws": boot["bootstrap_dropped_draws"],
             "n_events_label1": float(counts[name][1].sum()),
             "n_events_label0": float(counts[name][0].sum()),
@@ -993,8 +1270,8 @@ def stage_trajectory(args, protocol: dict, protocol_hash: str) -> dict:
         "dropped_events_incomplete_window": dropped_events,
         "n_sessions": len(session_ids),
         "direction_pairwise_abs_cos": {
-            "v_star__d": abs_cosine(directions["v_star"], directions["d"]),
-            "v_star__pc1": abs_cosine(directions["v_star"], directions["pc1"]),
+            "probe_meanseed__diffmeans": abs_cosine(directions["probe_meanseed"], directions["diffmeans"]),
+            "probe_meanseed__pc1": abs_cosine(directions["probe_meanseed"], directions["pc1"]),
         },
         "curves": curves,
     }
@@ -1010,10 +1287,10 @@ def stage_trajectory(args, protocol: dict, protocol_hash: str) -> dict:
             arrays[f"count__{name}__g{group}"] = counts[name][group].astype(np.float64)
     _atomic_write_npz(root / f"trajectory__L{layer}.npz", arrays)
     _atomic_write_json(checkpoint, result)
-    sep_first = curves["v_star"]["first_offset_ms_ci_excludes_zero"]
     print(
         f"trajectory 完成：事件 {total_events}（弃 {dropped_events}），"
-        f"v* 分离首个显著偏移 = {sep_first} ms",
+        f"probe_meanseed 持续显著起点 = {curves['probe_meanseed']['onset_ms_sustained']} ms"
+        f"（sup-t 同时带 + 连续 {TRAJ_MIN_CONSECUTIVE} 步）",
         flush=True,
     )
     return result
@@ -1056,28 +1333,91 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
         return [metric(record) for record in spectrum.values()]
 
     e16 = across(lambda r: r["energy_v_star"]["at_k"]["16"])
-    nulling_rounds = across(
+    inlp_retention = across(
         lambda r: (
-            r["nulling"]["rounds_to_collapse"]
-            if r["nulling"]["rounds_to_collapse"] is not None
-            else float("inf")
+            float("nan") if r["inlp"]["retention_after_1"] is None else r["inlp"]["retention_after_1"]
         )
     )
-    nulling_last_auc = across(lambda r: r["nulling"]["auc_sequence"][-1])
-    remove_top16_drop = across(lambda r: r["formal_auc"] - r["removal_auc"]["remove_top_pc_16"])
+    erasure_train = across(lambda r: r["mean_erasure_check"]["train_auc"])
+    remove_top16_drop = across(
+        lambda r: r["formal_auc"] - r["removal_auc"]["remove_top_pc_16"]["max_auc"]
+    )
     cos_d = across(lambda r: r["diff_means"]["abs_cos_to_v_star"])
     mimi_gap = across(
         lambda r: float(np.mean(r["mimi_r2"]["per_pc"][:8])) - r["mimi_r2"]["v_star"]
     )
     identity_gap = across(lambda r: r["identity_gap"])
+    full_refit_gap = across(lambda r: r["full_refit_gap_at_formal_c"])
+    nonconverged_total = int(sum(across(lambda r: r["nonconverged_fits"])))
 
-    worst_rounds = max(nulling_rounds)
-    if worst_rounds <= 2:
-        necessity_verdict = "alpha"
-    elif worst_rounds == float("inf") and max(nulling_last_auc) >= 0.70:
-        necessity_verdict = "beta"
+    # INLP 冗余（#35 修订）：保守取跨任务最大保留率；擦除轮数不是维数度量。
+    worst_retention = max(inlp_retention)
+    if np.isnan(worst_retention):
+        redundancy_verdict = "indeterminate"
+    elif worst_retention <= 0.3:
+        redundancy_verdict = "alpha"
+    elif min(inlp_retention) >= 0.7:
+        redundancy_verdict = "beta"
     else:
-        necessity_verdict = "indeterminate"
+        redundancy_verdict = "indeterminate"
+
+    # 均值差擦除自检（非判读行）：训练 AUC 偏离 0.5 超过 0.03 说明实现有误。
+    erasure_check_ok = all(abs(value - 0.5) <= 0.03 for value in erasure_train)
+
+    # T1×T4 方向关系（@L29，种子均值方向）。
+    t1_cos_l29 = {
+        spec: float(values["29"]) for spec, values in directions["t1_vs_t4_abs_cos"].items()
+    }
+    t1_min = min(t1_cos_l29.values())
+    t1_d80 = t1_cos_l29.get("T1_d80", float("nan"))
+    t1_d800 = t1_cos_l29.get("T1_d800", float("nan"))
+    if t1_min >= 0.7 and (t1_d80 - t1_d800) <= 0.15:
+        t1_verdict = "alpha"
+    elif t1_d800 < 0.4:
+        t1_verdict = "beta"
+    else:
+        t1_verdict = "indeterminate"
+
+    # 层间凝聚：末端相邻方向余弦 + 对齐秩（ρ=0.95）沿层单调不升。
+    t4_prop = directions["t4_layer_propagation"]
+    adjacent_tail = [
+        float(t4_prop[str(layer)]["adjacent_abs_cos"]) for layer in (28, 29, 30)
+    ]
+    rank_by_layer = {
+        layer: max(
+            (
+                spectrum[f"L{layer}/s{seed}"]["energy_v_star"]["alignment_rank"]["0.95"] or 10**9
+            )
+            for seed in (0, 1, 2)
+        )
+        for layer in SPECTRUM_LAYERS
+    }
+    if min(adjacent_tail) >= 0.9 and rank_by_layer[31] <= rank_by_layer[29]:
+        condensation_verdict = "alpha"
+    elif min(adjacent_tail) < 0.7:
+        condensation_verdict = "beta"
+    else:
+        condensation_verdict = "indeterminate"
+
+    # 轨迹起点（sup-t 同时带 + 持续显著；trajectory 未运行时 not_run）。
+    if trajectory is None:
+        onset_values: list = []
+        onset_verdict = "not_run"
+        onset_worst = None
+    else:
+        probe_onset = trajectory["curves"]["probe_meanseed"]["onset_ms_sustained"]
+        random_onset = trajectory["curves"]["random"]["onset_ms_sustained"]
+        onset_values = [probe_onset, random_onset]
+        onset_worst = probe_onset
+        if random_onset is not None:
+            onset_verdict = "indeterminate"  # 随机方向出现持续显著 → 查实现/带宽
+        elif probe_onset is not None and probe_onset <= -240:
+            onset_verdict = "alpha"
+        elif probe_onset is None or probe_onset > 0:
+            onset_verdict = "beta"
+        else:
+            onset_verdict = "indeterminate"
+
     verdicts = {
         "E16_misalignment": {
             "values": e16,
@@ -1085,21 +1425,21 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
             "verdict": _verdict_interval(max(e16), 0.5, 0.8),
             "reading": "alpha=错向主张成立（E(16)<0.5）；beta=与 rank-k 曲线矛盾须查实现",
         },
-        "one_dim_necessity": {
-            "values": [None if value == float("inf") else int(value) for value in nulling_rounds],
-            "worst": None if worst_rounds == float("inf") else int(worst_rounds),
-            "verdict": necessity_verdict,
+        "inlp_redundancy": {
+            "values": inlp_retention,
+            "worst": worst_retention,
+            "verdict": redundancy_verdict,
             "reading": (
-                "alpha=一维/近一维码（迭代剔除 ≤2 轮崩塌至 AUC≤0.55）；"
-                "beta=厚方向束（6 轮未崩塌且末端 AUC≥0.70）；单次剔除对方向估计误差不稳健，"
-                "崩塌轮数才是必要方向数的判据"
+                "INLP r1 保留率 (r1−0.5)/(r0−0.5)：alpha=近一维码（≤0.3，次优正交读出弱）；"
+                "beta=厚方向束/上下文异质方向混合（≥0.7）。擦除轮数不是维数度量"
+                "（LEACE：均值信号线性擦除秩恒为 1，#35）"
             ),
         },
         "top16_contribution": {
             "values": remove_top16_drop,
             "worst": max(remove_top16_drop),
             "verdict": "alpha" if max(remove_top16_drop) < 0.01 else "beta",
-            "reading": "alpha=方差前 16 主轴对读出无实质贡献（掉幅<0.01）",
+            "reading": "alpha=方差前 16 主轴对读出无实质贡献（全 C 档上界掉幅<0.01）",
         },
         "diff_means_alignment": {
             "values": cos_d,
@@ -1111,16 +1451,50 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
             "values": mimi_gap,
             "worst": min(mimi_gap),
             "verdict": "alpha" if min(mimi_gap) > 0.2 else "indeterminate",
-            "reading": "alpha=主轴被 Mimi 高预测而 v* 低（top-8 PC 均值 R² − v* R² > 0.2）",
+            "reading": "alpha=主轴被 Mimi 高预测而 v* 低（前 8 方差主轴均值 R² − v* R² > 0.2）",
+        },
+        "t1_t4_relation": {
+            "values": [t1_cos_l29[spec] for spec in sorted(t1_cos_l29)],
+            "worst": t1_min,
+            "verdict": t1_verdict,
+            "reading": (
+                "L29 种子均值方向 |cos(T1_dδ, T4)|：alpha=前瞻≈状态外推（全部 ≥0.7 且 "
+                "δ80→δ800 降幅 ≤0.15）；beta=独立前瞻通道（δ800 <0.4）"
+            ),
+        },
+        "layer_condensation": {
+            "values": adjacent_tail,
+            "worst": min(adjacent_tail),
+            "verdict": condensation_verdict,
+            "reading": (
+                "alpha=末端凝聚（L28→29→30→31 相邻 |cos| 均 ≥0.9 且对齐秩@0.95 "
+                "L31≤L29）；beta=方向持续旋转（任一相邻 <0.7）"
+            ),
+        },
+        "trajectory_onset": {
+            "values": onset_values,
+            "worst": onset_worst,
+            "verdict": onset_verdict,
+            "reading": (
+                "alpha=预判性听觉（probe_meanseed 持续显著起点 ≤−240 ms 且随机方向无显著）；"
+                "beta=仅事件后分离或从未持续显著；随机方向显著 → indeterminate 并查实现"
+            ),
         },
     }
     return {
         "kind": "exploratory_non_decisive",
-        "prereg": 32,
+        "prereg": [32, 35],
         "formal_g2_unchanged": True,
         "protocol": protocol,
         "protocol_hash": protocol_hash,
         "identity_gap_max": max(identity_gap),
+        "fit_audit": {
+            "full_refit_gap_max": max(full_refit_gap),
+            "nonconverged_fits_total": nonconverged_total,
+            "mean_erasure_sanity_ok": erasure_check_ok,
+            "mean_erasure_train_auc": erasure_train,
+        },
+        "alignment_rank_095_by_layer": {str(k): v for k, v in rank_by_layer.items()},
         "verdict_matrix": verdicts,
         "directions": directions,
         "spectrum": spectrum,
@@ -1131,7 +1505,7 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
 
 def _format_metric(value) -> str:
     if value is None:
-        return "未崩塌"
+        return "—"
     if isinstance(value, int):
         return str(value)
     return f"{value:.4f}"
@@ -1140,10 +1514,11 @@ def _format_metric(value) -> str:
 def _write_markdown(result: dict) -> Path:
     verdicts = result["verdict_matrix"]
     t4_prop = result["directions"]["t4_layer_propagation"]
+    audit = result["fit_audit"]
     lines = [
         "# E1 几何解剖报告（第一梯队）",
         "",
-        "> 探索性、严格非裁决（PREREG #32）。G2 正式判定保持 `fail`，本报告不回写正式汇总。",
+        "> 探索性、严格非裁决（PREREG #32/#35）。G2 正式判定保持 `fail`，本报告不回写正式汇总。",
         "> 实验定义与判读矩阵见 `文档/04_e1_几何解剖与探索路线.md` §2。",
         "",
         "## 判读矩阵结果",
@@ -1159,25 +1534,40 @@ def _write_markdown(result: dict) -> Path:
     lines.extend(
         [
             "",
-            "## 关键锚点",
+            "## 关键锚点与拟合审计",
             "",
             f"- 一维投影恒等自检最大偏差：{result['identity_gap_max']:.2e}（门限 {IDENTITY_AUC_TOLERANCE}）。",
+            f"- 正式 C 全维重训复现最大偏差：{audit['full_refit_gap_max']:.2e}"
+            f"（硬门 {FULL_REFIT_TOLERANCE}）。",
+            f"- 未收敛拟合总数：{audit['nonconverged_fits_total']}"
+            + ("（全部收敛）" if audit["nonconverged_fits_total"] == 0 else "（存在未收敛，判读需谨慎）")
+            + "。",
+            "- LEACE 均值差擦除自检（训练 AUC 应≈0.5，非判据）："
+            + "、".join(f"{value:.4f}" for value in audit["mean_erasure_train_auc"])
+            + ("（通过）" if audit["mean_erasure_sanity_ok"] else "（**异常，查实现**）")
+            + "。",
             f"- fit↔cell 方向最小 |cos|：{result['directions']['min_fit_vs_cell_abs_cos']:.6f}。",
             "- T4 方向层间传播（种子均值方向，相邻层 |cos|）：L28→L29 "
             f"{t4_prop['28'].get('adjacent_abs_cos', float('nan')):.4f}，L29→L30 "
             f"{t4_prop['29'].get('adjacent_abs_cos', float('nan')):.4f}，L30→L31 "
-            f"{t4_prop['30'].get('adjacent_abs_cos', float('nan')):.4f}。",
+            f"{t4_prop['30'].get('adjacent_abs_cos', float('nan')):.4f}；"
+            "对齐秩@0.95（跨种子保守）："
+            + "、".join(
+                f"L{layer}={result['alignment_rank_095_by_layer'][str(layer)]}"
+                for layer in SPECTRUM_LAYERS
+            )
+            + "。",
         ]
     )
     trajectory = result.get("trajectory")
     if trajectory is not None:
-        v_curve = trajectory["curves"]["v_star"]
+        probe_curve = trajectory["curves"]["probe_meanseed"]
         lines.extend(
             [
                 f"- 事件锁定轨迹（L{trajectory['layer']}）：事件 {trajectory['total_events']}，"
-                f"v* 分离首个显著偏移 = {v_curve['first_offset_ms_ci_excludes_zero']} ms；"
-                f"随机方向对照首个显著偏移 = "
-                f"{trajectory['curves']['random']['first_offset_ms_ci_excludes_zero']} ms。",
+                f"probe_meanseed 持续显著起点 = {probe_curve['onset_ms_sustained']} ms"
+                f"（sup-t 同时带 + 连续 {probe_curve['min_consecutive']} 步）；"
+                f"随机方向对照 = {trajectory['curves']['random']['onset_ms_sustained']}。",
             ]
         )
     else:
@@ -1185,8 +1575,9 @@ def _write_markdown(result: dict) -> Path:
     lines.extend(
         [
             "",
-            "完整逐任务数值见 `wp_e1_geometry_autopsy.json`；"
-            "转向向量包见 `<data_root>/e1_probe/geometry/vectors/`。",
+            "完整逐任务数值见 `wp_e1_geometry_autopsy.json`；转向向量包（e1x-directions-v1 "
+            "schema，可经 `wp_e2_lite_plan.py --directions-npz` 直接消费）见 "
+            "`<data_root>/e1_probe/geometry/steering_L{29,30,31}.npz`。",
         ]
     )
     path = Path(REPO_ROOT) / "reports" / "e1_几何解剖报告.md"
@@ -1215,8 +1606,10 @@ def stage_finalize(args, protocol: dict, protocol_hash: str) -> dict:
 def run(args) -> None:
     probe_cfg, _cache_cfg = engine._cfg()
     summary = _load_summary()
-    protocol, protocol_hash = _protocol(probe_cfg, summary)
-    print(f"#32 几何解剖协议 {protocol_hash[:12]}，stage={args.stage}", flush=True)
+    roots = engine._roots()
+    train, evals = engine._sessions()
+    protocol, protocol_hash = _protocol(probe_cfg, summary, roots, train, evals)
+    print(f"#32/#35 几何解剖协议 {protocol_hash[:12]}，stage={args.stage}", flush=True)
     if args.stage in ("directions", "all"):
         stage_directions(args, protocol, protocol_hash)
     if args.stage in ("spectrum", "all"):
