@@ -6,7 +6,7 @@ __pycache__/
 *.so
 *.egg-info/
 .pytest_cache/
-/.pytest_tmp_e1_*/
+/.pytest_tmp_*/
 .mypy_cache/
 .ruff_cache/
 .hypothesis/
