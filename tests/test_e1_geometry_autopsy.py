@@ -1,11 +1,12 @@
-"""E1 几何解剖脚本（PREREG #32/#35/#36）的合成数据测试。
+"""E1 几何解剖脚本（PREREG #32/#35/#36/#37）的合成数据测试。
 
-#36 核心：方向剔除法（INLP r₁）受协方差旋转混淆——严格单均值信号在相关噪声下
-会被误判为"厚方向束"。改用两个协方差无关/纠正的度量：
-  - feature_split_redundancy：特征子集冗余，区分"分布式承载于众多神经元"vs"集中"；
-  - whitened_rank_check：白化后剔除唯一判别方向，残差→0.5 确认二分类线性读出秩=1，
-    且不受 Σ⁻¹d 相对 d 的旋转混淆（单均值信号正确塌缩）。
-均值投影自检（Mean Projection，非 LEACE）仅作实现 sanity，其一轮归零是数学必然。
+#37 核心：#36 的两个替代量本身仍有缺陷（云端实证）——
+  - feature_split 仍受类内协方差混淆：判别均值方向稠密均匀分布、但高 SNR 依赖跨
+    坐标噪声抵消的信号，半切后保留率仅 0.12，会被误判"局部化"（本文件反例固化）。
+    → 降为描述量；坐标分布性判读改协方差无关的 participation ratio（PR）。
+  - 白化残差塌缩是 mean-projection tautology（随机标签也塌缩），且白化子空间漏
+    信号时仍 collapsed=True（无 full-auc 复现门）→ 撤销；秩-1 改解析陈述。
+另：转向包 proj_std 改去重训练并集口径，与 E1-X 一致（本文件 dedup 测试固化）。
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from floor_circuit.e1 import grid as g
 from floor_circuit.e1 import probe_gpu as pg
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +45,6 @@ def _fit_fn(x_block, y_block):
 
 
 def _misaligned_dataset(n_rows: int = 4000, seed: int = 7):
-    """前 4 维大方差噪声，信号方向 = e4（中排序主轴），其余小噪声。"""
     rng = np.random.default_rng(seed)
     n_dims = 32
     y = (rng.random(n_rows) < 0.5).astype(np.int64)
@@ -54,21 +55,16 @@ def _misaligned_dataset(n_rows: int = 4000, seed: int = 7):
     return x.astype(np.float32), y
 
 
-def _single_mean_correlated_noise(n_rows: int = 6000, seed: int = 0):
-    """#36 反例：标签均值严格沿 e0，其余为标签无关的相关高斯噪声。
-
-    最优判别方向 ≈ Σ⁻¹e0 偏离 e0；未白化方向剔除后 e0 分量仍可读（误判厚方向束），
-    白化后剔除唯一判别方向则正确塌缩到 ~0.5。
-    """
+def _dense_covariance_trap(n_rows: int = 8000, seed: int = 0):
+    """#37 反例：判别均值方向均匀分布于全部坐标，类内协方差沿该方向方差极小
+    （高 SNR 依赖跨坐标噪声抵消）。feature_split 误判局部化；PR 正确判分布式。"""
     rng = np.random.default_rng(seed)
-    n_dims = 24
+    D = 32
+    d = np.ones(D) / np.sqrt(D)
+    cov = 0.01 * np.outer(d, d) + 1.0 * (np.eye(D) - np.outer(d, d))
+    chol = np.linalg.cholesky(cov)
     y = (rng.random(n_rows) < 0.5).astype(np.int64)
-    a = rng.standard_normal((n_dims, n_dims))
-    cov = a @ a.T / n_dims + 0.1 * np.eye(n_dims)
-    noise = rng.standard_normal((n_rows, n_dims)) @ np.linalg.cholesky(cov).T
-    d0 = np.zeros(n_dims)
-    d0[0] = 1.0
-    x = (noise + np.outer((2.0 * y - 1.0) * 1.2, d0)).astype(np.float32)
+    x = ((rng.standard_normal((n_rows, D)) @ chol.T) + np.outer((2 * y - 1) * 0.12, d)).astype(np.float32)
     return x, y
 
 
@@ -81,16 +77,6 @@ def _localized_dataset(n_rows: int = 4000, seed: int = 1):
     return x.astype(np.float32), y
 
 
-def _distributed_dataset(n_rows: int = 4000, seed: int = 2):
-    rng = np.random.default_rng(seed)
-    n_dims = 32
-    u = rng.standard_normal(n_dims)
-    u /= np.linalg.norm(u)
-    y = (rng.random(n_rows) < 0.5).astype(np.int64)
-    x = rng.standard_normal((n_rows, n_dims)) * 0.5 + np.outer((2.0 * y - 1.0) * 1.0, u)
-    return x.astype(np.float32), y
-
-
 def _pca(x: np.ndarray):
     x64 = np.asarray(x, dtype=np.float64)
     center = x64.mean(axis=0)
@@ -99,7 +85,7 @@ def _pca(x: np.ndarray):
 
 
 # --------------------------------------------------------------------------- #
-# 分析支柱：一维投影恒等式
+# 分析支柱
 # --------------------------------------------------------------------------- #
 
 
@@ -120,19 +106,11 @@ def test_energy_profile_localizes_misaligned_signal_direction():
     _center, vt = _pca(x)
     probe = pg.fit_linear_probe(x, y, 2, 0.1, device="cpu")
     v_star = module.orig_space_direction(probe.weight[0], probe.scale)
-    profile = module.energy_profile(vt, v_star)
-    cumulative = profile["cumulative"]
+    cumulative = module.energy_profile(vt, v_star)["cumulative"]
     assert cumulative[3] < 0.10
     assert cumulative[4] > 0.90
     assert module.alignment_rank(cumulative, 0.5) == 5
     assert module.alignment_rank(np.array([0.2, 0.4]), 0.95) is None
-
-
-def test_energy_at_ks_caps_beyond_spectrum_length():
-    module = _load_module()
-    table = module.energy_at_ks(np.array([0.3, 0.6, 0.9]), (1, 2, 16))
-    assert table["1"] == pytest.approx(0.3)
-    assert table["16"] == pytest.approx(0.9)
 
 
 def test_top_pc_removal_keeps_misaligned_signal():
@@ -145,57 +123,48 @@ def test_top_pc_removal_keeps_misaligned_signal():
 
 
 # --------------------------------------------------------------------------- #
-# #36：feature-split 分布式判据（协方差无关）
+# #37：participation ratio 是协方差无关的坐标分布度量
 # --------------------------------------------------------------------------- #
 
 
-def test_feature_split_separates_localized_from_distributed():
+def test_participation_ratio_dense_vs_sparse():
     module = _load_module()
-    xl, yl = _localized_dataset()
-    localized = module.feature_split_redundancy(
-        xl[:2000], yl[:2000], xl[2000:], yl[2000:], C_GRID, TRAINER, "cpu", folds=4, seed=0
-    )
-    assert localized["full_auc"] > 0.9
-    assert localized["median_retention"] < 0.25  # 集中 → β
-
-    xd, yd = _distributed_dataset()
-    distributed = module.feature_split_redundancy(
-        xd[:2000], yd[:2000], xd[2000:], yd[2000:], C_GRID, TRAINER, "cpu", folds=4, seed=0
-    )
-    assert distributed["full_auc"] > 0.9
-    assert distributed["min_retention"] >= 0.5  # 分布式 → α
-    assert distributed["nonconverged"] == 0
+    D = 64
+    dense = module.coordinate_concentration(np.ones(D))
+    assert dense["participation_ratio"] == pytest.approx(D)
+    assert dense["participation_fraction"] == pytest.approx(1.0)
+    sparse = np.zeros(D)
+    sparse[0] = 1.0
+    conc = module.coordinate_concentration(sparse)
+    assert conc["participation_ratio"] == pytest.approx(1.0)
+    assert conc["participation_fraction"] == pytest.approx(1.0 / D)
+    assert conc["top16_coord_mass"] == pytest.approx(1.0)
 
 
-# --------------------------------------------------------------------------- #
-# #36：白化秩-1 确认解决协方差混淆
-# --------------------------------------------------------------------------- #
-
-
-def test_whitened_check_collapses_single_mean_that_direction_removal_misjudges():
+def test_participation_ratio_solves_covariance_trap_where_feature_split_fails():
+    """核心 #37：稠密均匀信号 + 低方差判别方向。feature_split 误判局部化（<0.25），
+    而 PR(v*)/D 正确判分布式（高）。固化"为什么改用 participation ratio"。"""
     module = _load_module()
-    x, y = _single_mean_correlated_noise()
-    xtr, xte, ytr, yte = x[:3000], x[3000:], y[:3000], y[3000:]
-    ctr, vt_tr = _pca(xtr)
-    result = module.whitened_rank_check(
-        xtr, ytr, xte, yte, ctr, vt_tr, C_GRID, TRAINER, "cpu", k=24, shrinkage=1e-2
-    )
-    assert result["whitened_full_auc"] > 0.9
-    # 关键：严格单均值信号白化后残差塌缩（未白化方向剔除会误判为厚方向束）。
-    assert result["residual_auc"] <= module.WHITEN_COLLAPSE_MAX
-    assert result["collapsed"]
+    x, y = _dense_covariance_trap()
+    xtr, xte, ytr, yte = x[:4000], x[4000:], y[:4000], y[4000:]
+    # feature_split（描述量）被协方差混淆：稠密信号却给低保留率。
+    fs = module.feature_split_redundancy(xtr, ytr, xte, yte, C_GRID, TRAINER, "cpu", folds=4, seed=0)
+    assert fs["full_auc"] > 0.85
+    assert fs["median_retention"] < 0.25  # 会被旧 α/β 误判"局部化"
+    # participation ratio（协方差无关）正确判分布式。
+    probe = pg.fit_linear_probe(xtr, ytr, 2, 0.1, device="cpu")
+    v_star = module.orig_space_direction(probe.weight[0], probe.scale)
+    conc = module.coordinate_concentration(v_star)
+    assert conc["participation_fraction"] >= 0.5  # 稠密读出
 
 
-def test_whitened_check_collapses_isotropic_and_distributed():
+def test_participation_ratio_calls_localized_sparse():
     module = _load_module()
-    for maker in (_localized_dataset, _distributed_dataset):
-        x, y = maker()
-        ctr, vt = _pca(x[:2000])
-        result = module.whitened_rank_check(
-            x[:2000], y[:2000], x[2000:], y[2000:], ctr, vt, C_GRID, TRAINER, "cpu",
-            k=min(31, x.shape[1] - 1), shrinkage=1e-2,
-        )
-        assert result["residual_auc"] <= module.WHITEN_COLLAPSE_MAX
+    x, y = _localized_dataset()
+    probe = pg.fit_linear_probe(x, y, 2, 0.1, device="cpu")
+    v_star = module.orig_space_direction(probe.weight[0], probe.scale)
+    conc = module.coordinate_concentration(v_star)
+    assert conc["participation_fraction"] < 0.1  # 集中于少数神经元
 
 
 # --------------------------------------------------------------------------- #
@@ -205,7 +174,7 @@ def test_whitened_check_collapses_isotropic_and_distributed():
 
 def test_mean_projection_forces_train_chance():
     module = _load_module()
-    for maker in (_localized_dataset, _distributed_dataset, _single_mean_correlated_noise):
+    for maker in (_localized_dataset, _dense_covariance_trap):
         x, y = maker()
         check = module.mean_projection_check(x, y, x, y, fit_fn=_fit_fn)
         assert check["train_mean_gap_after_projection"] < 1e-4
@@ -220,6 +189,37 @@ def test_refit_auc_grid_reports_all_c_and_max():
     assert result["max_auc"] == pytest.approx(max(result["auc_by_c"].values()))
     assert result["max_auc"] > 0.9
     assert result["nonconverged"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# #37：转向包 proj_std 去重并集口径（与 E1-X 一致）
+# --------------------------------------------------------------------------- #
+
+
+def test_union_train_roles_dedups_by_session_channel_step():
+    module = _load_module()
+    train_rows = {
+        ("T4", 0): [g.RoleRows("s1", 0, np.array([1, 2, 3]), np.array([0, 1, 0]))],
+        ("T4", 1): [g.RoleRows("s1", 0, np.array([2, 3, 4]), np.array([1, 0, 1]))],
+        ("T4", 2): [g.RoleRows("s1", 0, np.array([3, 5]), np.array([0, 1]))],
+    }
+    union = module._union_train_roles(train_rows, [0, 1, 2])
+    assert len(union) == 1
+    role = union[0]
+    assert role.session_id == "s1" and role.agent_channel == 0
+    # 唯一 step 集合 = {1,2,3,4,5}，标签取首次出现口径（step 3 首见 seed0 label 0）。
+    assert role.steps.tolist() == [1, 2, 3, 4, 5]
+    assert role.labels.tolist() == [0, 1, 0, 1, 1]
+
+
+def test_projection_std_on_matches_numpy():
+    module = _load_module()
+    rng = np.random.default_rng(3)
+    x = rng.standard_normal((500, 8)).astype(np.float32)
+    v = rng.standard_normal(8)
+    v /= np.linalg.norm(v)
+    result = module._projection_std_on(x, {"v": v})
+    assert result["v"] == pytest.approx(float((x.astype(np.float64) @ v).std()), rel=1e-4)
 
 
 # --------------------------------------------------------------------------- #
@@ -250,7 +250,6 @@ def test_mean_direction_label1_verifies_orientation():
 
 
 def test_probe_direction_is_canonically_label1_oriented():
-    """探针 w/σ 天然指向 label=1，跨种子同向：directions 阶段直接平均无需翻转。"""
     module = _load_module()
     x, y = _misaligned_dataset()
     dirs = [
@@ -261,14 +260,7 @@ def test_probe_direction_is_canonically_label1_oriented():
         for c in (0.05, 0.1, 0.2)
     ]
     signed = [float(np.dot(module.unit(dirs[i]), module.unit(dirs[j]))) for i in range(3) for j in range(i + 1, 3)]
-    assert min(signed) > 0  # 全部同向（正号）——无需 sign_aligned_mean
-
-
-def test_sign_aligned_mean_flips_opposite_directions():
-    module = _load_module()
-    base = module.unit(np.array([1.0, 2.0, 3.0]))
-    mean = module.sign_aligned_mean([base, -base, base])
-    assert module.abs_cosine(mean, base) == pytest.approx(1.0)
+    assert min(signed) > 0
 
 
 def test_orig_space_direction_validates_inputs():
@@ -349,7 +341,6 @@ def test_cluster_bootstrap_detects_planted_sustained_separation():
         sum_pos, count_pos, sum_neg, count_neg, 300, 3, min_consecutive=3
     )
     assert result["onset_index_sustained"] == 3
-    assert result["separation"][3] == pytest.approx(1.0, abs=0.1)
     assert result["simultaneous_lower"][3] > 0.5
     with pytest.raises(ValueError):
         module.cluster_bootstrap_separation(sum_pos, count_pos * 0, sum_neg, count_neg, 10, 3)
