@@ -111,6 +111,46 @@ e1: # PREREG #15（2026-07-19 用户裁决 D1–D6）：E1 全量五模型设计
       retention: 0.95 # 有效秩 = min{k: (AUC_k−0.5) ≥ retention×(AUC_full−0.5)}
     g2_primary_target: T4 # #18(g)：预先冻结，排除事后择优
     bootstrap_n: 1000
+  e1x: # PREREG #33：E1-X 探索性套件（严格非裁决；不回写正式汇总，不触 causal_eval）
+    layer_primary: 29 # 正式 G2 选层；先知/分解/几何/轨迹默认在该层执行
+    t4_shift_steps: [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 25] # X1：特征行向锚点前平移的步数（80 ms/步）
+    ridge_lambdas: [10.0, 100.0, 1000.0, 10000.0] # X3：acts←Mimi 岭回归 λ 网格；按 inner 重建 R² 选（保守方向）
+    mimi_gru: # X3(i)：Mimi 潜表征序列基线（最强声学上界；窗口协议与声学 GRU 相同）
+      context_steps: 25
+      hidden: 64
+      lr: 1.0e-3
+      batch_size: 2048
+      max_epochs: 30
+      patience: 5
+    residual_rank_ks: [1, 2, 4, 8, 16, 24, 32, 64, 128] # X3(iii)：残差探针 rank-k 曲线
+    trajectory: # X2：事件对齐决策变量轨迹
+      window_steps: 25 # 锚点两侧各 ±25 步（±2 s）
+      min_consecutive_sig: 3 # 分叉时刻 = CI 排除 0 且持续 ≥3 步的最早偏移
+      gap_censor_steps: 25 # 接话延迟右删失上限（2 s）
+    t2_horizon_steps: [3, 5, 10, 20] # X5a：T2 视野扫描（步栅变体；h=5 与正式 400 ms 标签对账）
+    n_random_directions: 3 # X4/E2-lite：范数匹配随机方向数量
+    direction_seed: 20260723
+    bootstrap_n: 1000 # 会话级 cluster bootstrap（与正式协议同口径）
+  e2_lite: # PREREG #34：方向级因果试点（R2 生成 + L29 连续注入；探索性，不占用 causal_eval 侧）
+    layer: 29
+    window_s: 240.0 # 与 E1 缓存/上下文规格一致（PREREG #11）
+    n_sessions: 20 # 取自 E1 主评估集 probe_val[40:140] 的前缀（探索性；causal_eval 绝不读取）
+    user_channel: 0 # 用户流 = 会话通道 0（确定性约定）；agent 通道由模型生成替代
+    temperature: 0.8 # R2 冻结主锚（PREREG #15 D3）
+    text_temperature: 0.7 # 官方 LMGen 默认
+    top_k: 250 # 官方 LMGen 音频采样默认
+    top_k_text: 25
+    base_seed: 20260723 # 每会话种子 = base_seed + 会话序号；同会话跨条件共种子（配对方差消减）
+    alphas_primary: [-4.0, -2.0, 0.0, 2.0, 4.0] # 主方向（T4 探针方向）剂量网格；0 = 基线
+    alphas_diffmeans: [-4.0, 4.0] # 差分均值方向（E3 §1 构造）对照
+    alphas_random: [-4.0, 4.0] # 每个随机方向的注入档
+    scale: proj_std # h ← h + α·s_v·v̂；s_v = 该方向在训练行原始空间的投影标准差
+    out_group: e2_lite # 输出根 <data_root>/e2_lite/
+    cache_layers_baseline: [28, 29, 30, 31] # α=0 基线运行顺带缓存的层（供 R2 观察性探针）
+    analysis: # 行为读出（VAD/IPU/事件参数沿 configs/events.yaml 冻结值）
+      response_window_s: 1.2 # SDT 式决策窗（00 §E3）
+      latency_max_s: 2.5
+      yield_windows_s: [0.4, 1.0]
   cache: # PREREG #16(c)/#17：E1 缓存工程规格 v2（工程参数，非科学判据；主 500 会话统一重跑）
     model: moshi
     n_layers: 32 # 层号严格 0..31（计划器展开为显式列表）
