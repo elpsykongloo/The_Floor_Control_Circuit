@@ -1,0 +1,3507 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-23T07:11:00.162482+00:00",
+  "status": "passed",
+  "dataset": {
+    "repo_id": "qualialabsAI/DuplexConv",
+    "revision": "0bb99da7ab7a2f6f86d6b23df92c9383e711d09a",
+    "remote_main_revision_at_audit": "0bb99da7ab7a2f6f86d6b23df92c9383e711d09a",
+    "remote_main_matches_pinned_revision": true,
+    "remote_last_modified": "2026-06-12T04:47:34.000Z",
+    "local_root": "D:\\dataset\\audio\\Full_Duplex\\qualialabsAI__DuplexConv",
+    "license": "CC-BY-NC-4.0",
+    "declared_hours": 2000.21,
+    "declared_audio_files": 93709
+  },
+  "path_mapping": [
+    {
+      "remote_path": "Edu",
+      "local_path": "Edu_upper",
+      "domain": "tutoring"
+    },
+    {
+      "remote_path": "edu",
+      "local_path": "edu_lower",
+      "domain": "tutoring"
+    },
+    {
+      "remote_path": "none_Edu",
+      "local_path": "none_Edu",
+      "domain": "social_chat"
+    }
+  ],
+  "remote_verification": {
+    "tree_entry_count": 200,
+    "file_count": 194,
+    "expected_file_count": 194,
+    "size_verified_file_count": 194,
+    "local_sha256_verified_file_count": 5,
+    "audio_tar_full_sha256_verified": false,
+    "manifest_sha256": "0169a70e7069e6160311953f0c735064423ff85a7f6413e0111ea711f04cab4c"
+  },
+  "categories": [
+    {
+      "name": "Edu_upper",
+      "remote_path": "Edu",
+      "domain": "tutoring",
+      "audio_archive_count": 45,
+      "audio_member_count": 22050,
+      "annotation_member_count": 22050,
+      "paired_count": 22050,
+      "audio_only_count": 0,
+      "annotation_only_count": 0,
+      "audio_only_examples": [],
+      "annotation_only_examples": [],
+      "audio_bytes": 345810892800,
+      "annotation_bytes": 56907357,
+      "total_bytes": 345867800157,
+      "audio_gib": 322.06149101257324,
+      "annotation_gib": 0.052999106235802174,
+      "total_gib": 322.11449011880904,
+      "audio_archives": [
+        {
+          "name": "Edu_0001.tar",
+          "bytes": 7799214080,
+          "member_count": 500,
+          "first_id": "Edu--000001",
+          "last_id": "Edu--000615"
+        },
+        {
+          "name": "Edu_0002.tar",
+          "bytes": 7814389760,
+          "member_count": 500,
+          "first_id": "Edu--000616",
+          "last_id": "Edu--001230"
+        },
+        {
+          "name": "Edu_0003.tar",
+          "bytes": 8294952960,
+          "member_count": 500,
+          "first_id": "Edu--001231",
+          "last_id": "Edu--001861"
+        },
+        {
+          "name": "Edu_0004.tar",
+          "bytes": 7584215040,
+          "member_count": 500,
+          "first_id": "Edu--001862",
+          "last_id": "Edu--002467"
+        },
+        {
+          "name": "Edu_0005.tar",
+          "bytes": 8070563840,
+          "member_count": 500,
+          "first_id": "Edu--002468",
+          "last_id": "Edu--003086"
+        },
+        {
+          "name": "Edu_0006.tar",
+          "bytes": 8034068480,
+          "member_count": 500,
+          "first_id": "Edu--003087",
+          "last_id": "Edu--003700"
+        },
+        {
+          "name": "Edu_0007.tar",
+          "bytes": 7885015040,
+          "member_count": 500,
+          "first_id": "Edu--003701",
+          "last_id": "Edu--004312"
+        },
+        {
+          "name": "Edu_0008.tar",
+          "bytes": 8555407360,
+          "member_count": 500,
+          "first_id": "Edu--004313",
+          "last_id": "Edu--004926"
+        },
+        {
+          "name": "Edu_0009.tar",
+          "bytes": 7393013760,
+          "member_count": 500,
+          "first_id": "Edu--004928",
+          "last_id": "Edu--005553"
+        },
+        {
+          "name": "Edu_0010.tar",
+          "bytes": 7440578560,
+          "member_count": 500,
+          "first_id": "Edu--005554",
+          "last_id": "Edu--006158"
+        },
+        {
+          "name": "Edu_0011.tar",
+          "bytes": 7800422400,
+          "member_count": 500,
+          "first_id": "Edu--006159",
+          "last_id": "Edu--006762"
+        },
+        {
+          "name": "Edu_0012.tar",
+          "bytes": 7911475200,
+          "member_count": 500,
+          "first_id": "Edu--006763",
+          "last_id": "Edu--007369"
+        },
+        {
+          "name": "Edu_0013.tar",
+          "bytes": 8007874560,
+          "member_count": 500,
+          "first_id": "Edu--007370",
+          "last_id": "Edu--007973"
+        },
+        {
+          "name": "Edu_0014.tar",
+          "bytes": 7617873920,
+          "member_count": 500,
+          "first_id": "Edu--007974",
+          "last_id": "Edu--008594"
+        },
+        {
+          "name": "Edu_0015.tar",
+          "bytes": 8022609920,
+          "member_count": 500,
+          "first_id": "Edu--008595",
+          "last_id": "Edu--009233"
+        },
+        {
+          "name": "Edu_0016.tar",
+          "bytes": 7608002560,
+          "member_count": 500,
+          "first_id": "Edu--009234",
+          "last_id": "Edu--009841"
+        },
+        {
+          "name": "Edu_0017.tar",
+          "bytes": 8201093120,
+          "member_count": 500,
+          "first_id": "Edu--009843",
+          "last_id": "Edu--010455"
+        },
+        {
+          "name": "Edu_0018.tar",
+          "bytes": 7317340160,
+          "member_count": 500,
+          "first_id": "Edu--010456",
+          "last_id": "Edu--011078"
+        },
+        {
+          "name": "Edu_0019.tar",
+          "bytes": 7612467200,
+          "member_count": 500,
+          "first_id": "Edu--011079",
+          "last_id": "Edu--011706"
+        },
+        {
+          "name": "Edu_0020.tar",
+          "bytes": 7966894080,
+          "member_count": 500,
+          "first_id": "Edu--011707",
+          "last_id": "Edu--012311"
+        },
+        {
+          "name": "Edu_0021.tar",
+          "bytes": 7560140800,
+          "member_count": 500,
+          "first_id": "Edu--012313",
+          "last_id": "Edu--012925"
+        },
+        {
+          "name": "Edu_0022.tar",
+          "bytes": 8036096000,
+          "member_count": 500,
+          "first_id": "Edu--012926",
+          "last_id": "Edu--013550"
+        },
+        {
+          "name": "Edu_0023.tar",
+          "bytes": 7968808960,
+          "member_count": 500,
+          "first_id": "Edu--013551",
+          "last_id": "Edu--014155"
+        },
+        {
+          "name": "Edu_0024.tar",
+          "bytes": 7472896000,
+          "member_count": 500,
+          "first_id": "Edu--014156",
+          "last_id": "Edu--014769"
+        },
+        {
+          "name": "Edu_0025.tar",
+          "bytes": 7541288960,
+          "member_count": 500,
+          "first_id": "Edu--014770",
+          "last_id": "Edu--015387"
+        },
+        {
+          "name": "Edu_0026.tar",
+          "bytes": 8177203200,
+          "member_count": 500,
+          "first_id": "Edu--015388",
+          "last_id": "Edu--015998"
+        },
+        {
+          "name": "Edu_0027.tar",
+          "bytes": 8255406080,
+          "member_count": 500,
+          "first_id": "Edu--015999",
+          "last_id": "Edu--016632"
+        },
+        {
+          "name": "Edu_0028.tar",
+          "bytes": 7947059200,
+          "member_count": 500,
+          "first_id": "Edu--016633",
+          "last_id": "Edu--017238"
+        },
+        {
+          "name": "Edu_0029.tar",
+          "bytes": 8074332160,
+          "member_count": 500,
+          "first_id": "Edu--017239",
+          "last_id": "Edu--017861"
+        },
+        {
+          "name": "Edu_0030.tar",
+          "bytes": 7972321280,
+          "member_count": 500,
+          "first_id": "Edu--017862",
+          "last_id": "Edu--018482"
+        },
+        {
+          "name": "Edu_0031.tar",
+          "bytes": 7819653120,
+          "member_count": 500,
+          "first_id": "Edu--018483",
+          "last_id": "Edu--019126"
+        },
+        {
+          "name": "Edu_0032.tar",
+          "bytes": 7693424640,
+          "member_count": 500,
+          "first_id": "Edu--019127",
+          "last_id": "Edu--019749"
+        },
+        {
+          "name": "Edu_0033.tar",
+          "bytes": 7609466880,
+          "member_count": 500,
+          "first_id": "Edu--019750",
+          "last_id": "Edu--020361"
+        },
+        {
+          "name": "Edu_0034.tar",
+          "bytes": 8369879040,
+          "member_count": 500,
+          "first_id": "Edu--020362",
+          "last_id": "Edu--020976"
+        },
+        {
+          "name": "Edu_0035.tar",
+          "bytes": 7440353280,
+          "member_count": 500,
+          "first_id": "Edu--020978",
+          "last_id": "Edu--021596"
+        },
+        {
+          "name": "Edu_0036.tar",
+          "bytes": 7846338560,
+          "member_count": 500,
+          "first_id": "Edu--021597",
+          "last_id": "Edu--022236"
+        },
+        {
+          "name": "Edu_0037.tar",
+          "bytes": 7735255040,
+          "member_count": 500,
+          "first_id": "Edu--022237",
+          "last_id": "Edu--022839"
+        },
+        {
+          "name": "Edu_0038.tar",
+          "bytes": 8289576960,
+          "member_count": 500,
+          "first_id": "Edu--022840",
+          "last_id": "Edu--023461"
+        },
+        {
+          "name": "Edu_0039.tar",
+          "bytes": 8089958400,
+          "member_count": 500,
+          "first_id": "Edu--023462",
+          "last_id": "Edu--024072"
+        },
+        {
+          "name": "Edu_0040.tar",
+          "bytes": 7522283520,
+          "member_count": 500,
+          "first_id": "Edu--024073",
+          "last_id": "Edu--024695"
+        },
+        {
+          "name": "Edu_0041.tar",
+          "bytes": 8120791040,
+          "member_count": 500,
+          "first_id": "Edu--024696",
+          "last_id": "Edu--025321"
+        },
+        {
+          "name": "Edu_0042.tar",
+          "bytes": 7413319680,
+          "member_count": 500,
+          "first_id": "Edu--025322",
+          "last_id": "Edu--025946"
+        },
+        {
+          "name": "Edu_0043.tar",
+          "bytes": 7444357120,
+          "member_count": 500,
+          "first_id": "Edu--025947",
+          "last_id": "Edu--026565"
+        },
+        {
+          "name": "Edu_0044.tar",
+          "bytes": 7812597760,
+          "member_count": 500,
+          "first_id": "Edu--026566",
+          "last_id": "Edu--027200"
+        },
+        {
+          "name": "Edu_0045.tar",
+          "bytes": 660613120,
+          "member_count": 50,
+          "first_id": "Edu--027201",
+          "last_id": "Edu--027260"
+        }
+      ],
+      "annotation_archive": {
+        "name": "jsons.tar.gz",
+        "bytes": 56907357,
+        "sha256": "1e6451ed46ce7ad03b3baf53efc240b7fdd9a752e6ca3cbac3a78fd8f2693240"
+      },
+      "annotation_aggregates": {
+        "member_count": 22050,
+        "first_id": "Edu--000001",
+        "last_id": "Edu--027260",
+        "duration_total_s": 1785303.7115208355,
+        "duration_hours": 495.91769764467654,
+        "duration_min_s": 10.0,
+        "duration_max_s": 598.176,
+        "root_key_sets": {
+          "asr|fs|nTrack|timeLenInSec": 22050
+        },
+        "track_counts": {
+          "2": 21761,
+          "3": 275,
+          "4": 14
+        },
+        "sample_rates": {
+          "48000": 22050
+        },
+        "utterance_count": 397192,
+        "state_counts": {
+          "<missing>": 76409,
+          "<|backchannel|>": 39032,
+          "<|complete|>": 208394,
+          "<|incomplete|>": 72511,
+          "<|wait|>": 846
+        },
+        "asr_shape_errors": 0,
+        "sensitive_redacted": 12
+      }
+    },
+    {
+      "name": "edu_lower",
+      "remote_path": "edu",
+      "domain": "tutoring",
+      "audio_archive_count": 19,
+      "audio_member_count": 9437,
+      "annotation_member_count": 9437,
+      "paired_count": 9437,
+      "audio_only_count": 0,
+      "annotation_only_count": 0,
+      "audio_only_examples": [],
+      "annotation_only_examples": [],
+      "audio_bytes": 142304860160,
+      "annotation_bytes": 23672496,
+      "total_bytes": 142328532656,
+      "audio_gib": 132.53172874450684,
+      "annotation_gib": 0.022046729922294617,
+      "total_gib": 132.55377547442913,
+      "audio_archives": [
+        {
+          "name": "edu_0001.tar",
+          "bytes": 7799941120,
+          "member_count": 500,
+          "first_id": "edu--000002",
+          "last_id": "edu--000614"
+        },
+        {
+          "name": "edu_0002.tar",
+          "bytes": 7701739520,
+          "member_count": 500,
+          "first_id": "edu--000615",
+          "last_id": "edu--001221"
+        },
+        {
+          "name": "edu_0003.tar",
+          "bytes": 7393792000,
+          "member_count": 500,
+          "first_id": "edu--001222",
+          "last_id": "edu--001844"
+        },
+        {
+          "name": "edu_0004.tar",
+          "bytes": 7404359680,
+          "member_count": 500,
+          "first_id": "edu--001846",
+          "last_id": "edu--002471"
+        },
+        {
+          "name": "edu_0005.tar",
+          "bytes": 7528949760,
+          "member_count": 500,
+          "first_id": "edu--002472",
+          "last_id": "edu--003095"
+        },
+        {
+          "name": "edu_0006.tar",
+          "bytes": 7301079040,
+          "member_count": 500,
+          "first_id": "edu--003096",
+          "last_id": "edu--003722"
+        },
+        {
+          "name": "edu_0007.tar",
+          "bytes": 7604592640,
+          "member_count": 500,
+          "first_id": "edu--003723",
+          "last_id": "edu--004345"
+        },
+        {
+          "name": "edu_0008.tar",
+          "bytes": 7705733120,
+          "member_count": 500,
+          "first_id": "edu--004346",
+          "last_id": "edu--004951"
+        },
+        {
+          "name": "edu_0009.tar",
+          "bytes": 7331983360,
+          "member_count": 500,
+          "first_id": "edu--004952",
+          "last_id": "edu--005581"
+        },
+        {
+          "name": "edu_0010.tar",
+          "bytes": 7403458560,
+          "member_count": 500,
+          "first_id": "edu--005582",
+          "last_id": "edu--006201"
+        },
+        {
+          "name": "edu_0011.tar",
+          "bytes": 7492546560,
+          "member_count": 500,
+          "first_id": "edu--006202",
+          "last_id": "edu--006837"
+        },
+        {
+          "name": "edu_0012.tar",
+          "bytes": 7373148160,
+          "member_count": 500,
+          "first_id": "edu--006838",
+          "last_id": "edu--007455"
+        },
+        {
+          "name": "edu_0013.tar",
+          "bytes": 7401984000,
+          "member_count": 500,
+          "first_id": "edu--007456",
+          "last_id": "edu--008093"
+        },
+        {
+          "name": "edu_0014.tar",
+          "bytes": 7522181120,
+          "member_count": 500,
+          "first_id": "edu--008094",
+          "last_id": "edu--008711"
+        },
+        {
+          "name": "edu_0015.tar",
+          "bytes": 8065597440,
+          "member_count": 500,
+          "first_id": "edu--008713",
+          "last_id": "edu--009330"
+        },
+        {
+          "name": "edu_0016.tar",
+          "bytes": 7581839360,
+          "member_count": 500,
+          "first_id": "edu--009331",
+          "last_id": "edu--009940"
+        },
+        {
+          "name": "edu_0017.tar",
+          "bytes": 8008765440,
+          "member_count": 500,
+          "first_id": "edu--009942",
+          "last_id": "edu--010547"
+        },
+        {
+          "name": "edu_0018.tar",
+          "bytes": 7363072000,
+          "member_count": 500,
+          "first_id": "edu--010548",
+          "last_id": "edu--011157"
+        },
+        {
+          "name": "edu_0019.tar",
+          "bytes": 6320097280,
+          "member_count": 437,
+          "first_id": "edu--011158",
+          "last_id": "edu--011702"
+        }
+      ],
+      "annotation_archive": {
+        "name": "jsons.tar.gz",
+        "bytes": 23672496,
+        "sha256": "406c6a10ad0620da363bc63cdd0fcaea45d367ed4feaa2d8ef85e403f97b9308"
+      },
+      "annotation_aggregates": {
+        "member_count": 9437,
+        "first_id": "edu--000002",
+        "last_id": "edu--011702",
+        "duration_total_s": 734858.9443749994,
+        "duration_hours": 204.12748454861094,
+        "duration_min_s": 10.0,
+        "duration_max_s": 500.096,
+        "root_key_sets": {
+          "asr|fs|nTrack|timeLenInSec": 9437
+        },
+        "track_counts": {
+          "2": 9312,
+          "3": 121,
+          "4": 4
+        },
+        "sample_rates": {
+          "48000": 9437
+        },
+        "utterance_count": 162622,
+        "state_counts": {
+          "<missing>": 31916,
+          "<|backchannel|>": 16261,
+          "<|complete|>": 85381,
+          "<|incomplete|>": 28727,
+          "<|wait|>": 337
+        },
+        "asr_shape_errors": 0,
+        "sensitive_redacted": 9
+      }
+    },
+    {
+      "name": "none_Edu",
+      "remote_path": "none_Edu",
+      "domain": "social_chat",
+      "audio_archive_count": 125,
+      "audio_member_count": 62222,
+      "annotation_member_count": 62222,
+      "paired_count": 62222,
+      "audio_only_count": 0,
+      "annotation_only_count": 0,
+      "audio_only_examples": [],
+      "annotation_only_examples": [],
+      "audio_bytes": 1152386232320,
+      "annotation_bytes": 150562768,
+      "total_bytes": 1152536795088,
+      "audio_gib": 1073.2433128356934,
+      "annotation_gib": 0.14022250473499298,
+      "total_gib": 1073.3835353404284,
+      "audio_archives": [
+        {
+          "name": "none_Edu_0001.tar",
+          "bytes": 7596472320,
+          "member_count": 500,
+          "first_id": "none_Edu--000001",
+          "last_id": "none_Edu--000573"
+        },
+        {
+          "name": "none_Edu_0002.tar",
+          "bytes": 8199219200,
+          "member_count": 500,
+          "first_id": "none_Edu--000574",
+          "last_id": "none_Edu--001154"
+        },
+        {
+          "name": "none_Edu_0003.tar",
+          "bytes": 8010854400,
+          "member_count": 500,
+          "first_id": "none_Edu--001155",
+          "last_id": "none_Edu--001714"
+        },
+        {
+          "name": "none_Edu_0004.tar",
+          "bytes": 8275097600,
+          "member_count": 500,
+          "first_id": "none_Edu--001716",
+          "last_id": "none_Edu--002272"
+        },
+        {
+          "name": "none_Edu_0005.tar",
+          "bytes": 9030830080,
+          "member_count": 500,
+          "first_id": "none_Edu--002273",
+          "last_id": "none_Edu--002868"
+        },
+        {
+          "name": "none_Edu_0006.tar",
+          "bytes": 9561221120,
+          "member_count": 500,
+          "first_id": "none_Edu--002870",
+          "last_id": "none_Edu--003441"
+        },
+        {
+          "name": "none_Edu_0007.tar",
+          "bytes": 8769935360,
+          "member_count": 500,
+          "first_id": "none_Edu--003442",
+          "last_id": "none_Edu--004024"
+        },
+        {
+          "name": "none_Edu_0008.tar",
+          "bytes": 8781844480,
+          "member_count": 500,
+          "first_id": "none_Edu--004025",
+          "last_id": "none_Edu--004573"
+        },
+        {
+          "name": "none_Edu_0009.tar",
+          "bytes": 9155962880,
+          "member_count": 500,
+          "first_id": "none_Edu--004574",
+          "last_id": "none_Edu--005147"
+        },
+        {
+          "name": "none_Edu_0010.tar",
+          "bytes": 8497776640,
+          "member_count": 500,
+          "first_id": "none_Edu--005149",
+          "last_id": "none_Edu--005719"
+        },
+        {
+          "name": "none_Edu_0011.tar",
+          "bytes": 9548595200,
+          "member_count": 500,
+          "first_id": "none_Edu--005720",
+          "last_id": "none_Edu--006291"
+        },
+        {
+          "name": "none_Edu_0012.tar",
+          "bytes": 9069035520,
+          "member_count": 500,
+          "first_id": "none_Edu--006292",
+          "last_id": "none_Edu--006857"
+        },
+        {
+          "name": "none_Edu_0013.tar",
+          "bytes": 8463841280,
+          "member_count": 500,
+          "first_id": "none_Edu--006858",
+          "last_id": "none_Edu--007424"
+        },
+        {
+          "name": "none_Edu_0014.tar",
+          "bytes": 8991283200,
+          "member_count": 500,
+          "first_id": "none_Edu--007425",
+          "last_id": "none_Edu--007993"
+        },
+        {
+          "name": "none_Edu_0015.tar",
+          "bytes": 9950658560,
+          "member_count": 500,
+          "first_id": "none_Edu--007994",
+          "last_id": "none_Edu--008560"
+        },
+        {
+          "name": "none_Edu_0016.tar",
+          "bytes": 9001267200,
+          "member_count": 500,
+          "first_id": "none_Edu--008561",
+          "last_id": "none_Edu--009129"
+        },
+        {
+          "name": "none_Edu_0017.tar",
+          "bytes": 9149972480,
+          "member_count": 500,
+          "first_id": "none_Edu--009130",
+          "last_id": "none_Edu--009714"
+        },
+        {
+          "name": "none_Edu_0018.tar",
+          "bytes": 8074772480,
+          "member_count": 500,
+          "first_id": "none_Edu--009715",
+          "last_id": "none_Edu--010282"
+        },
+        {
+          "name": "none_Edu_0019.tar",
+          "bytes": 8248207360,
+          "member_count": 500,
+          "first_id": "none_Edu--010283",
+          "last_id": "none_Edu--010866"
+        },
+        {
+          "name": "none_Edu_0020.tar",
+          "bytes": 8290211840,
+          "member_count": 500,
+          "first_id": "none_Edu--010867",
+          "last_id": "none_Edu--011438"
+        },
+        {
+          "name": "none_Edu_0021.tar",
+          "bytes": 9708083200,
+          "member_count": 500,
+          "first_id": "none_Edu--011440",
+          "last_id": "none_Edu--012013"
+        },
+        {
+          "name": "none_Edu_0022.tar",
+          "bytes": 8788244480,
+          "member_count": 500,
+          "first_id": "none_Edu--012014",
+          "last_id": "none_Edu--012575"
+        },
+        {
+          "name": "none_Edu_0023.tar",
+          "bytes": 8643328000,
+          "member_count": 500,
+          "first_id": "none_Edu--012576",
+          "last_id": "none_Edu--013138"
+        },
+        {
+          "name": "none_Edu_0024.tar",
+          "bytes": 9405542400,
+          "member_count": 500,
+          "first_id": "none_Edu--013139",
+          "last_id": "none_Edu--013705"
+        },
+        {
+          "name": "none_Edu_0025.tar",
+          "bytes": 9549578240,
+          "member_count": 500,
+          "first_id": "none_Edu--013706",
+          "last_id": "none_Edu--014278"
+        },
+        {
+          "name": "none_Edu_0026.tar",
+          "bytes": 11301898240,
+          "member_count": 500,
+          "first_id": "none_Edu--014279",
+          "last_id": "none_Edu--014849"
+        },
+        {
+          "name": "none_Edu_0027.tar",
+          "bytes": 9600655360,
+          "member_count": 500,
+          "first_id": "none_Edu--014851",
+          "last_id": "none_Edu--015414"
+        },
+        {
+          "name": "none_Edu_0028.tar",
+          "bytes": 8826736640,
+          "member_count": 500,
+          "first_id": "none_Edu--015415",
+          "last_id": "none_Edu--015983"
+        },
+        {
+          "name": "none_Edu_0029.tar",
+          "bytes": 10037770240,
+          "member_count": 500,
+          "first_id": "none_Edu--015985",
+          "last_id": "none_Edu--016560"
+        },
+        {
+          "name": "none_Edu_0030.tar",
+          "bytes": 9717463040,
+          "member_count": 500,
+          "first_id": "none_Edu--016561",
+          "last_id": "none_Edu--017123"
+        },
+        {
+          "name": "none_Edu_0031.tar",
+          "bytes": 9025003520,
+          "member_count": 500,
+          "first_id": "none_Edu--017124",
+          "last_id": "none_Edu--017684"
+        },
+        {
+          "name": "none_Edu_0032.tar",
+          "bytes": 9637437440,
+          "member_count": 500,
+          "first_id": "none_Edu--017685",
+          "last_id": "none_Edu--018249"
+        },
+        {
+          "name": "none_Edu_0033.tar",
+          "bytes": 10462955520,
+          "member_count": 500,
+          "first_id": "none_Edu--018250",
+          "last_id": "none_Edu--018810"
+        },
+        {
+          "name": "none_Edu_0034.tar",
+          "bytes": 9422919680,
+          "member_count": 500,
+          "first_id": "none_Edu--018812",
+          "last_id": "none_Edu--019376"
+        },
+        {
+          "name": "none_Edu_0035.tar",
+          "bytes": 11015895040,
+          "member_count": 500,
+          "first_id": "none_Edu--019377",
+          "last_id": "none_Edu--019945"
+        },
+        {
+          "name": "none_Edu_0036.tar",
+          "bytes": 9205934080,
+          "member_count": 500,
+          "first_id": "none_Edu--019946",
+          "last_id": "none_Edu--020500"
+        },
+        {
+          "name": "none_Edu_0037.tar",
+          "bytes": 10293135360,
+          "member_count": 500,
+          "first_id": "none_Edu--020501",
+          "last_id": "none_Edu--021085"
+        },
+        {
+          "name": "none_Edu_0038.tar",
+          "bytes": 9425889280,
+          "member_count": 500,
+          "first_id": "none_Edu--021086",
+          "last_id": "none_Edu--021641"
+        },
+        {
+          "name": "none_Edu_0039.tar",
+          "bytes": 8978667520,
+          "member_count": 500,
+          "first_id": "none_Edu--021642",
+          "last_id": "none_Edu--022206"
+        },
+        {
+          "name": "none_Edu_0040.tar",
+          "bytes": 10237511680,
+          "member_count": 500,
+          "first_id": "none_Edu--022207",
+          "last_id": "none_Edu--022777"
+        },
+        {
+          "name": "none_Edu_0041.tar",
+          "bytes": 9603573760,
+          "member_count": 500,
+          "first_id": "none_Edu--022778",
+          "last_id": "none_Edu--023358"
+        },
+        {
+          "name": "none_Edu_0042.tar",
+          "bytes": 10018560000,
+          "member_count": 500,
+          "first_id": "none_Edu--023359",
+          "last_id": "none_Edu--023909"
+        },
+        {
+          "name": "none_Edu_0043.tar",
+          "bytes": 10202624000,
+          "member_count": 500,
+          "first_id": "none_Edu--023910",
+          "last_id": "none_Edu--024468"
+        },
+        {
+          "name": "none_Edu_0044.tar",
+          "bytes": 9724231680,
+          "member_count": 500,
+          "first_id": "none_Edu--024469",
+          "last_id": "none_Edu--025041"
+        },
+        {
+          "name": "none_Edu_0045.tar",
+          "bytes": 9485066240,
+          "member_count": 500,
+          "first_id": "none_Edu--025042",
+          "last_id": "none_Edu--025610"
+        },
+        {
+          "name": "none_Edu_0046.tar",
+          "bytes": 9824501760,
+          "member_count": 500,
+          "first_id": "none_Edu--025611",
+          "last_id": "none_Edu--026169"
+        },
+        {
+          "name": "none_Edu_0047.tar",
+          "bytes": 11495434240,
+          "member_count": 500,
+          "first_id": "none_Edu--026170",
+          "last_id": "none_Edu--026729"
+        },
+        {
+          "name": "none_Edu_0048.tar",
+          "bytes": 9325342720,
+          "member_count": 500,
+          "first_id": "none_Edu--026730",
+          "last_id": "none_Edu--027287"
+        },
+        {
+          "name": "none_Edu_0049.tar",
+          "bytes": 10689064960,
+          "member_count": 500,
+          "first_id": "none_Edu--027288",
+          "last_id": "none_Edu--027848"
+        },
+        {
+          "name": "none_Edu_0050.tar",
+          "bytes": 10442352640,
+          "member_count": 500,
+          "first_id": "none_Edu--027849",
+          "last_id": "none_Edu--028404"
+        },
+        {
+          "name": "none_Edu_0051.tar",
+          "bytes": 10338928640,
+          "member_count": 500,
+          "first_id": "none_Edu--028405",
+          "last_id": "none_Edu--028989"
+        },
+        {
+          "name": "none_Edu_0052.tar",
+          "bytes": 9309337600,
+          "member_count": 500,
+          "first_id": "none_Edu--028990",
+          "last_id": "none_Edu--029521"
+        },
+        {
+          "name": "none_Edu_0053.tar",
+          "bytes": 9826846720,
+          "member_count": 500,
+          "first_id": "none_Edu--029522",
+          "last_id": "none_Edu--030043"
+        },
+        {
+          "name": "none_Edu_0054.tar",
+          "bytes": 8733849600,
+          "member_count": 500,
+          "first_id": "none_Edu--030044",
+          "last_id": "none_Edu--030570"
+        },
+        {
+          "name": "none_Edu_0055.tar",
+          "bytes": 10698752000,
+          "member_count": 500,
+          "first_id": "none_Edu--030571",
+          "last_id": "none_Edu--031087"
+        },
+        {
+          "name": "none_Edu_0056.tar",
+          "bytes": 9668096000,
+          "member_count": 500,
+          "first_id": "none_Edu--031088",
+          "last_id": "none_Edu--031606"
+        },
+        {
+          "name": "none_Edu_0057.tar",
+          "bytes": 9044439040,
+          "member_count": 500,
+          "first_id": "none_Edu--031607",
+          "last_id": "none_Edu--032125"
+        },
+        {
+          "name": "none_Edu_0058.tar",
+          "bytes": 9370245120,
+          "member_count": 500,
+          "first_id": "none_Edu--032127",
+          "last_id": "none_Edu--032655"
+        },
+        {
+          "name": "none_Edu_0059.tar",
+          "bytes": 9089075200,
+          "member_count": 500,
+          "first_id": "none_Edu--032656",
+          "last_id": "none_Edu--033179"
+        },
+        {
+          "name": "none_Edu_0060.tar",
+          "bytes": 11064770560,
+          "member_count": 500,
+          "first_id": "none_Edu--033180",
+          "last_id": "none_Edu--033702"
+        },
+        {
+          "name": "none_Edu_0061.tar",
+          "bytes": 9232332800,
+          "member_count": 500,
+          "first_id": "none_Edu--033703",
+          "last_id": "none_Edu--034236"
+        },
+        {
+          "name": "none_Edu_0062.tar",
+          "bytes": 10144163840,
+          "member_count": 500,
+          "first_id": "none_Edu--034237",
+          "last_id": "none_Edu--034786"
+        },
+        {
+          "name": "none_Edu_0063.tar",
+          "bytes": 10225920000,
+          "member_count": 500,
+          "first_id": "none_Edu--034787",
+          "last_id": "none_Edu--035344"
+        },
+        {
+          "name": "none_Edu_0064.tar",
+          "bytes": 10321070080,
+          "member_count": 500,
+          "first_id": "none_Edu--035345",
+          "last_id": "none_Edu--035904"
+        },
+        {
+          "name": "none_Edu_0065.tar",
+          "bytes": 10222110720,
+          "member_count": 500,
+          "first_id": "none_Edu--035905",
+          "last_id": "none_Edu--036466"
+        },
+        {
+          "name": "none_Edu_0066.tar",
+          "bytes": 10260336640,
+          "member_count": 500,
+          "first_id": "none_Edu--036467",
+          "last_id": "none_Edu--037029"
+        },
+        {
+          "name": "none_Edu_0067.tar",
+          "bytes": 10578831360,
+          "member_count": 500,
+          "first_id": "none_Edu--037030",
+          "last_id": "none_Edu--037599"
+        },
+        {
+          "name": "none_Edu_0068.tar",
+          "bytes": 10229770240,
+          "member_count": 500,
+          "first_id": "none_Edu--037601",
+          "last_id": "none_Edu--038161"
+        },
+        {
+          "name": "none_Edu_0069.tar",
+          "bytes": 8053350400,
+          "member_count": 500,
+          "first_id": "none_Edu--038163",
+          "last_id": "none_Edu--038728"
+        },
+        {
+          "name": "none_Edu_0070.tar",
+          "bytes": 7438428160,
+          "member_count": 500,
+          "first_id": "none_Edu--038729",
+          "last_id": "none_Edu--039299"
+        },
+        {
+          "name": "none_Edu_0071.tar",
+          "bytes": 8161126400,
+          "member_count": 500,
+          "first_id": "none_Edu--039300",
+          "last_id": "none_Edu--039873"
+        },
+        {
+          "name": "none_Edu_0072.tar",
+          "bytes": 7349780480,
+          "member_count": 500,
+          "first_id": "none_Edu--039874",
+          "last_id": "none_Edu--040431"
+        },
+        {
+          "name": "none_Edu_0073.tar",
+          "bytes": 7621703680,
+          "member_count": 500,
+          "first_id": "none_Edu--040432",
+          "last_id": "none_Edu--041009"
+        },
+        {
+          "name": "none_Edu_0074.tar",
+          "bytes": 7021803520,
+          "member_count": 500,
+          "first_id": "none_Edu--041010",
+          "last_id": "none_Edu--041591"
+        },
+        {
+          "name": "none_Edu_0075.tar",
+          "bytes": 7697633280,
+          "member_count": 500,
+          "first_id": "none_Edu--041592",
+          "last_id": "none_Edu--042164"
+        },
+        {
+          "name": "none_Edu_0076.tar",
+          "bytes": 8433182720,
+          "member_count": 500,
+          "first_id": "none_Edu--042165",
+          "last_id": "none_Edu--042725"
+        },
+        {
+          "name": "none_Edu_0077.tar",
+          "bytes": 7853619200,
+          "member_count": 500,
+          "first_id": "none_Edu--042726",
+          "last_id": "none_Edu--043293"
+        },
+        {
+          "name": "none_Edu_0078.tar",
+          "bytes": 7780935680,
+          "member_count": 500,
+          "first_id": "none_Edu--043294",
+          "last_id": "none_Edu--043859"
+        },
+        {
+          "name": "none_Edu_0079.tar",
+          "bytes": 7775559680,
+          "member_count": 500,
+          "first_id": "none_Edu--043860",
+          "last_id": "none_Edu--044415"
+        },
+        {
+          "name": "none_Edu_0080.tar",
+          "bytes": 7604377600,
+          "member_count": 500,
+          "first_id": "none_Edu--044416",
+          "last_id": "none_Edu--044967"
+        },
+        {
+          "name": "none_Edu_0081.tar",
+          "bytes": 7282862080,
+          "member_count": 500,
+          "first_id": "none_Edu--044969",
+          "last_id": "none_Edu--045536"
+        },
+        {
+          "name": "none_Edu_0082.tar",
+          "bytes": 8053268480,
+          "member_count": 500,
+          "first_id": "none_Edu--045537",
+          "last_id": "none_Edu--046115"
+        },
+        {
+          "name": "none_Edu_0083.tar",
+          "bytes": 8083537920,
+          "member_count": 500,
+          "first_id": "none_Edu--046116",
+          "last_id": "none_Edu--046682"
+        },
+        {
+          "name": "none_Edu_0084.tar",
+          "bytes": 7152988160,
+          "member_count": 500,
+          "first_id": "none_Edu--046683",
+          "last_id": "none_Edu--047247"
+        },
+        {
+          "name": "none_Edu_0085.tar",
+          "bytes": 7472609280,
+          "member_count": 500,
+          "first_id": "none_Edu--047248",
+          "last_id": "none_Edu--047822"
+        },
+        {
+          "name": "none_Edu_0086.tar",
+          "bytes": 7512944640,
+          "member_count": 500,
+          "first_id": "none_Edu--047823",
+          "last_id": "none_Edu--048386"
+        },
+        {
+          "name": "none_Edu_0087.tar",
+          "bytes": 7789824000,
+          "member_count": 500,
+          "first_id": "none_Edu--048389",
+          "last_id": "none_Edu--048954"
+        },
+        {
+          "name": "none_Edu_0088.tar",
+          "bytes": 8264775680,
+          "member_count": 500,
+          "first_id": "none_Edu--048955",
+          "last_id": "none_Edu--049509"
+        },
+        {
+          "name": "none_Edu_0089.tar",
+          "bytes": 7482255360,
+          "member_count": 500,
+          "first_id": "none_Edu--049510",
+          "last_id": "none_Edu--050072"
+        },
+        {
+          "name": "none_Edu_0090.tar",
+          "bytes": 7154565120,
+          "member_count": 500,
+          "first_id": "none_Edu--050073",
+          "last_id": "none_Edu--050634"
+        },
+        {
+          "name": "none_Edu_0091.tar",
+          "bytes": 7197552640,
+          "member_count": 500,
+          "first_id": "none_Edu--050635",
+          "last_id": "none_Edu--051193"
+        },
+        {
+          "name": "none_Edu_0092.tar",
+          "bytes": 6675783680,
+          "member_count": 500,
+          "first_id": "none_Edu--051194",
+          "last_id": "none_Edu--051753"
+        },
+        {
+          "name": "none_Edu_0093.tar",
+          "bytes": 7495024640,
+          "member_count": 500,
+          "first_id": "none_Edu--051754",
+          "last_id": "none_Edu--052310"
+        },
+        {
+          "name": "none_Edu_0094.tar",
+          "bytes": 8087674880,
+          "member_count": 500,
+          "first_id": "none_Edu--052311",
+          "last_id": "none_Edu--052866"
+        },
+        {
+          "name": "none_Edu_0095.tar",
+          "bytes": 7554918400,
+          "member_count": 500,
+          "first_id": "none_Edu--052867",
+          "last_id": "none_Edu--053430"
+        },
+        {
+          "name": "none_Edu_0096.tar",
+          "bytes": 8964341760,
+          "member_count": 500,
+          "first_id": "none_Edu--053431",
+          "last_id": "none_Edu--053982"
+        },
+        {
+          "name": "none_Edu_0097.tar",
+          "bytes": 9870755840,
+          "member_count": 500,
+          "first_id": "none_Edu--053983",
+          "last_id": "none_Edu--054543"
+        },
+        {
+          "name": "none_Edu_0098.tar",
+          "bytes": 10251356160,
+          "member_count": 500,
+          "first_id": "none_Edu--054544",
+          "last_id": "none_Edu--055116"
+        },
+        {
+          "name": "none_Edu_0099.tar",
+          "bytes": 10945392640,
+          "member_count": 500,
+          "first_id": "none_Edu--055117",
+          "last_id": "none_Edu--055672"
+        },
+        {
+          "name": "none_Edu_0100.tar",
+          "bytes": 10895216640,
+          "member_count": 500,
+          "first_id": "none_Edu--055674",
+          "last_id": "none_Edu--056238"
+        },
+        {
+          "name": "none_Edu_0101.tar",
+          "bytes": 9919918080,
+          "member_count": 500,
+          "first_id": "none_Edu--056239",
+          "last_id": "none_Edu--056797"
+        },
+        {
+          "name": "none_Edu_0102.tar",
+          "bytes": 9845534720,
+          "member_count": 500,
+          "first_id": "none_Edu--056798",
+          "last_id": "none_Edu--057369"
+        },
+        {
+          "name": "none_Edu_0103.tar",
+          "bytes": 9909800960,
+          "member_count": 500,
+          "first_id": "none_Edu--057370",
+          "last_id": "none_Edu--057931"
+        },
+        {
+          "name": "none_Edu_0104.tar",
+          "bytes": 9863157760,
+          "member_count": 500,
+          "first_id": "none_Edu--057932",
+          "last_id": "none_Edu--058475"
+        },
+        {
+          "name": "none_Edu_0105.tar",
+          "bytes": 10301890560,
+          "member_count": 500,
+          "first_id": "none_Edu--058476",
+          "last_id": "none_Edu--059037"
+        },
+        {
+          "name": "none_Edu_0106.tar",
+          "bytes": 10293073920,
+          "member_count": 500,
+          "first_id": "none_Edu--059039",
+          "last_id": "none_Edu--059611"
+        },
+        {
+          "name": "none_Edu_0107.tar",
+          "bytes": 9253468160,
+          "member_count": 500,
+          "first_id": "none_Edu--059612",
+          "last_id": "none_Edu--060175"
+        },
+        {
+          "name": "none_Edu_0108.tar",
+          "bytes": 9576304640,
+          "member_count": 500,
+          "first_id": "none_Edu--060177",
+          "last_id": "none_Edu--060736"
+        },
+        {
+          "name": "none_Edu_0109.tar",
+          "bytes": 10506792960,
+          "member_count": 500,
+          "first_id": "none_Edu--060737",
+          "last_id": "none_Edu--061313"
+        },
+        {
+          "name": "none_Edu_0110.tar",
+          "bytes": 11368038400,
+          "member_count": 500,
+          "first_id": "none_Edu--061314",
+          "last_id": "none_Edu--061876"
+        },
+        {
+          "name": "none_Edu_0111.tar",
+          "bytes": 10159820800,
+          "member_count": 500,
+          "first_id": "none_Edu--061877",
+          "last_id": "none_Edu--062437"
+        },
+        {
+          "name": "none_Edu_0112.tar",
+          "bytes": 10212321280,
+          "member_count": 500,
+          "first_id": "none_Edu--062438",
+          "last_id": "none_Edu--062998"
+        },
+        {
+          "name": "none_Edu_0113.tar",
+          "bytes": 8409794560,
+          "member_count": 500,
+          "first_id": "none_Edu--062999",
+          "last_id": "none_Edu--063581"
+        },
+        {
+          "name": "none_Edu_0114.tar",
+          "bytes": 9228318720,
+          "member_count": 500,
+          "first_id": "none_Edu--063582",
+          "last_id": "none_Edu--064143"
+        },
+        {
+          "name": "none_Edu_0115.tar",
+          "bytes": 9596375040,
+          "member_count": 500,
+          "first_id": "none_Edu--064144",
+          "last_id": "none_Edu--064715"
+        },
+        {
+          "name": "none_Edu_0116.tar",
+          "bytes": 10667212800,
+          "member_count": 500,
+          "first_id": "none_Edu--064716",
+          "last_id": "none_Edu--065289"
+        },
+        {
+          "name": "none_Edu_0117.tar",
+          "bytes": 10236835840,
+          "member_count": 500,
+          "first_id": "none_Edu--065290",
+          "last_id": "none_Edu--065850"
+        },
+        {
+          "name": "none_Edu_0118.tar",
+          "bytes": 10380595200,
+          "member_count": 500,
+          "first_id": "none_Edu--065852",
+          "last_id": "none_Edu--066415"
+        },
+        {
+          "name": "none_Edu_0119.tar",
+          "bytes": 10765178880,
+          "member_count": 500,
+          "first_id": "none_Edu--066416",
+          "last_id": "none_Edu--066986"
+        },
+        {
+          "name": "none_Edu_0120.tar",
+          "bytes": 10199633920,
+          "member_count": 500,
+          "first_id": "none_Edu--066987",
+          "last_id": "none_Edu--067545"
+        },
+        {
+          "name": "none_Edu_0121.tar",
+          "bytes": 10071889920,
+          "member_count": 500,
+          "first_id": "none_Edu--067546",
+          "last_id": "none_Edu--068103"
+        },
+        {
+          "name": "none_Edu_0122.tar",
+          "bytes": 11236198400,
+          "member_count": 500,
+          "first_id": "none_Edu--068104",
+          "last_id": "none_Edu--068660"
+        },
+        {
+          "name": "none_Edu_0123.tar",
+          "bytes": 11339980800,
+          "member_count": 500,
+          "first_id": "none_Edu--068661",
+          "last_id": "none_Edu--069228"
+        },
+        {
+          "name": "none_Edu_0124.tar",
+          "bytes": 10017208320,
+          "member_count": 500,
+          "first_id": "none_Edu--069229",
+          "last_id": "none_Edu--069779"
+        },
+        {
+          "name": "none_Edu_0125.tar",
+          "bytes": 4926402560,
+          "member_count": 222,
+          "first_id": "none_Edu--069780",
+          "last_id": "none_Edu--070025"
+        }
+      ],
+      "annotation_archive": {
+        "name": "jsons.tar.gz",
+        "bytes": 150562768,
+        "sha256": "56e9bd338e60c0b404bffa01dfe09b5758ba75d6dee2efc1b97bb02dd42e1b16"
+      },
+      "annotation_aggregates": {
+        "member_count": 62222,
+        "first_id": "none_Edu--000001",
+        "last_id": "none_Edu--070025",
+        "duration_total_s": 4680610.829250019,
+        "duration_hours": 1300.169674791672,
+        "duration_min_s": 8.0,
+        "duration_max_s": 618.272,
+        "root_key_sets": {
+          "asr|fs|nTrack|timeLenInSec": 62222
+        },
+        "track_counts": {
+          "2": 44582,
+          "3": 14070,
+          "4": 3570
+        },
+        "sample_rates": {
+          "48000": 62222
+        },
+        "utterance_count": 1189363,
+        "state_counts": {
+          "<missing>": 482337,
+          "<|backchannel|>": 36973,
+          "<|complete|>": 577066,
+          "<|incomplete|>": 89365,
+          "<|wait|>": 3622
+        },
+        "asr_shape_errors": 0,
+        "sensitive_redacted": 11936
+      }
+    }
+  ],
+  "totals": {
+    "audio_archive_count": 189,
+    "audio_member_count": 93709,
+    "annotation_member_count": 93709,
+    "paired_count": 93709,
+    "audio_only_count": 0,
+    "annotation_only_count": 0,
+    "audio_bytes": 1640501985280,
+    "annotation_bytes": 231142621,
+    "total_bytes": 1640733127901,
+    "duration_hours": 2000.2148569849594,
+    "utterance_count": 1749177,
+    "audio_gib": 1527.8365325927734,
+    "annotation_gib": 0.21526834089308977,
+    "total_gib": 1528.0518009336665
+  },
+  "unpacking_contract": {
+    "default": "stream_read_only",
+    "audio_mode": "tarfile.open(path, mode='r:')",
+    "annotation_mode": "tarfile.open(path, mode='r:gz')",
+    "pair_key": "同类别内 WAV/JSON 文件名去除扩展名后的完整会话标识",
+    "member_rules": [
+      "只接受普通相对文件",
+      "拒绝绝对路径、父目录跳转、符号链接和硬链接",
+      "保持 WAV 多通道结构，不做隐式混音",
+      "默认不整包解压；确需物化时写入 D 盘独立暂存目录",
+      "训练清单以 TAR 路径、成员名、字节数和固定提交为索引"
+    ]
+  },
+  "files": [
+    {
+      "remote_path": ".gitattributes",
+      "local_path": ".gitattributes",
+      "bytes": 2504,
+      "git_oid": "bed0738c7eeb449bca98b5d2f33c89a1ee56349a",
+      "remote_lfs_sha256": null,
+      "local_sha256": "9e75dd981de037ec3769f24f790e126bc5a160b6871f510214e68dc70649aeeb",
+      "local_sha256_verified": true,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0001.tar",
+      "local_path": "Edu_upper/audios/Edu_0001.tar",
+      "bytes": 7799214080,
+      "git_oid": "49b7bf1c546ebada677c7103073981c03ad8678a",
+      "remote_lfs_sha256": "cc2de50abb77ea34893bd1bdb0bd1d8ae808a41396e93c1f907e46ec15f1d18e",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0002.tar",
+      "local_path": "Edu_upper/audios/Edu_0002.tar",
+      "bytes": 7814389760,
+      "git_oid": "5f90e1ff5345d9cff4622604db0026eacd5a2e7e",
+      "remote_lfs_sha256": "e9d735a1a4b279cde7b52e5c19dc334f965193ca548693cbbc0d205c891ceeb7",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0003.tar",
+      "local_path": "Edu_upper/audios/Edu_0003.tar",
+      "bytes": 8294952960,
+      "git_oid": "576d33763e96dcb15f55c81c3a296aeafee4718f",
+      "remote_lfs_sha256": "25b24c9d87bc69ff68fa410210d8d46f5e141d4c525d7a53917d11a01d812056",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0004.tar",
+      "local_path": "Edu_upper/audios/Edu_0004.tar",
+      "bytes": 7584215040,
+      "git_oid": "e9b39ac39d8ee073c6985f658e46a452904e19a8",
+      "remote_lfs_sha256": "b61a0987efdfab018ffa486ebb736aa86b6db7489df98d0e217665ceaa0cd559",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0005.tar",
+      "local_path": "Edu_upper/audios/Edu_0005.tar",
+      "bytes": 8070563840,
+      "git_oid": "dbd6ec3b9bac48df3b893d95fc646a722bdfd89b",
+      "remote_lfs_sha256": "24da7215e5f03c0725dbbf37476be3d76774dc10942b980ef3d1127e06731301",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0006.tar",
+      "local_path": "Edu_upper/audios/Edu_0006.tar",
+      "bytes": 8034068480,
+      "git_oid": "4a29c1d0b292631758eccb6c630e6e35422b726b",
+      "remote_lfs_sha256": "f4640451a4bbce126e5c0ef80be4b72b56e1a6fce58feab3cb795747a89a4b18",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0007.tar",
+      "local_path": "Edu_upper/audios/Edu_0007.tar",
+      "bytes": 7885015040,
+      "git_oid": "6d49579e24d4f8f92ef29957148937584188b442",
+      "remote_lfs_sha256": "b8653eb0c35ed1b6578fc0714fd806a583440a91af6ebf7b1dca641c9927256d",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0008.tar",
+      "local_path": "Edu_upper/audios/Edu_0008.tar",
+      "bytes": 8555407360,
+      "git_oid": "8f2152b22e600b1a4a5dbf46b0e8fdf52252a61c",
+      "remote_lfs_sha256": "804554f8e16c66d5125cd90c7f1546986b45454e9440a43374b86fb0ec4fe080",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0009.tar",
+      "local_path": "Edu_upper/audios/Edu_0009.tar",
+      "bytes": 7393013760,
+      "git_oid": "ecf9879d91dc1d7290a9bc2dcb1e8285f3399a95",
+      "remote_lfs_sha256": "e2d5a68a8cfece298f5d0115dfc563462aae1fe9e927268b24b4a9ab5d49ad97",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0010.tar",
+      "local_path": "Edu_upper/audios/Edu_0010.tar",
+      "bytes": 7440578560,
+      "git_oid": "5369fbe86c631b536bf57a1136d9e8b7973a38de",
+      "remote_lfs_sha256": "2bdb2a8e25084e42e91bda4ef610723e265ab96d1880910ed34350c68a4a68a0",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0011.tar",
+      "local_path": "Edu_upper/audios/Edu_0011.tar",
+      "bytes": 7800422400,
+      "git_oid": "f8cc7ed1e4aeb463dfa10df310489b33fb88fe68",
+      "remote_lfs_sha256": "88122657ad1175f4b7fca16efb117203b3bdd7a927f70625c55a543fe40a0b51",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0012.tar",
+      "local_path": "Edu_upper/audios/Edu_0012.tar",
+      "bytes": 7911475200,
+      "git_oid": "491f36569cc1376e9e0bfa9eb3116932e5e5fa81",
+      "remote_lfs_sha256": "06eaae4c069473653b243d5d486104c504fbdbd3ce9d7926af42d9b285db1458",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0013.tar",
+      "local_path": "Edu_upper/audios/Edu_0013.tar",
+      "bytes": 8007874560,
+      "git_oid": "79b711557046a087c08456fbecdf6b42f9b930ed",
+      "remote_lfs_sha256": "1c122ac0c4f2281f41fec4b2bfb3574a8fd7da90386cff79eaa5b5c59d03c21c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0014.tar",
+      "local_path": "Edu_upper/audios/Edu_0014.tar",
+      "bytes": 7617873920,
+      "git_oid": "146a4bf28fff049dd7746b034cfb6ad0f882bee3",
+      "remote_lfs_sha256": "65ad1be9f1c20016a4e64f0de8f3e6c001efbfa27d75caf3488c4b745db53e5b",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0015.tar",
+      "local_path": "Edu_upper/audios/Edu_0015.tar",
+      "bytes": 8022609920,
+      "git_oid": "98a3cec5051ba9ed7aee5a0b85ff2ab62bd08f23",
+      "remote_lfs_sha256": "c1126c8474110eec1c931aa684e51662f97e4f23f774fe0dde0c47f8fb39cb22",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0016.tar",
+      "local_path": "Edu_upper/audios/Edu_0016.tar",
+      "bytes": 7608002560,
+      "git_oid": "7dc2cac36e4caa35f123574570c0531395945c1c",
+      "remote_lfs_sha256": "53d177ee6776c61a380084f9b0eb58ed82ce994e7e34a56f8bb2b1491f78917e",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0017.tar",
+      "local_path": "Edu_upper/audios/Edu_0017.tar",
+      "bytes": 8201093120,
+      "git_oid": "c18a3add527e264f22f8319217dfb8f28f03b324",
+      "remote_lfs_sha256": "34996ddfd98a53c9e4c22bffbc8fd13d340503111f4fa277fa0f7ba5cdf3c8d2",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0018.tar",
+      "local_path": "Edu_upper/audios/Edu_0018.tar",
+      "bytes": 7317340160,
+      "git_oid": "1d59dc5b1e3fe05c61239c3b86b68a30e31b2daf",
+      "remote_lfs_sha256": "4f2a65763e20206a58e1de95fc646749f9ebd6b9bfc94beae677f99beb1c60fd",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0019.tar",
+      "local_path": "Edu_upper/audios/Edu_0019.tar",
+      "bytes": 7612467200,
+      "git_oid": "e09dcba797588c967f41f6d1ecc2ec29e60a03e6",
+      "remote_lfs_sha256": "196df403442b042caf4df430772d68ccb8f8d6229dd7d101b384471debbef852",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0020.tar",
+      "local_path": "Edu_upper/audios/Edu_0020.tar",
+      "bytes": 7966894080,
+      "git_oid": "dbe392b70c2055bae7b15621f90fe9227d1077fb",
+      "remote_lfs_sha256": "3c2576929c05bff03f39e1a1184c3df6ec0641ba612027f2e0d0a426e98ca135",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0021.tar",
+      "local_path": "Edu_upper/audios/Edu_0021.tar",
+      "bytes": 7560140800,
+      "git_oid": "1249b3f70cdcfb960b52c274df1658e753e7a896",
+      "remote_lfs_sha256": "239cac1afb3c11d5668815474a9c2819c6c1fefdc69149968a5e0ae75efaa299",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0022.tar",
+      "local_path": "Edu_upper/audios/Edu_0022.tar",
+      "bytes": 8036096000,
+      "git_oid": "b029a2933c9e44a402b3565627302cdd7706814f",
+      "remote_lfs_sha256": "63e00118c98431cee58db2752b9f82677f63918546186cc8263784f5348f449a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0023.tar",
+      "local_path": "Edu_upper/audios/Edu_0023.tar",
+      "bytes": 7968808960,
+      "git_oid": "fc32e75de4140c91c735321df38acd551a8de20f",
+      "remote_lfs_sha256": "e0201c0b4212fbe0673d291620196808f85deaf1cff5e7aaa1d6301b558e7a8f",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0024.tar",
+      "local_path": "Edu_upper/audios/Edu_0024.tar",
+      "bytes": 7472896000,
+      "git_oid": "42dfd87301f7d6ad20cc6c81c097798d4b79b53a",
+      "remote_lfs_sha256": "6c1fceb751682f8fb5132b8c2373d4abd04b918e9a5d6dffa9a68509cef65cf6",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0025.tar",
+      "local_path": "Edu_upper/audios/Edu_0025.tar",
+      "bytes": 7541288960,
+      "git_oid": "fadd5bd775736de9ef1bb7df0b32604b8c87d238",
+      "remote_lfs_sha256": "c8add7e522eda2e1c756605948eff78db6d2065c42bfae4baf0f918d550491f5",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0026.tar",
+      "local_path": "Edu_upper/audios/Edu_0026.tar",
+      "bytes": 8177203200,
+      "git_oid": "c9b5d3b5f9eb59a718182c8573ab0f578a4eb658",
+      "remote_lfs_sha256": "460a874c92469e8ba4d8f251edd4a53da613790f673eaa32811a2d1b9ad1914b",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0027.tar",
+      "local_path": "Edu_upper/audios/Edu_0027.tar",
+      "bytes": 8255406080,
+      "git_oid": "ae445aa81c3cf2866e2ee9cceafc5f54cc28af79",
+      "remote_lfs_sha256": "a8833f8e9c45f9566f644ecee112ebbce8dbfbb34c8c570eac9805bae6e7ccae",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0028.tar",
+      "local_path": "Edu_upper/audios/Edu_0028.tar",
+      "bytes": 7947059200,
+      "git_oid": "57be80dd438b73d09b50e2b557c338124a2a7e4f",
+      "remote_lfs_sha256": "f5c5928427a550d8181223f62bff40626742f6e1a8386c06bf3bc8eab6977ccd",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0029.tar",
+      "local_path": "Edu_upper/audios/Edu_0029.tar",
+      "bytes": 8074332160,
+      "git_oid": "39fc41f76ad347182e9f983c677b2d31116de45e",
+      "remote_lfs_sha256": "fe2238a45cc8f9cc9d110019765e8d34e0df0997635c3db4f82451e960bdab7b",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0030.tar",
+      "local_path": "Edu_upper/audios/Edu_0030.tar",
+      "bytes": 7972321280,
+      "git_oid": "8e77e70a413deb63a051a8a775ad5e7ca024deac",
+      "remote_lfs_sha256": "2bb6fa17c877e1a83fdffd1a164af061291c9b0a68e55a530c67cb82c22171f7",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0031.tar",
+      "local_path": "Edu_upper/audios/Edu_0031.tar",
+      "bytes": 7819653120,
+      "git_oid": "0fb15b06786fc02e687c8889378b3ed09ca64557",
+      "remote_lfs_sha256": "50312ad902dea81b833e4709f3c94dd1653d16c286cd5a78d97d5ed4c56a4fa1",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0032.tar",
+      "local_path": "Edu_upper/audios/Edu_0032.tar",
+      "bytes": 7693424640,
+      "git_oid": "c7e62754a7b1808a32afd6b9f6d5e778264643e7",
+      "remote_lfs_sha256": "86838aa88d801c4c1c8e80708f2857fbf5b7b2683e421533c2781df852742a30",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0033.tar",
+      "local_path": "Edu_upper/audios/Edu_0033.tar",
+      "bytes": 7609466880,
+      "git_oid": "104027fd33a58c912226537d15efad30e4b02df0",
+      "remote_lfs_sha256": "1a10221436cce3fcb89c5df2ad8484214815fd4e4c7e141cdf000978bf0df5d4",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0034.tar",
+      "local_path": "Edu_upper/audios/Edu_0034.tar",
+      "bytes": 8369879040,
+      "git_oid": "fb1088eae77b215d4e523d510c40a1edac9819f4",
+      "remote_lfs_sha256": "53357750a505a0a57afd12c6531d9ebbb6c61961c6f33e1c0feb88012f00605e",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0035.tar",
+      "local_path": "Edu_upper/audios/Edu_0035.tar",
+      "bytes": 7440353280,
+      "git_oid": "c409e6f4573e6ce773ee4d81801380efdbf6ce6e",
+      "remote_lfs_sha256": "4eea63b01b39a410db686530a7ca556f7218c3d94785682cf8391cee92117981",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0036.tar",
+      "local_path": "Edu_upper/audios/Edu_0036.tar",
+      "bytes": 7846338560,
+      "git_oid": "6766447c3d63299db24dfd173ad945ba620d7312",
+      "remote_lfs_sha256": "c69e0c9c29560b93387c162d0ab4be190cffbdec32ea9b5e120bf7e7e59c5643",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0037.tar",
+      "local_path": "Edu_upper/audios/Edu_0037.tar",
+      "bytes": 7735255040,
+      "git_oid": "553dbaebe95499bdfd7f5437e6620754f08eb5ee",
+      "remote_lfs_sha256": "f9c22a8e609fe0512e7d9abbd2008d73447a39f298f82b6247f9c57cc101d0e9",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0038.tar",
+      "local_path": "Edu_upper/audios/Edu_0038.tar",
+      "bytes": 8289576960,
+      "git_oid": "0b6a3305c84b0768f552f09d51f20e5575827827",
+      "remote_lfs_sha256": "4ef813ba8fdd23ade91ca8b2ddbc5dd498bc6e8db40488ef1f250a5bbbf8fcb3",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0039.tar",
+      "local_path": "Edu_upper/audios/Edu_0039.tar",
+      "bytes": 8089958400,
+      "git_oid": "ab9e82117589676854299848324470a8fd48604c",
+      "remote_lfs_sha256": "2244f2b5246d0b4965b7c3b12382f421b88447f3d68fc572cd047f1ce311a369",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0040.tar",
+      "local_path": "Edu_upper/audios/Edu_0040.tar",
+      "bytes": 7522283520,
+      "git_oid": "ba1ccf67b81094ed1e5ef61fa22bd9938af6966d",
+      "remote_lfs_sha256": "d75dc91eed6f4fa7436ec3a4df53c76319f40e3145c3b9b777dd4974c2b80c11",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0041.tar",
+      "local_path": "Edu_upper/audios/Edu_0041.tar",
+      "bytes": 8120791040,
+      "git_oid": "af347c95cb34f1cfbf57a719cc7b83b17a573bf6",
+      "remote_lfs_sha256": "b959d580090fd31f9f4435f11be834034c07dc9a1091e76100cae339dd5b3a75",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0042.tar",
+      "local_path": "Edu_upper/audios/Edu_0042.tar",
+      "bytes": 7413319680,
+      "git_oid": "f4a9595ef266458ce451c11dfdc6660089d76a50",
+      "remote_lfs_sha256": "dd4c5d519cf7fdb9d346bfb3f667e9e49b9fc77e586d322067ab491bc81aaadb",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0043.tar",
+      "local_path": "Edu_upper/audios/Edu_0043.tar",
+      "bytes": 7444357120,
+      "git_oid": "95d6f35654850496880078ff061ce1130188626e",
+      "remote_lfs_sha256": "1806e902a3c068d211644202910ce5b9e34525d0a48830fb8aa94552b11868fc",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0044.tar",
+      "local_path": "Edu_upper/audios/Edu_0044.tar",
+      "bytes": 7812597760,
+      "git_oid": "deec7e910ff56f65fa9392c98436569c52241942",
+      "remote_lfs_sha256": "9a00f428919ced3c54739a7e52402abde1019d7f6905e3dc8a5c2ede5dfea09d",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/audios/Edu_0045.tar",
+      "local_path": "Edu_upper/audios/Edu_0045.tar",
+      "bytes": 660613120,
+      "git_oid": "d3e1465634a270c53b177aece17ead9141d60eaa",
+      "remote_lfs_sha256": "e23ddd68a3091123aa80749c9b6a03f1133b19f4415dba664cf5c519f1c219f7",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "Edu/jsons.tar.gz",
+      "local_path": "Edu_upper/jsons.tar.gz",
+      "bytes": 56907357,
+      "git_oid": "0cedd566441b8ae778332fe5afd4d471677e22af",
+      "remote_lfs_sha256": "1e6451ed46ce7ad03b3baf53efc240b7fdd9a752e6ca3cbac3a78fd8f2693240",
+      "local_sha256": "1e6451ed46ce7ad03b3baf53efc240b7fdd9a752e6ca3cbac3a78fd8f2693240",
+      "local_sha256_verified": true,
+      "size_verified": true
+    },
+    {
+      "remote_path": "README.md",
+      "local_path": "README.md",
+      "bytes": 7431,
+      "git_oid": "dae9b4d47a4cd6393ec2546a779632b34e71098f",
+      "remote_lfs_sha256": null,
+      "local_sha256": "a75a294a2211e86db64fe2c57f92b3a0f60f197f6c9db82640c457be60e7489c",
+      "local_sha256_verified": true,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0001.tar",
+      "local_path": "edu_lower/audios/edu_0001.tar",
+      "bytes": 7799941120,
+      "git_oid": "71f722dfd567fdc475a08d2c87d44d1791281116",
+      "remote_lfs_sha256": "287123a76a7284c6620ba4658f5137d86875e800ea686c9a1aa986553cbc3339",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0002.tar",
+      "local_path": "edu_lower/audios/edu_0002.tar",
+      "bytes": 7701739520,
+      "git_oid": "d79c96651b8ec50012c0169756cfe03d350f3a17",
+      "remote_lfs_sha256": "3a9414b6bfe7a2451602cdedce2a72437f850b9ec7e5ee98dd3c687581bfbd17",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0003.tar",
+      "local_path": "edu_lower/audios/edu_0003.tar",
+      "bytes": 7393792000,
+      "git_oid": "fee5783de09d9d8bf7d71faacc45d9f959e0da4b",
+      "remote_lfs_sha256": "82829e2e14ebc7545750c53aa674f8bb3c7f88c3136b0bf5204ca25b7194723c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0004.tar",
+      "local_path": "edu_lower/audios/edu_0004.tar",
+      "bytes": 7404359680,
+      "git_oid": "47e16e978118790fd021e298ebf13f4ce0a38188",
+      "remote_lfs_sha256": "dd18e2f2664ffbc8988d0292e4dfc88fd641ce775e8afe92537d7169e8718636",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0005.tar",
+      "local_path": "edu_lower/audios/edu_0005.tar",
+      "bytes": 7528949760,
+      "git_oid": "a31582a87d13acb319dc1a867e8a499a008c160e",
+      "remote_lfs_sha256": "8205d46222b7cdbf3520109179218180f76f8e261b9b6c1381028c225f28ff63",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0006.tar",
+      "local_path": "edu_lower/audios/edu_0006.tar",
+      "bytes": 7301079040,
+      "git_oid": "cec25891425d421952e377438a4a483b9533dc54",
+      "remote_lfs_sha256": "375cebf7e800985c74a3e2e4852ec17cc6ff369f04abcee1e19220b924412345",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0007.tar",
+      "local_path": "edu_lower/audios/edu_0007.tar",
+      "bytes": 7604592640,
+      "git_oid": "d30904501ac1399139a681935737d6c4db38a2d1",
+      "remote_lfs_sha256": "b0073fb7d92935d474ad6f0688f80d801dc71248ed2da3d92bd9aba5e7b346a8",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0008.tar",
+      "local_path": "edu_lower/audios/edu_0008.tar",
+      "bytes": 7705733120,
+      "git_oid": "9e31d54edc025a63531b482baec36ddccba7e154",
+      "remote_lfs_sha256": "d4e570fa8e6fb6107cbb6495982cdcbd270c367a14348efaf6705a2fd7095206",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0009.tar",
+      "local_path": "edu_lower/audios/edu_0009.tar",
+      "bytes": 7331983360,
+      "git_oid": "dc55424e8cab1f85e1c8f143c5209678ae989341",
+      "remote_lfs_sha256": "686a19a8758139809aa633a43d5d4fd8e5f7c769ccc3c12b0c4bcf55fcaa6d26",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0010.tar",
+      "local_path": "edu_lower/audios/edu_0010.tar",
+      "bytes": 7403458560,
+      "git_oid": "02d0dbbf57007bca95d932c6ff834158ae44d079",
+      "remote_lfs_sha256": "5e0ddfd2ebf23e8c6b0c9cbf7927a723215fbde90385bf798b46a586f906e1e9",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0011.tar",
+      "local_path": "edu_lower/audios/edu_0011.tar",
+      "bytes": 7492546560,
+      "git_oid": "8e4964eaa595b222b0571c9e00d827cfc041c128",
+      "remote_lfs_sha256": "710788ba8fe06d253ea8ab0620dbb08e4a76aeccdf7ae85d8216255a131aa9f1",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0012.tar",
+      "local_path": "edu_lower/audios/edu_0012.tar",
+      "bytes": 7373148160,
+      "git_oid": "8b192d3125dc200d9c8d7741dfda04fa9c9cd3ce",
+      "remote_lfs_sha256": "77a9832b2c0dbbf51984f083451c6b137d9a143053ac270f8d2c6d9677dcc557",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0013.tar",
+      "local_path": "edu_lower/audios/edu_0013.tar",
+      "bytes": 7401984000,
+      "git_oid": "42d91fb0f29f4a9d111ea803488fef02e8bdd1d4",
+      "remote_lfs_sha256": "acdebd5021cf50ff92ff1e53308e87ae8720583a9f2ca0bb92725acb50baf693",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0014.tar",
+      "local_path": "edu_lower/audios/edu_0014.tar",
+      "bytes": 7522181120,
+      "git_oid": "316c185dae73a71ccdf04e2c605655a356470851",
+      "remote_lfs_sha256": "841ea2f63e9f5d49a3a3c365df101081a8b89aca5bcd4824e94b050c70e12b4d",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0015.tar",
+      "local_path": "edu_lower/audios/edu_0015.tar",
+      "bytes": 8065597440,
+      "git_oid": "a29c6a86790f9d217fa3910abf2d2177f7129b6a",
+      "remote_lfs_sha256": "fc9ea49e71e2432607a3d64e8c947c9d821a9cc27a340b803e0b33079344a91e",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0016.tar",
+      "local_path": "edu_lower/audios/edu_0016.tar",
+      "bytes": 7581839360,
+      "git_oid": "ae717425bdd267e49fbaa750fa39e94914d12bcb",
+      "remote_lfs_sha256": "1c94172475a91f3729d1f88030ae49ecb8271c91d4b9b56e8479a14a1ea373a1",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0017.tar",
+      "local_path": "edu_lower/audios/edu_0017.tar",
+      "bytes": 8008765440,
+      "git_oid": "2c603a1c2b4b837936fc2344398215c604d29ae7",
+      "remote_lfs_sha256": "bd7ba429a2dd69b6865f6849b3741a4ea265b65c514e111f661f8e22fb665499",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0018.tar",
+      "local_path": "edu_lower/audios/edu_0018.tar",
+      "bytes": 7363072000,
+      "git_oid": "cc08414f287e379ef660931a233f05ef31b195c8",
+      "remote_lfs_sha256": "7acd77ba2941c3af7cf9710495f4eeb05802d575f66b7f206d51c9fb6e7f54f4",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/audios/edu_0019.tar",
+      "local_path": "edu_lower/audios/edu_0019.tar",
+      "bytes": 6320097280,
+      "git_oid": "b03f9d602bec94cb3ab7550f617d9b1e788602d0",
+      "remote_lfs_sha256": "0663d21e08395075a8d248900c73369b3957e782b800aa7fd1c469afde3891a7",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "edu/jsons.tar.gz",
+      "local_path": "edu_lower/jsons.tar.gz",
+      "bytes": 23672496,
+      "git_oid": "497b96e5daf57f1ee21c9dc62006e71121daf57d",
+      "remote_lfs_sha256": "406c6a10ad0620da363bc63cdd0fcaea45d367ed4feaa2d8ef85e403f97b9308",
+      "local_sha256": "406c6a10ad0620da363bc63cdd0fcaea45d367ed4feaa2d8ef85e403f97b9308",
+      "local_sha256_verified": true,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0001.tar",
+      "local_path": "none_Edu/audios/none_Edu_0001.tar",
+      "bytes": 7596472320,
+      "git_oid": "c93a68dee9a9411759cdd31889c072c094525900",
+      "remote_lfs_sha256": "4b21054d85777a9204183fd99560f0035b9f393a41006c3228672fe2a0ed00aa",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0002.tar",
+      "local_path": "none_Edu/audios/none_Edu_0002.tar",
+      "bytes": 8199219200,
+      "git_oid": "fcba399d7dc4e1bce44c3252842ecf1ecf87086f",
+      "remote_lfs_sha256": "e899a42df0a6742201ea9c6245de4608fd447077625fe06cd4c6da26b142f2af",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0003.tar",
+      "local_path": "none_Edu/audios/none_Edu_0003.tar",
+      "bytes": 8010854400,
+      "git_oid": "ad288612731530ce0ccafbf093322c4a272c9826",
+      "remote_lfs_sha256": "b13221cfcd479946d917affb344c8f193e64da0024e04d82e5f4ee53879fa2ef",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0004.tar",
+      "local_path": "none_Edu/audios/none_Edu_0004.tar",
+      "bytes": 8275097600,
+      "git_oid": "f8e056fec71b475fd56ebeda937f7953680a2de4",
+      "remote_lfs_sha256": "798fb941be4e99703540cbb851623bd1cfa1698ec9e53e3dc15e924fe8689b0c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0005.tar",
+      "local_path": "none_Edu/audios/none_Edu_0005.tar",
+      "bytes": 9030830080,
+      "git_oid": "9feb3b88a254583e88d7eb757693235673360f17",
+      "remote_lfs_sha256": "671717714714dc7a92136849f60ca2156f244739d50348635651bad69ee0369b",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0006.tar",
+      "local_path": "none_Edu/audios/none_Edu_0006.tar",
+      "bytes": 9561221120,
+      "git_oid": "dc58e6e86e6ac102ba501cc7b7f2efedbc0dc008",
+      "remote_lfs_sha256": "4be8688e9f97c482b16d819fe45de2248d70dcaa7a6151722e826d10f7da5095",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0007.tar",
+      "local_path": "none_Edu/audios/none_Edu_0007.tar",
+      "bytes": 8769935360,
+      "git_oid": "d19eef9ea093c81b74d05fa98ed367d72f444a7f",
+      "remote_lfs_sha256": "cc36ff8049c449ac5109219c078f8c1cb9f161f03e0567a611b3d2de7b48f52c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0008.tar",
+      "local_path": "none_Edu/audios/none_Edu_0008.tar",
+      "bytes": 8781844480,
+      "git_oid": "8a334f9139923deb0f7f531ab159284cc2a24868",
+      "remote_lfs_sha256": "a1cb4f5e33c0ea31e0c010e3937e2728374aedc00f53eee6f16d4c1d9655b3d8",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0009.tar",
+      "local_path": "none_Edu/audios/none_Edu_0009.tar",
+      "bytes": 9155962880,
+      "git_oid": "71508eb0c624529cf8a0130165c23cca59c0f6ce",
+      "remote_lfs_sha256": "08b8453460c4ec76afd66b308148a8a8034a60ea2a7174ea3c2e1c725b7f52e6",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0010.tar",
+      "local_path": "none_Edu/audios/none_Edu_0010.tar",
+      "bytes": 8497776640,
+      "git_oid": "2d1974246ddf45d7f7e35367b6afa1bb55158133",
+      "remote_lfs_sha256": "119d575fcdb6f731c94fcf6fefb05d9c984519ca256a44c9fe7e5a907fa0cd76",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0011.tar",
+      "local_path": "none_Edu/audios/none_Edu_0011.tar",
+      "bytes": 9548595200,
+      "git_oid": "32c00bf17eb37c60094be59393b4ce078177030c",
+      "remote_lfs_sha256": "e38676ba3a4d381971429c5ea54347b349819700e49bcb56438e6f8f1f7df679",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0012.tar",
+      "local_path": "none_Edu/audios/none_Edu_0012.tar",
+      "bytes": 9069035520,
+      "git_oid": "331194ef646b31fdfdd94782c31063d9e4c3bf44",
+      "remote_lfs_sha256": "2c28dd225f18a431df6ec21ac91e2548a8c7dae829f718db772f5e9755d69526",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0013.tar",
+      "local_path": "none_Edu/audios/none_Edu_0013.tar",
+      "bytes": 8463841280,
+      "git_oid": "c6280a5d569201f87e91c40042228a03a72763fe",
+      "remote_lfs_sha256": "d6113886efc5387338d6f84b571a036d5a2470717f1df3b33ae5fa6387108d82",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0014.tar",
+      "local_path": "none_Edu/audios/none_Edu_0014.tar",
+      "bytes": 8991283200,
+      "git_oid": "897794f0f1bfc38292f6d999c0c3f7971704ecce",
+      "remote_lfs_sha256": "ee221a7b9b98d7f65594f2245848aa2d04b974b6be0c100185dbfa6c0adbd9a9",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0015.tar",
+      "local_path": "none_Edu/audios/none_Edu_0015.tar",
+      "bytes": 9950658560,
+      "git_oid": "3092a584a9641eefc49a81469e627e69a25e469d",
+      "remote_lfs_sha256": "8c9081d0edadc245b57d7a8b46ce7676fa845cd1d4434f5c93d1806c8813575c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0016.tar",
+      "local_path": "none_Edu/audios/none_Edu_0016.tar",
+      "bytes": 9001267200,
+      "git_oid": "04837cf38c980e33f543950848925a53ee688cc1",
+      "remote_lfs_sha256": "83f00aeb3d5a0133cf2e04f343d2ebc54b240a04205915535c1bfd8df1260d65",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0017.tar",
+      "local_path": "none_Edu/audios/none_Edu_0017.tar",
+      "bytes": 9149972480,
+      "git_oid": "ce629e44f756831f58b9a541231e9bb7cbbb2ef8",
+      "remote_lfs_sha256": "6ed916b4fa2df9b3f5652173678c568928a8b8147371b01a2f42285ae9858163",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0018.tar",
+      "local_path": "none_Edu/audios/none_Edu_0018.tar",
+      "bytes": 8074772480,
+      "git_oid": "274f24889ccaf49341a292a9d01cb3c75ad2e237",
+      "remote_lfs_sha256": "5173f8fdb5730238669bca29af200294c4a36373c86a1306d62f49995637f8ae",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0019.tar",
+      "local_path": "none_Edu/audios/none_Edu_0019.tar",
+      "bytes": 8248207360,
+      "git_oid": "ed41b69cd8826f2edaf3b38d290ca9dd8f777d7f",
+      "remote_lfs_sha256": "7d1171b8a6a8168004c763d79784eb6eeba53af42f1a84ec907d0b08e01f66e3",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0020.tar",
+      "local_path": "none_Edu/audios/none_Edu_0020.tar",
+      "bytes": 8290211840,
+      "git_oid": "bfe30a9d147d56ce4a067c81d3d42d90e681ad51",
+      "remote_lfs_sha256": "edc997107c15f87e93d887b1664b6819b7d0fba3836b5f3a1930c0b35ec240c3",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0021.tar",
+      "local_path": "none_Edu/audios/none_Edu_0021.tar",
+      "bytes": 9708083200,
+      "git_oid": "4909c282892c0948f4050e8cdca6b5e93b97600a",
+      "remote_lfs_sha256": "b804268eea122f6506a92e319be3a833acabd7a1fc016295204506c5a1c56aa7",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0022.tar",
+      "local_path": "none_Edu/audios/none_Edu_0022.tar",
+      "bytes": 8788244480,
+      "git_oid": "27380983dbfc44a2cf072f22345b1bbaab85580b",
+      "remote_lfs_sha256": "4e3a4c4f9c824529e169ad7a0c17207486288b33e5f4c3915b13636c7f4508ca",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0023.tar",
+      "local_path": "none_Edu/audios/none_Edu_0023.tar",
+      "bytes": 8643328000,
+      "git_oid": "0d9636e3b66689a920e6a984c20b5bbe0e872c24",
+      "remote_lfs_sha256": "b802ed2918aaa0398c84e2e139cf57114cdd15bad64aca73329d6f706a13b2f3",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0024.tar",
+      "local_path": "none_Edu/audios/none_Edu_0024.tar",
+      "bytes": 9405542400,
+      "git_oid": "04d2b70f5adb9e0c34bbc924e002ae14dcc55661",
+      "remote_lfs_sha256": "c38de79af64fd701ab29de34ddad3e3538ca9d4bdfb95f298898e46b311588af",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0025.tar",
+      "local_path": "none_Edu/audios/none_Edu_0025.tar",
+      "bytes": 9549578240,
+      "git_oid": "a68a1fb1d05334780f531fd1ee3679df4a4381a4",
+      "remote_lfs_sha256": "5e5194191031b1e7acbbbfb1d4b71b4b5c7225dc19fe0e356755f4fc409da855",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0026.tar",
+      "local_path": "none_Edu/audios/none_Edu_0026.tar",
+      "bytes": 11301898240,
+      "git_oid": "76113a93f9e6aeccc26142e34531b26e6e77c9ed",
+      "remote_lfs_sha256": "2c72d087b3d65ddb1d3f3f56c8fbb780edbe4f319ed63e43effd209090c57b45",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0027.tar",
+      "local_path": "none_Edu/audios/none_Edu_0027.tar",
+      "bytes": 9600655360,
+      "git_oid": "1c4994ba7ed97d43ed107a053c47a522a7283df2",
+      "remote_lfs_sha256": "09de43fbc3654ded54cd85a210708b3d3ba94232b51af1b338e0fb7e2af7985f",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0028.tar",
+      "local_path": "none_Edu/audios/none_Edu_0028.tar",
+      "bytes": 8826736640,
+      "git_oid": "515c9d1f1460f6cb1df81f6926d2fb22b3a73dd8",
+      "remote_lfs_sha256": "55d5c52bcce01f429f40d0128acfed4656e6dd75b8c984bdd13ab8a2aab23c9a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0029.tar",
+      "local_path": "none_Edu/audios/none_Edu_0029.tar",
+      "bytes": 10037770240,
+      "git_oid": "912adcb11bc3c48de73b8b565906679cea61fe5b",
+      "remote_lfs_sha256": "e8944ac2d2df1543681c13f3c5ab3015c03569b4779fe70f44bd59fd200af535",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0030.tar",
+      "local_path": "none_Edu/audios/none_Edu_0030.tar",
+      "bytes": 9717463040,
+      "git_oid": "020af76dfcdccc887af7d162f31ab6d84237a2fc",
+      "remote_lfs_sha256": "b439757b2ab3b9970357e9917b5192be70c1020e1d7e5de678a49a932e384f90",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0031.tar",
+      "local_path": "none_Edu/audios/none_Edu_0031.tar",
+      "bytes": 9025003520,
+      "git_oid": "ea9c6740afa3584d3374e05e2248864b350d9df7",
+      "remote_lfs_sha256": "eccf4d6be96ca071b0b09c18eac838b322a967f263abf14d6463632b3ce2a939",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0032.tar",
+      "local_path": "none_Edu/audios/none_Edu_0032.tar",
+      "bytes": 9637437440,
+      "git_oid": "16528f3b061e1d73853fe3b8280318c29e14b2e2",
+      "remote_lfs_sha256": "4f60b17141f90409ef8ea98cfd6bc48ec981eb748258694d7d6147e1fc65ce48",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0033.tar",
+      "local_path": "none_Edu/audios/none_Edu_0033.tar",
+      "bytes": 10462955520,
+      "git_oid": "66396570b27ce0c9e0810327fb0ccdb5ab84468a",
+      "remote_lfs_sha256": "3d3cde1cff49680aa370f6d1c02de61c776f7b2077c047bab15634108444ae7c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0034.tar",
+      "local_path": "none_Edu/audios/none_Edu_0034.tar",
+      "bytes": 9422919680,
+      "git_oid": "6eba0d510e40a4ff7a427bcbd3a4fe4491c303dc",
+      "remote_lfs_sha256": "29490f7d7daf09e70a8c6331662d1afc5f1c61455a953a8e3d7ebb2ad0073e2a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0035.tar",
+      "local_path": "none_Edu/audios/none_Edu_0035.tar",
+      "bytes": 11015895040,
+      "git_oid": "e67a6e13c397eeda138bc8c615fb51a41fa87afb",
+      "remote_lfs_sha256": "65cac167f92cb77385d123d96aaa31326ca3ec67cd4c708b4124324abc141c55",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0036.tar",
+      "local_path": "none_Edu/audios/none_Edu_0036.tar",
+      "bytes": 9205934080,
+      "git_oid": "ddda5df9adceda1dc493ab1dd758a4a1ee4145ae",
+      "remote_lfs_sha256": "43a9a03ee1ae4bf40f9fef3af850618909bff0fa9d85571ac6b5f646da0d8b3d",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0037.tar",
+      "local_path": "none_Edu/audios/none_Edu_0037.tar",
+      "bytes": 10293135360,
+      "git_oid": "f695c4ee4bea8654700d7a3ecd58889556f8e9c5",
+      "remote_lfs_sha256": "be47651926778888d37fad69ca9211fab89164df5fef0e7a14ecd44f6f99bd1b",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0038.tar",
+      "local_path": "none_Edu/audios/none_Edu_0038.tar",
+      "bytes": 9425889280,
+      "git_oid": "7b2badb63f98d514383067533be6f89cd6077d45",
+      "remote_lfs_sha256": "187882b2e08131d096e2af56f603bd2de95d46f2759b33e4cd171c07a43ab536",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0039.tar",
+      "local_path": "none_Edu/audios/none_Edu_0039.tar",
+      "bytes": 8978667520,
+      "git_oid": "2e299785242ceda6611322b01e2bec1220950ea0",
+      "remote_lfs_sha256": "f05881733b5001198813329e11ef9a8c4a2517f79563f51e345542df8e2fc18b",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0040.tar",
+      "local_path": "none_Edu/audios/none_Edu_0040.tar",
+      "bytes": 10237511680,
+      "git_oid": "d5c47eebef63f414da6d647532e357456ecd9709",
+      "remote_lfs_sha256": "4fb98009519bee0909c121390ad4c00d810051626380e77e298ae32438b4b32e",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0041.tar",
+      "local_path": "none_Edu/audios/none_Edu_0041.tar",
+      "bytes": 9603573760,
+      "git_oid": "c5816511b784c43a0f09ef3be994b7d52b2ed827",
+      "remote_lfs_sha256": "6ee2b0a12d7505b7ba5ec64319f969f87e40981ea7274aed743c029e3522a498",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0042.tar",
+      "local_path": "none_Edu/audios/none_Edu_0042.tar",
+      "bytes": 10018560000,
+      "git_oid": "915754ea3c27b30aef45a4e13ac60806e6eabffd",
+      "remote_lfs_sha256": "1aa56dd82aefc04b0927a5369b29167e70c4f31276b443e2cdb5ebbbdfd32bf7",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0043.tar",
+      "local_path": "none_Edu/audios/none_Edu_0043.tar",
+      "bytes": 10202624000,
+      "git_oid": "ff2d42ff386e2342650d6690388b4469dfcade64",
+      "remote_lfs_sha256": "b034db7e9e18cde4c5f095091680afdf867ef3ace278e677f20bb203c7383e8d",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0044.tar",
+      "local_path": "none_Edu/audios/none_Edu_0044.tar",
+      "bytes": 9724231680,
+      "git_oid": "4d8688a95dd9904824c50d854f126195925b6f6f",
+      "remote_lfs_sha256": "138af412d7bb4c5d9c3f3f35ffcecc4aebb256494b32a7c5c56b9d0ad91f5458",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0045.tar",
+      "local_path": "none_Edu/audios/none_Edu_0045.tar",
+      "bytes": 9485066240,
+      "git_oid": "66c1ebaa97ee91dee4b5bac8336e3877622ba43c",
+      "remote_lfs_sha256": "0ffb93bce11703ed6a3fd8d8443a51018075b0832fae59acb1f796272de313ed",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0046.tar",
+      "local_path": "none_Edu/audios/none_Edu_0046.tar",
+      "bytes": 9824501760,
+      "git_oid": "7c35eb35a8553a5158c3ece21d9095c2771ae9a3",
+      "remote_lfs_sha256": "4a71d199091e7d5be25fe058b03491d3a7d81680ac702433e11f330dc0cb047b",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0047.tar",
+      "local_path": "none_Edu/audios/none_Edu_0047.tar",
+      "bytes": 11495434240,
+      "git_oid": "959dfb25e8e6a75130bcc9b930e2541b527a8aed",
+      "remote_lfs_sha256": "0a50fc584f8f86634e8df0c53e7b01d456bb69275638422022de9112c8e9bb4d",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0048.tar",
+      "local_path": "none_Edu/audios/none_Edu_0048.tar",
+      "bytes": 9325342720,
+      "git_oid": "e3c2e69ee3a93a2ab2090391603e5dc5a5b7c5c1",
+      "remote_lfs_sha256": "6a09958d92bab32cf42da37b435099e077a9792aa4f3201c227f489acfb12147",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0049.tar",
+      "local_path": "none_Edu/audios/none_Edu_0049.tar",
+      "bytes": 10689064960,
+      "git_oid": "e8e94257383e39ee9092bfe0f84e5ceee178d9fa",
+      "remote_lfs_sha256": "43f083752a5275eb5b4d73f88064f54162f6f216c91228946b4a0a0c3b697d14",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0050.tar",
+      "local_path": "none_Edu/audios/none_Edu_0050.tar",
+      "bytes": 10442352640,
+      "git_oid": "18bd73fb7f553b2a4b149928372b6140f21e3d35",
+      "remote_lfs_sha256": "adc2d28ad384c840b1e7e1c2af4377bf4d7fc15ce1e5fd0b90e0b6e4d3a54bd6",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0051.tar",
+      "local_path": "none_Edu/audios/none_Edu_0051.tar",
+      "bytes": 10338928640,
+      "git_oid": "4d1f657a5939a0c556157a1317166e7f2ec0ad46",
+      "remote_lfs_sha256": "af086017c87875fafe30063414473fa992b1e37f3b71ca4e9518717a6cf61b1f",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0052.tar",
+      "local_path": "none_Edu/audios/none_Edu_0052.tar",
+      "bytes": 9309337600,
+      "git_oid": "5933e2789f43dbf117141d686d8952831335b44e",
+      "remote_lfs_sha256": "cdbcc17cad9547d9bc69b528443db2d0242ac315f080f2f0d34ad84d69f53e61",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0053.tar",
+      "local_path": "none_Edu/audios/none_Edu_0053.tar",
+      "bytes": 9826846720,
+      "git_oid": "3ffc9b72d98176e7755f8abeeb0944d196082dc4",
+      "remote_lfs_sha256": "cb0761daf5ca44c9bae889a4d9a8cbd456e3400d130af02ee20adfccdb13f784",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0054.tar",
+      "local_path": "none_Edu/audios/none_Edu_0054.tar",
+      "bytes": 8733849600,
+      "git_oid": "a0113fe08ccd1b03365b88a3eccf5ed6cbeda338",
+      "remote_lfs_sha256": "fae9f26026141892179147ad0fee4b4ff6efeeaee9b5148bf43708bcc8fe4bb1",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0055.tar",
+      "local_path": "none_Edu/audios/none_Edu_0055.tar",
+      "bytes": 10698752000,
+      "git_oid": "5b70760497efcb447bd280ae6083f763a2ac34f5",
+      "remote_lfs_sha256": "3283c477f5872f98fa3fe64f497b01ad699a3e89b9c9df918375b25c06f5f812",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0056.tar",
+      "local_path": "none_Edu/audios/none_Edu_0056.tar",
+      "bytes": 9668096000,
+      "git_oid": "e8fe89f39471320bc6949e7cd1703cbc75b12b44",
+      "remote_lfs_sha256": "76e306266ae10ef2f8fed6d52b15406f7463e672c055bf854bd25d61da298129",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0057.tar",
+      "local_path": "none_Edu/audios/none_Edu_0057.tar",
+      "bytes": 9044439040,
+      "git_oid": "5d667b1433c4cb33865be480dc1e9b052cd58541",
+      "remote_lfs_sha256": "4b1832ac6fa3fa35c9f742811874d505d357c508f262ebc83a4a0c38b02f6622",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0058.tar",
+      "local_path": "none_Edu/audios/none_Edu_0058.tar",
+      "bytes": 9370245120,
+      "git_oid": "0894781976eb42403718ea7b8907cd13ef048091",
+      "remote_lfs_sha256": "ab4299724147dc8422c50c96b783a737475ba7766b70172cdf18f97bddb15fe4",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0059.tar",
+      "local_path": "none_Edu/audios/none_Edu_0059.tar",
+      "bytes": 9089075200,
+      "git_oid": "557e1a7e84fd5c7592150619e1e044be550049c6",
+      "remote_lfs_sha256": "c0a310bb9eb45e2d460814f35537fb19ce574b6a38b545e8abc42c32f9308738",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0060.tar",
+      "local_path": "none_Edu/audios/none_Edu_0060.tar",
+      "bytes": 11064770560,
+      "git_oid": "bfd8cc69bc97bfc2e8118d2951bbcf965c5e611b",
+      "remote_lfs_sha256": "e5a05273ce4284e5d8ea8cb920680a4cb7541d99b8bfb416f4e1e24b2de1ccd2",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0061.tar",
+      "local_path": "none_Edu/audios/none_Edu_0061.tar",
+      "bytes": 9232332800,
+      "git_oid": "0006acee2066b6800761a12426b396b5ca6a4721",
+      "remote_lfs_sha256": "13b316505f5a590143ae17f817d498c0d86c81e780bf2261470bd7c8f9fc310c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0062.tar",
+      "local_path": "none_Edu/audios/none_Edu_0062.tar",
+      "bytes": 10144163840,
+      "git_oid": "7095ba63edbafeb872d03d4f39f7468cec81d592",
+      "remote_lfs_sha256": "c8e9dd345372aac974d013e6bdae03319ae6ebd22526644aeda83fa916201fb9",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0063.tar",
+      "local_path": "none_Edu/audios/none_Edu_0063.tar",
+      "bytes": 10225920000,
+      "git_oid": "02548312aa9011ffaa78c9af68fc7c4f1e7d1cfb",
+      "remote_lfs_sha256": "2df1b301fd7359cb9501e1ff6593e713dc0e54ec97afb487c71ea2d32d1063f2",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0064.tar",
+      "local_path": "none_Edu/audios/none_Edu_0064.tar",
+      "bytes": 10321070080,
+      "git_oid": "ab88a398bf0200af83060edea349bae43278deef",
+      "remote_lfs_sha256": "eda18b11207420d1177fe4247309346d1cfc695eece7ffe8d500a39e70594bc4",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0065.tar",
+      "local_path": "none_Edu/audios/none_Edu_0065.tar",
+      "bytes": 10222110720,
+      "git_oid": "6ec4e4511a89dfa3e02e6c81a741d09b809a829e",
+      "remote_lfs_sha256": "e58834ac0c50f36f423cd057ae72a03c689cb0fdcc6e01bb06591dff61897876",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0066.tar",
+      "local_path": "none_Edu/audios/none_Edu_0066.tar",
+      "bytes": 10260336640,
+      "git_oid": "62b4844463aa91045b7671f5f8d1af5664d68b8c",
+      "remote_lfs_sha256": "8fb2ef87aa98194eaae886e7d85862cdee29f6c6efcb49684da6f47cf6376cff",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0067.tar",
+      "local_path": "none_Edu/audios/none_Edu_0067.tar",
+      "bytes": 10578831360,
+      "git_oid": "1fd57c274612ea4c4f42588882e12d52e7642608",
+      "remote_lfs_sha256": "1bc14a412849a4e836e1912dfad522c21e4c18192ef161c88951f87627f7acf0",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0068.tar",
+      "local_path": "none_Edu/audios/none_Edu_0068.tar",
+      "bytes": 10229770240,
+      "git_oid": "ed63ef01848e76df1f2473a569c0b9146f18383e",
+      "remote_lfs_sha256": "7c499e49422e6a2295be43a19d0249f0fab23a4ba9e0751e372719006bb5d6b3",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0069.tar",
+      "local_path": "none_Edu/audios/none_Edu_0069.tar",
+      "bytes": 8053350400,
+      "git_oid": "f764b58eda00190f1e4b7d2045d83c2d5a6dd138",
+      "remote_lfs_sha256": "8f87029793a990ffd2f69c187ac624951847e0383f8e588884ff4e4b2b46effa",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0070.tar",
+      "local_path": "none_Edu/audios/none_Edu_0070.tar",
+      "bytes": 7438428160,
+      "git_oid": "2fe9f71ba901440543c7f29dfa5ae1de36a7a25d",
+      "remote_lfs_sha256": "4ae8e2b89e72ac0f77aae7a7354541129c802ea4b0d28efb69cf14dfd534e2a6",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0071.tar",
+      "local_path": "none_Edu/audios/none_Edu_0071.tar",
+      "bytes": 8161126400,
+      "git_oid": "fb6aa5fc79ed1f79aae321d86d6e6586778ca6e0",
+      "remote_lfs_sha256": "177c2caaf8f5d4d4864bbf40096005bdbc6ff0ba848d369ee91af71da9f503f1",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0072.tar",
+      "local_path": "none_Edu/audios/none_Edu_0072.tar",
+      "bytes": 7349780480,
+      "git_oid": "2e4d45d3ce23098fdcbbb0d8fb2ad1a914fd4378",
+      "remote_lfs_sha256": "7067bc6b366d920ef8ba2d276758d63ac41dda4861b6ce8243a76eda353527b8",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0073.tar",
+      "local_path": "none_Edu/audios/none_Edu_0073.tar",
+      "bytes": 7621703680,
+      "git_oid": "46b4688e95e1fea4d2858d57fcb6e46114d286df",
+      "remote_lfs_sha256": "41e1ca95038593f320728f865655be357638623c07ca084721f43514f8b396ef",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0074.tar",
+      "local_path": "none_Edu/audios/none_Edu_0074.tar",
+      "bytes": 7021803520,
+      "git_oid": "fc1a70b09d47177ea3e5f90d3d069901e43c652c",
+      "remote_lfs_sha256": "9e02a42508880dd2e76c205762b9a922f161fea83a845a25c04ef88730bfe2cc",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0075.tar",
+      "local_path": "none_Edu/audios/none_Edu_0075.tar",
+      "bytes": 7697633280,
+      "git_oid": "d5028d2c285879272c6e8e0454a0f17083bce047",
+      "remote_lfs_sha256": "d55a4cea05aee3fa502caf3ca99ef28b74a11594f4c91fecf0017eb6e68fba9c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0076.tar",
+      "local_path": "none_Edu/audios/none_Edu_0076.tar",
+      "bytes": 8433182720,
+      "git_oid": "dd7b76d170882ef277c03587fedf347a225997a4",
+      "remote_lfs_sha256": "bf26e0702a8a67a3774c8b4f99b374a41478a9efe81b74d2f500736bab99eff0",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0077.tar",
+      "local_path": "none_Edu/audios/none_Edu_0077.tar",
+      "bytes": 7853619200,
+      "git_oid": "36fc8c6c05fbdc1cf7a69cf078d63558f1fff9ea",
+      "remote_lfs_sha256": "4ec8551f998fb48f8ca7c695826f1b5c77ccfb4a498635162bb90725a52df1f9",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0078.tar",
+      "local_path": "none_Edu/audios/none_Edu_0078.tar",
+      "bytes": 7780935680,
+      "git_oid": "fe27206fcad7fbb281c3b28c96628496f1432497",
+      "remote_lfs_sha256": "722196efcc24cd90486f699331a0f8d516c4525babc8390bf63ca8c4408a639f",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0079.tar",
+      "local_path": "none_Edu/audios/none_Edu_0079.tar",
+      "bytes": 7775559680,
+      "git_oid": "7f2f750df82217ef5d243ea523dc2678ac348042",
+      "remote_lfs_sha256": "6d60eb8757ba2df0956271ee6bcd2bc51c8bf8505cf4a40161fc02f82c51937c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0080.tar",
+      "local_path": "none_Edu/audios/none_Edu_0080.tar",
+      "bytes": 7604377600,
+      "git_oid": "9c2b1a3e51d4e53b024c4acf7c8dda8e57ebf217",
+      "remote_lfs_sha256": "4499d0de19235838edb472c8b69ba9d49fb24c20fa0cb00ea47b83dcec95bb0e",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0081.tar",
+      "local_path": "none_Edu/audios/none_Edu_0081.tar",
+      "bytes": 7282862080,
+      "git_oid": "0ac47078d0fe240e617754886b2c2fe96ae11989",
+      "remote_lfs_sha256": "d4a99714dde518e7bfcc07dc2bbf022a201b25e495d6730ddb7dc91b21c688ae",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0082.tar",
+      "local_path": "none_Edu/audios/none_Edu_0082.tar",
+      "bytes": 8053268480,
+      "git_oid": "1ffe85190456f011fc85855e4a1c9cd82f4f6108",
+      "remote_lfs_sha256": "6f48f1f40f77e38bf2b586df426af447f42421c196dde2ebe08d4adf489cd565",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0083.tar",
+      "local_path": "none_Edu/audios/none_Edu_0083.tar",
+      "bytes": 8083537920,
+      "git_oid": "d277efd35476db581646dd2057a13f6e124e0127",
+      "remote_lfs_sha256": "30ed03c6865b6e91aecce9c56a91fbc1fd9091700aab439bc3f39b68872e19ea",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0084.tar",
+      "local_path": "none_Edu/audios/none_Edu_0084.tar",
+      "bytes": 7152988160,
+      "git_oid": "c43528234198fa9cf3b1a437f156193b4c2e39d6",
+      "remote_lfs_sha256": "42b51d5d9cb72de576d022eb4b4ecbaecd77c17e7e96dff63561f6bf345c1e0d",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0085.tar",
+      "local_path": "none_Edu/audios/none_Edu_0085.tar",
+      "bytes": 7472609280,
+      "git_oid": "b28aa45a3480da0dd1b3207b54c278affa98e403",
+      "remote_lfs_sha256": "c2695fc575024bc6e555c3dd424ee15228840dc18a932b12341be5c47831b4f9",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0086.tar",
+      "local_path": "none_Edu/audios/none_Edu_0086.tar",
+      "bytes": 7512944640,
+      "git_oid": "90f902516443a121b99e5650e21ddfe2acb5a1f4",
+      "remote_lfs_sha256": "aa3df19d3bbf6ae5b41cc45be0533371e66de4f2e1e6dc9798439a0e5734c3a8",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0087.tar",
+      "local_path": "none_Edu/audios/none_Edu_0087.tar",
+      "bytes": 7789824000,
+      "git_oid": "afb202ca87da6e89c8e8a79685c29a56c147a586",
+      "remote_lfs_sha256": "7ee412a68493e623df90d9960c29551124bec926aee99fc9f710fa0ecc4e7763",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0088.tar",
+      "local_path": "none_Edu/audios/none_Edu_0088.tar",
+      "bytes": 8264775680,
+      "git_oid": "a665ff993c33c7d2cb1f5ac3f1b1bc4743055bbb",
+      "remote_lfs_sha256": "091f4756859d449fc4530f418bb47a699ccc43e2eb747650860345825703ce33",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0089.tar",
+      "local_path": "none_Edu/audios/none_Edu_0089.tar",
+      "bytes": 7482255360,
+      "git_oid": "7d2c4cadddfc69cf3a69e2cd1e92c12872deffff",
+      "remote_lfs_sha256": "047826c467b72afd63aeaf2b685d8d9ab3925dcd0f87197576ed9ceb91bab071",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0090.tar",
+      "local_path": "none_Edu/audios/none_Edu_0090.tar",
+      "bytes": 7154565120,
+      "git_oid": "36f989264d664cfd202761de4d228750612272fb",
+      "remote_lfs_sha256": "e141f2e303d16b553da2d8d16f17b1c1e5b84e388f78a47ea2e9c1a642bca40c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0091.tar",
+      "local_path": "none_Edu/audios/none_Edu_0091.tar",
+      "bytes": 7197552640,
+      "git_oid": "c43667bf100962597e389abaadd0123e0d5136b0",
+      "remote_lfs_sha256": "77eee72ebcf96560e9f4b03c16bc735abdd524f93f95ee7a4cfcd0d2ed56abf2",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0092.tar",
+      "local_path": "none_Edu/audios/none_Edu_0092.tar",
+      "bytes": 6675783680,
+      "git_oid": "b4924899994bb8bbbf008ca99ed77e98491a79ed",
+      "remote_lfs_sha256": "7ede7fa8ff565ebf0c7bd5de01d395613994d1f4cf81391b6580007f4b57236a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0093.tar",
+      "local_path": "none_Edu/audios/none_Edu_0093.tar",
+      "bytes": 7495024640,
+      "git_oid": "e1360c872d2d2929d9c96c33d6283217a758b056",
+      "remote_lfs_sha256": "a9eb81b88fd2340f7f46b63d4c433353e3cbac58cddccbc6ee2a17f9a2b99fbf",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0094.tar",
+      "local_path": "none_Edu/audios/none_Edu_0094.tar",
+      "bytes": 8087674880,
+      "git_oid": "67a753f5e3945e93db70b1e5f3cba8b1ffec4cfb",
+      "remote_lfs_sha256": "1c23f75411d2e9e4dac119c6b3056fc2db6630b47be1afe33e629732dd317cd1",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0095.tar",
+      "local_path": "none_Edu/audios/none_Edu_0095.tar",
+      "bytes": 7554918400,
+      "git_oid": "179d5920e38d2317e428ab907f4cd9fa00489a36",
+      "remote_lfs_sha256": "a5e93a57eae3d15ad544ec7d5ba115393adbd5afb4e52d6353da27855c89844c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0096.tar",
+      "local_path": "none_Edu/audios/none_Edu_0096.tar",
+      "bytes": 8964341760,
+      "git_oid": "382e39020b156890affac2cf7dd90fd3e8c4e6a1",
+      "remote_lfs_sha256": "b680a7b6c86382ed1c95f6b0b63417c0b8e896acbcd8b0670b9404094f40b6f2",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0097.tar",
+      "local_path": "none_Edu/audios/none_Edu_0097.tar",
+      "bytes": 9870755840,
+      "git_oid": "0a1b98b7919259729faa94f4d0097d3fad1141f3",
+      "remote_lfs_sha256": "83e990a080a2360aec677f71879b2689be24bd44f0578eaa14806017752bed9a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0098.tar",
+      "local_path": "none_Edu/audios/none_Edu_0098.tar",
+      "bytes": 10251356160,
+      "git_oid": "a3c0d6717b36de0c0da0c94aa9011162d8346c4f",
+      "remote_lfs_sha256": "e98e345644c2c3be7df00f2967b1285df135ef067a347f9549d074f971a38f1a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0099.tar",
+      "local_path": "none_Edu/audios/none_Edu_0099.tar",
+      "bytes": 10945392640,
+      "git_oid": "3ea0eaa649851a3854e4d8415452ed1fbf1e4657",
+      "remote_lfs_sha256": "181576feb0336af318bbe9b62db144daf90560a1a23511fa9a5772c5a394c25f",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0100.tar",
+      "local_path": "none_Edu/audios/none_Edu_0100.tar",
+      "bytes": 10895216640,
+      "git_oid": "c843445714f4bca7d9ee99c8a3fb81f66c05f2d1",
+      "remote_lfs_sha256": "3d927c2ceba7950632be8f23623e1807f4cfb6506fffdf383063b9fa2d9a103e",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0101.tar",
+      "local_path": "none_Edu/audios/none_Edu_0101.tar",
+      "bytes": 9919918080,
+      "git_oid": "6c707feda71dd6e345332286ee8912da0cfced85",
+      "remote_lfs_sha256": "55f7dc5035570d62cdc7fb877c27ade30b1df549fd7efcb5fda53a49ad38551e",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0102.tar",
+      "local_path": "none_Edu/audios/none_Edu_0102.tar",
+      "bytes": 9845534720,
+      "git_oid": "d7fe0920b9702986e605beb62d3114af0ed1fde1",
+      "remote_lfs_sha256": "ed54234a77525668c1510238b3005fd5a52a7d677b363334fb152c88af339dd4",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0103.tar",
+      "local_path": "none_Edu/audios/none_Edu_0103.tar",
+      "bytes": 9909800960,
+      "git_oid": "499b730857bd4352f4993477bddb774d9f57cec3",
+      "remote_lfs_sha256": "0e1d5a84c52d85723c3d7773ae835ac864c4407712cd570518bd67e908f495d1",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0104.tar",
+      "local_path": "none_Edu/audios/none_Edu_0104.tar",
+      "bytes": 9863157760,
+      "git_oid": "1d57877db0b14395c4e1e3a9ab321e2f616cf7c4",
+      "remote_lfs_sha256": "f0795b3badcef5db9cd7988d372418240fc37bea9efd442b01721006ee052d73",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0105.tar",
+      "local_path": "none_Edu/audios/none_Edu_0105.tar",
+      "bytes": 10301890560,
+      "git_oid": "665e6b32bf7d18a214ac6cc8ac42f4f97c201345",
+      "remote_lfs_sha256": "6e5fa96fb0f0cebe8c844d53d632ca18a84ecd56124a13aa5ab9e0362a1251fa",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0106.tar",
+      "local_path": "none_Edu/audios/none_Edu_0106.tar",
+      "bytes": 10293073920,
+      "git_oid": "df3fdff835d6cda2d1c7ecea26a4ac1768a792b7",
+      "remote_lfs_sha256": "e9fa2f32af91252d2070da5d4ca1977feccde8418a942c634215649e35892a17",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0107.tar",
+      "local_path": "none_Edu/audios/none_Edu_0107.tar",
+      "bytes": 9253468160,
+      "git_oid": "ce0a4e620dd85815b8982e22da1dcfd46220bd38",
+      "remote_lfs_sha256": "778909b56c5666a189a32b9c3461d713d3da89cd371c018dbf229f3ce2ea87d2",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0108.tar",
+      "local_path": "none_Edu/audios/none_Edu_0108.tar",
+      "bytes": 9576304640,
+      "git_oid": "fdeb8e1164ef277620988b3879801d56f103f5fb",
+      "remote_lfs_sha256": "3f1173ab73dd325a00fc1497b042f0aba90b08e5998431ed777086ac3798ea36",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0109.tar",
+      "local_path": "none_Edu/audios/none_Edu_0109.tar",
+      "bytes": 10506792960,
+      "git_oid": "bec462267fba2ac256650a04b5204efc17f26ab4",
+      "remote_lfs_sha256": "5af0c44eb403ecb3ca8bad77c2c98719c59a5fc06cbfd568882972240aa239b0",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0110.tar",
+      "local_path": "none_Edu/audios/none_Edu_0110.tar",
+      "bytes": 11368038400,
+      "git_oid": "520ea50064f5c8ba4d7bba2c998e683605d70086",
+      "remote_lfs_sha256": "7b049065cd569d3a6b69fcb61b037d5217bc26c5dbeaf2d160e7fff817399fae",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0111.tar",
+      "local_path": "none_Edu/audios/none_Edu_0111.tar",
+      "bytes": 10159820800,
+      "git_oid": "8b8ac9047bebe7f6a86cdc9093bac09a6bd33b57",
+      "remote_lfs_sha256": "5afae2be5acde6531ad7338a76dec9ea5f7d3ff440096ee920f1b155ac73193b",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0112.tar",
+      "local_path": "none_Edu/audios/none_Edu_0112.tar",
+      "bytes": 10212321280,
+      "git_oid": "c81b4a217412830acee8cc46e46a4d0d3a2a0c35",
+      "remote_lfs_sha256": "eb268aa620b6e121533ea7f8dc26e1cbcdccf89be9de3450bce28b7ee13dcd17",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0113.tar",
+      "local_path": "none_Edu/audios/none_Edu_0113.tar",
+      "bytes": 8409794560,
+      "git_oid": "d0db7ed651c9c69eb1af79d99a5fe0137721e7c4",
+      "remote_lfs_sha256": "b6a1630fb39da86fb1d1c96de8ade3379026ea0f89703eafdd9fea95c978457c",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0114.tar",
+      "local_path": "none_Edu/audios/none_Edu_0114.tar",
+      "bytes": 9228318720,
+      "git_oid": "f12a31dda933d6b4f5e89accd92f948039426046",
+      "remote_lfs_sha256": "ef25b148bc53f3b0ef39cbaaa9a132861f50da01bb601a8bf03a306d9237f449",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0115.tar",
+      "local_path": "none_Edu/audios/none_Edu_0115.tar",
+      "bytes": 9596375040,
+      "git_oid": "ae2fc7be6eb486b5b4f015c03f6cbedbb8331102",
+      "remote_lfs_sha256": "47ce1b6c0c0f44c8a843cbe6e1a93eedb8910bac3e66526d022c6d6dafdc432a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0116.tar",
+      "local_path": "none_Edu/audios/none_Edu_0116.tar",
+      "bytes": 10667212800,
+      "git_oid": "4c7e19fe2cfe61a5861d32e52cb36034372dbb0c",
+      "remote_lfs_sha256": "9c89bdb8157ed2620da385644e8dbbbc224ad98cfeddffe5eec857e3d2a30681",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0117.tar",
+      "local_path": "none_Edu/audios/none_Edu_0117.tar",
+      "bytes": 10236835840,
+      "git_oid": "8cdb8c6ca670813228a4ee19c52510d67d622885",
+      "remote_lfs_sha256": "4e85e4506b2435e52a087be3e5e7379cd93544d91ffbcd7c66b6d77cbfed3710",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0118.tar",
+      "local_path": "none_Edu/audios/none_Edu_0118.tar",
+      "bytes": 10380595200,
+      "git_oid": "5f169d782843b92d5667d4d88aec45c0459b10b9",
+      "remote_lfs_sha256": "e1424ef007ac6daf01d41641bc24fdf7fc4f6d7ed2012b2a856b6dffb2fe0021",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0119.tar",
+      "local_path": "none_Edu/audios/none_Edu_0119.tar",
+      "bytes": 10765178880,
+      "git_oid": "9c91e12b2d4cfe8166a807a98c4feccdfd8760c2",
+      "remote_lfs_sha256": "87dd17ec8a13710401931028c4399a441ebaa4524e7cae2bc1f8a56acdd54d8a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0120.tar",
+      "local_path": "none_Edu/audios/none_Edu_0120.tar",
+      "bytes": 10199633920,
+      "git_oid": "f3c4f927ac87e433ff9d800cdb29a73b4f266bef",
+      "remote_lfs_sha256": "478a659b9f42c9d0d76e0fc4613a992f4bd704e8e5fa528aa0c7e16c83d00718",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0121.tar",
+      "local_path": "none_Edu/audios/none_Edu_0121.tar",
+      "bytes": 10071889920,
+      "git_oid": "6b9b1f0ce2bc639e365661120961dc9820d67bc4",
+      "remote_lfs_sha256": "3b9c2e78f2ceb1b1a4e63634b30d82144f061a5658953dffd9704bd4e09b8503",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0122.tar",
+      "local_path": "none_Edu/audios/none_Edu_0122.tar",
+      "bytes": 11236198400,
+      "git_oid": "cc49e751ea093fc67d65ce83b3821990966dbd07",
+      "remote_lfs_sha256": "54a3a4e5ff66b4789752bcc4ebc6e5868399999e9e674f0dbf0473d0dead19c8",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0123.tar",
+      "local_path": "none_Edu/audios/none_Edu_0123.tar",
+      "bytes": 11339980800,
+      "git_oid": "fa29f63a59e347de540acea0a84591509c4b0ff4",
+      "remote_lfs_sha256": "06abb72f54e541cd0e31b9ab84d6c4c72f7fa57e59be0b69c365adc90c676d84",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0124.tar",
+      "local_path": "none_Edu/audios/none_Edu_0124.tar",
+      "bytes": 10017208320,
+      "git_oid": "7e16b019a21cb2dfc5f936de2c1b5036b1a265d1",
+      "remote_lfs_sha256": "d661dac3c6f24248e8a6533f89363b02f5d7c93798b11bb78eca1aa658ada28a",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/audios/none_Edu_0125.tar",
+      "local_path": "none_Edu/audios/none_Edu_0125.tar",
+      "bytes": 4926402560,
+      "git_oid": "24b589048719851a39db17da1d5af4201b0df7f7",
+      "remote_lfs_sha256": "51a4cccd9936835e4c609581b1b5957675df0d86136a5ff0e83cb0b5b148cfac",
+      "local_sha256": null,
+      "local_sha256_verified": false,
+      "size_verified": true
+    },
+    {
+      "remote_path": "none_Edu/jsons.tar.gz",
+      "local_path": "none_Edu/jsons.tar.gz",
+      "bytes": 150562768,
+      "git_oid": "c97e6a51788cfdce5e265723fdebca4b1ae6e9da",
+      "remote_lfs_sha256": "56e9bd338e60c0b404bffa01dfe09b5758ba75d6dee2efc1b97bb02dd42e1b16",
+      "local_sha256": "56e9bd338e60c0b404bffa01dfe09b5758ba75d6dee2efc1b97bb02dd42e1b16",
+      "local_sha256_verified": true,
+      "size_verified": true
+    }
+  ],
+  "errors": []
+}
