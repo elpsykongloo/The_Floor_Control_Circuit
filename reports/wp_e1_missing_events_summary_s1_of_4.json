@@ -1,0 +1,1628 @@
+{
+ "generated_at": "2026-07-22T15:46:07.210670+00:00",
+ "clock": "moshi",
+ "session_list": "D:\\data_storage\\The_Floor_Control_Circuit\\e1_probe\\missing_label_sessions.txt",
+ "n_sessions": 85,
+ "num_shards": 4,
+ "shard_id": 1,
+ "n_cached": 0,
+ "n_processed": 85,
+ "event_pipeline_code_sha256": "abcf75e7737c526b167639ecc84d6fe9c4d04a4f5b4b57de0aa0e2d9c493913c",
+ "sessions": [
+  {
+   "session": "2e6ecec2-ee12-4fd2-af36-e5477d3a5081",
+   "dur_s": 3292.0,
+   "n_events": 3217,
+   "n_labels": 356440,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 539,
+    "speech_s": 1382.72,
+    "n_turns": 212,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 660,
+    "speech_s": 1545.95,
+    "n_turns": 300,
+    "gold": false
+   }
+  },
+  {
+   "session": "2f0ee486-0eb9-4ae0-a940-f0cc95e749f2",
+   "dur_s": 1738.0,
+   "n_events": 1566,
+   "n_labels": 203610,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 402,
+    "speech_s": 941.6700000000001,
+    "n_turns": 139,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 217,
+    "speech_s": 390.24,
+    "n_turns": 126,
+    "gold": false
+   }
+  },
+  {
+   "session": "2f749ec2-aa7b-4a41-8aa1-5bd7a387b90a",
+   "dur_s": 1932.1,
+   "n_events": 1843,
+   "n_labels": 222125,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 333,
+    "speech_s": 625.99,
+    "n_turns": 130,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 439,
+    "speech_s": 900.9,
+    "n_turns": 101,
+    "gold": false
+   }
+  },
+  {
+   "session": "30394916-22b4-46ba-b8b4-61ad3662e837",
+   "dur_s": 1742.9,
+   "n_events": 2162,
+   "n_labels": 209182,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 497,
+    "speech_s": 754.23,
+    "n_turns": 121,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 366,
+    "speech_s": 502.29,
+    "n_turns": 147,
+    "gold": false
+   }
+  },
+  {
+   "session": "307f0b6d-5703-411c-aec8-f2fbd6f099e8",
+   "dur_s": 2487.9,
+   "n_events": 2554,
+   "n_labels": 303088,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 551,
+    "speech_s": 842.8000000000001,
+    "n_turns": 233,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 434,
+    "speech_s": 898.41,
+    "n_turns": 209,
+    "gold": false
+   }
+  },
+  {
+   "session": "3231ee9a-483f-464c-b563-da35de30594c",
+   "dur_s": 2276.0,
+   "n_events": 1960,
+   "n_labels": 281690,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 424,
+    "speech_s": 940.59,
+    "n_turns": 231,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 294,
+    "speech_s": 602.39,
+    "n_turns": 149,
+    "gold": false
+   }
+  },
+  {
+   "session": "33d648dc-190b-46db-b639-23382a82d7bd",
+   "dur_s": 1750.8,
+   "n_events": 1432,
+   "n_labels": 196023,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 391,
+    "speech_s": 945.04,
+    "n_turns": 96,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 227,
+    "speech_s": 521.42,
+    "n_turns": 103,
+    "gold": false
+   }
+  },
+  {
+   "session": "3431bf91-f4b6-42d1-92e8-3f62164f8b64",
+   "dur_s": 2345.2,
+   "n_events": 1873,
+   "n_labels": 262619,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 274,
+    "speech_s": 708.62,
+    "n_turns": 92,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 464,
+    "speech_s": 1251.55,
+    "n_turns": 145,
+    "gold": false
+   }
+  },
+  {
+   "session": "34ce2cc2-c709-4852-871b-896a368b0ae6",
+   "dur_s": 1743.3,
+   "n_events": 1614,
+   "n_labels": 202544,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 280,
+    "speech_s": 793.52,
+    "n_turns": 93,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 353,
+    "speech_s": 566.0600000000001,
+    "n_turns": 133,
+    "gold": false
+   }
+  },
+  {
+   "session": "35c172b6-0833-4c9e-ba7d-76e328bd943f",
+   "dur_s": 1653.0,
+   "n_events": 1755,
+   "n_labels": 190288,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 316,
+    "speech_s": 601.98,
+    "n_turns": 183,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 309,
+    "speech_s": 713.24,
+    "n_turns": 130,
+    "gold": false
+   }
+  },
+  {
+   "session": "36f6f438-7d8d-4c6a-965b-43c17261c091",
+   "dur_s": 2258.6,
+   "n_events": 2255,
+   "n_labels": 285779,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 388,
+    "speech_s": 884.41,
+    "n_turns": 154,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 371,
+    "speech_s": 569.86,
+    "n_turns": 211,
+    "gold": false
+   }
+  },
+  {
+   "session": "37431f1e-124e-44ad-9217-12819ff59589",
+   "dur_s": 1804.6,
+   "n_events": 1838,
+   "n_labels": 211569,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 209,
+    "speech_s": 332.72,
+    "n_turns": 113,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 551,
+    "speech_s": 1042.49,
+    "n_turns": 104,
+    "gold": false
+   }
+  },
+  {
+   "session": "3851cd44-577e-4d78-a45b-5333009f7dad",
+   "dur_s": 1742.0,
+   "n_events": 740,
+   "n_labels": 189335,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 150,
+    "speech_s": 947.65,
+    "n_turns": 42,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 210,
+    "speech_s": 585.73,
+    "n_turns": 66,
+    "gold": false
+   }
+  },
+  {
+   "session": "3ad6d382-667f-47d4-bbc6-12c60928c4b2",
+   "dur_s": 1865.4,
+   "n_events": 1577,
+   "n_labels": 218424,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 375,
+    "speech_s": 936.02,
+    "n_turns": 130,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 223,
+    "speech_s": 495.36,
+    "n_turns": 107,
+    "gold": false
+   }
+  },
+  {
+   "session": "3c923944-0979-45d1-8396-a72dd9ec55d2",
+   "dur_s": 2277.8,
+   "n_events": 2075,
+   "n_labels": 282017,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 465,
+    "speech_s": 951.45,
+    "n_turns": 162,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 325,
+    "speech_s": 594.26,
+    "n_turns": 161,
+    "gold": false
+   }
+  },
+  {
+   "session": "3de1bfb4-526d-4d0b-93d0-7f763b9a6de7",
+   "dur_s": 1705.8,
+   "n_events": 1853,
+   "n_labels": 199764,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 336,
+    "speech_s": 714.27,
+    "n_turns": 134,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 377,
+    "speech_s": 589.5500000000001,
+    "n_turns": 134,
+    "gold": false
+   }
+  },
+  {
+   "session": "3f0b4178-05d8-414b-9b4e-1164daa6ca25",
+   "dur_s": 2156.2,
+   "n_events": 1759,
+   "n_labels": 233742,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 398,
+    "speech_s": 1225.6000000000001,
+    "n_turns": 138,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 304,
+    "speech_s": 680.5,
+    "n_turns": 114,
+    "gold": false
+   }
+  },
+  {
+   "session": "4068e5ec-1e1a-42f1-979b-0dd423fa2c48",
+   "dur_s": 3999.7,
+   "n_events": 5152,
+   "n_labels": 463833,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 1141,
+    "speech_s": 2446.78,
+    "n_turns": 360,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 655,
+    "speech_s": 684.94,
+    "n_turns": 453,
+    "gold": false
+   }
+  },
+  {
+   "session": "41b5746a-0546-4c67-b262-a61ed5a6af2b",
+   "dur_s": 3276.8,
+   "n_events": 2228,
+   "n_labels": 424710,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 404,
+    "speech_s": 1314.24,
+    "n_turns": 157,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 467,
+    "speech_s": 652.15,
+    "n_turns": 193,
+    "gold": false
+   }
+  },
+  {
+   "session": "432efb26-fdcd-4a4c-8fa1-11310c0b96e3",
+   "dur_s": 1723.3,
+   "n_events": 1645,
+   "n_labels": 190709,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 295,
+    "speech_s": 657.6800000000001,
+    "n_turns": 110,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 344,
+    "speech_s": 815.3000000000001,
+    "n_turns": 133,
+    "gold": false
+   }
+  },
+  {
+   "session": "437d7142-ef5c-4c73-a958-21e32cd3a75a",
+   "dur_s": 2114.2,
+   "n_events": 2106,
+   "n_labels": 235877,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 344,
+    "speech_s": 851.39,
+    "n_turns": 108,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 461,
+    "speech_s": 933.5600000000001,
+    "n_turns": 184,
+    "gold": false
+   }
+  },
+  {
+   "session": "443305b9-c33d-4bbf-a719-db9c64e43a46",
+   "dur_s": 2131.0,
+   "n_events": 1907,
+   "n_labels": 234497,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 237,
+    "speech_s": 1167.41,
+    "n_turns": 135,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 421,
+    "speech_s": 694.9,
+    "n_turns": 228,
+    "gold": false
+   }
+  },
+  {
+   "session": "4523b310-1fd8-42c0-b2c0-ecbc219382cb",
+   "dur_s": 1741.7,
+   "n_events": 1792,
+   "n_labels": 201156,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 291,
+    "speech_s": 863.2,
+    "n_turns": 125,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 341,
+    "speech_s": 521.8,
+    "n_turns": 164,
+    "gold": false
+   }
+  },
+  {
+   "session": "45c948a5-a1fb-4e9b-b754-049923156b2a",
+   "dur_s": 1672.7,
+   "n_events": 1291,
+   "n_labels": 185113,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 283,
+    "speech_s": 659.29,
+    "n_turns": 88,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 283,
+    "speech_s": 762.89,
+    "n_turns": 104,
+    "gold": false
+   }
+  },
+  {
+   "session": "47e11fd0-9ceb-4ffa-ad74-0203e28427b3",
+   "dur_s": 1779.8,
+   "n_events": 1957,
+   "n_labels": 215340,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 323,
+    "speech_s": 456.88,
+    "n_turns": 215,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 386,
+    "speech_s": 813.83,
+    "n_turns": 181,
+    "gold": false
+   }
+  },
+  {
+   "session": "4877ecf5-5ac4-4f51-9e08-d1df2adb0d67",
+   "dur_s": 1744.9,
+   "n_events": 1336,
+   "n_labels": 206157,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 214,
+    "speech_s": 446.11,
+    "n_turns": 126,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 334,
+    "speech_s": 866.07,
+    "n_turns": 88,
+    "gold": false
+   }
+  },
+  {
+   "session": "49090cf7-f049-469d-91d6-e66e4f68059d",
+   "dur_s": 2195.9,
+   "n_events": 1663,
+   "n_labels": 263314,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 222,
+    "speech_s": 301.98,
+    "n_turns": 158,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 401,
+    "speech_s": 1303.7,
+    "n_turns": 123,
+    "gold": false
+   }
+  },
+  {
+   "session": "49f6239a-252b-463c-a3b3-2667aeb24286",
+   "dur_s": 1809.4,
+   "n_events": 1417,
+   "n_labels": 203853,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 330,
+    "speech_s": 1017.83,
+    "n_turns": 105,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 248,
+    "speech_s": 473.21000000000004,
+    "n_turns": 116,
+    "gold": false
+   }
+  },
+  {
+   "session": "4a50f7ad-7b2d-439a-aebf-17f9abf9eefc",
+   "dur_s": 1657.7,
+   "n_events": 1701,
+   "n_labels": 201530,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 330,
+    "speech_s": 589.25,
+    "n_turns": 171,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 288,
+    "speech_s": 581.47,
+    "n_turns": 160,
+    "gold": false
+   }
+  },
+  {
+   "session": "4b52c90e-e486-4276-a029-7fba4861396d",
+   "dur_s": 1760.0,
+   "n_events": 1637,
+   "n_labels": 235280,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 223,
+    "speech_s": 305.7,
+    "n_turns": 127,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 417,
+    "speech_s": 646.96,
+    "n_turns": 232,
+    "gold": false
+   }
+  },
+  {
+   "session": "4cb7b4b9-b029-45cb-840b-e9fac6554dcc",
+   "dur_s": 1846.0,
+   "n_events": 1553,
+   "n_labels": 210867,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 292,
+    "speech_s": 452.59000000000003,
+    "n_turns": 144,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 327,
+    "speech_s": 1032.28,
+    "n_turns": 95,
+    "gold": false
+   }
+  },
+  {
+   "session": "4e02e612-69a5-4323-8610-e89822241fc2",
+   "dur_s": 1796.7,
+   "n_events": 1465,
+   "n_labels": 223426,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 278,
+    "speech_s": 744.46,
+    "n_turns": 124,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 277,
+    "speech_s": 456.34000000000003,
+    "n_turns": 129,
+    "gold": false
+   }
+  },
+  {
+   "session": "4ec6a831-5dda-4109-84cd-5e376c29e920",
+   "dur_s": 1725.0,
+   "n_events": 1471,
+   "n_labels": 212120,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 485,
+    "speech_s": 989.87,
+    "n_turns": 128,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 132,
+    "speech_s": 189.25,
+    "n_turns": 91,
+    "gold": false
+   }
+  },
+  {
+   "session": "4f5964fe-1353-439b-9e50-08b460ee3bd5",
+   "dur_s": 2002.3,
+   "n_events": 1874,
+   "n_labels": 243020,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 414,
+    "speech_s": 847.54,
+    "n_turns": 169,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 342,
+    "speech_s": 565.75,
+    "n_turns": 137,
+    "gold": false
+   }
+  },
+  {
+   "session": "500258ba-b356-44ec-adb1-ca95a1d66f03",
+   "dur_s": 1849.5,
+   "n_events": 1528,
+   "n_labels": 219874,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 404,
+    "speech_s": 1042.34,
+    "n_turns": 127,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 183,
+    "speech_s": 330.11,
+    "n_turns": 102,
+    "gold": false
+   }
+  },
+  {
+   "session": "51c18536-0580-4c83-b668-434a81a658da",
+   "dur_s": 2154.2,
+   "n_events": 2576,
+   "n_labels": 238031,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 445,
+    "speech_s": 859.47,
+    "n_turns": 224,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 507,
+    "speech_s": 990.07,
+    "n_turns": 204,
+    "gold": false
+   }
+  },
+  {
+   "session": "5334722e-8f9b-41c3-8f16-aff380cb5160",
+   "dur_s": 1937.9,
+   "n_events": 1946,
+   "n_labels": 233826,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 304,
+    "speech_s": 687.83,
+    "n_turns": 147,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 409,
+    "speech_s": 700.37,
+    "n_turns": 231,
+    "gold": false
+   }
+  },
+  {
+   "session": "53679c37-1e27-44f2-b56b-1e7c150cd922",
+   "dur_s": 1625.5,
+   "n_events": 2589,
+   "n_labels": 199615,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 429,
+    "speech_s": 661.12,
+    "n_turns": 282,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 399,
+    "speech_s": 459.90000000000003,
+    "n_turns": 273,
+    "gold": false
+   }
+  },
+  {
+   "session": "54046304-4af5-449c-abe1-2bab8b5b597e",
+   "dur_s": 1976.7,
+   "n_events": 1195,
+   "n_labels": 252332,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 255,
+    "speech_s": 734.47,
+    "n_turns": 111,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 247,
+    "speech_s": 497.85,
+    "n_turns": 138,
+    "gold": false
+   }
+  },
+  {
+   "session": "556af996-c50e-45c8-a7af-fb8a42c22640",
+   "dur_s": 2092.6,
+   "n_events": 1474,
+   "n_labels": 231798,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 217,
+    "speech_s": 1104.59,
+    "n_turns": 104,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 313,
+    "speech_s": 689.8100000000001,
+    "n_turns": 145,
+    "gold": false
+   }
+  },
+  {
+   "session": "56529e73-480c-43fa-b313-a0bd3d8f033e",
+   "dur_s": 2506.6,
+   "n_events": 2023,
+   "n_labels": 290654,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 492,
+    "speech_s": 1490.78,
+    "n_turns": 188,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 286,
+    "speech_s": 472.83,
+    "n_turns": 149,
+    "gold": false
+   }
+  },
+  {
+   "session": "56f21a75-4e86-4dee-9a15-a4f68e86e1a3",
+   "dur_s": 1800.0,
+   "n_events": 1946,
+   "n_labels": 227041,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 248,
+    "speech_s": 407.98,
+    "n_turns": 167,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 483,
+    "speech_s": 747.97,
+    "n_turns": 224,
+    "gold": false
+   }
+  },
+  {
+   "session": "582ea058-c65e-4739-aaac-46d498956317",
+   "dur_s": 1849.6,
+   "n_events": 1941,
+   "n_labels": 244356,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 361,
+    "speech_s": 645.78,
+    "n_turns": 201,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 332,
+    "speech_s": 398.17,
+    "n_turns": 179,
+    "gold": false
+   }
+  },
+  {
+   "session": "59bb81e4-9c3c-4b4d-8343-5f7c5f3ab9d5",
+   "dur_s": 2360.3,
+   "n_events": 1541,
+   "n_labels": 262169,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 270,
+    "speech_s": 700.29,
+    "n_turns": 126,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 379,
+    "speech_s": 1302.77,
+    "n_turns": 98,
+    "gold": false
+   }
+  },
+  {
+   "session": "5a307dec-0265-4dab-ade6-bc6392695c9e",
+   "dur_s": 1538.5,
+   "n_events": 1487,
+   "n_labels": 164822,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 261,
+    "speech_s": 666.19,
+    "n_turns": 105,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 316,
+    "speech_s": 721.38,
+    "n_turns": 112,
+    "gold": false
+   }
+  },
+  {
+   "session": "5ad3f4df-0339-48a9-ae9a-ecd33abdd2e5",
+   "dur_s": 1786.1,
+   "n_events": 1621,
+   "n_labels": 215577,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 253,
+    "speech_s": 806.9,
+    "n_turns": 114,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 322,
+    "speech_s": 483.81,
+    "n_turns": 187,
+    "gold": false
+   }
+  },
+  {
+   "session": "5bde82b3-4a86-497b-a4c6-a26f3ce01e87",
+   "dur_s": 1700.7,
+   "n_events": 1126,
+   "n_labels": 202112,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 385,
+    "speech_s": 907.25,
+    "n_turns": 91,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 128,
+    "speech_s": 351.01,
+    "n_turns": 48,
+    "gold": false
+   }
+  },
+  {
+   "session": "5d106c0f-e40f-453c-b1a4-3b90e3cb8b4c",
+   "dur_s": 1783.2,
+   "n_events": 1876,
+   "n_labels": 216715,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 318,
+    "speech_s": 591.4,
+    "n_turns": 122,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 407,
+    "speech_s": 666.08,
+    "n_turns": 191,
+    "gold": false
+   }
+  },
+  {
+   "session": "5e184765-66fa-4a74-9c68-410aafe76be4",
+   "dur_s": 2298.6,
+   "n_events": 2406,
+   "n_labels": 283319,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 400,
+    "speech_s": 702.0600000000001,
+    "n_turns": 225,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 513,
+    "speech_s": 865.53,
+    "n_turns": 266,
+    "gold": false
+   }
+  },
+  {
+   "session": "5fbf2610-3844-47ee-954d-e39520ea09c9",
+   "dur_s": 1633.9,
+   "n_events": 1296,
+   "n_labels": 182850,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 385,
+    "speech_s": 1054.34,
+    "n_turns": 89,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 170,
+    "speech_s": 308.17,
+    "n_turns": 84,
+    "gold": false
+   }
+  },
+  {
+   "session": "607a1155-0781-43a4-88ea-66a4cdb75585",
+   "dur_s": 2001.0,
+   "n_events": 1425,
+   "n_labels": 216563,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 120,
+    "speech_s": 125.93,
+    "n_turns": 111,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 523,
+    "speech_s": 1650.82,
+    "n_turns": 92,
+    "gold": false
+   }
+  },
+  {
+   "session": "616a7acc-2d13-45c4-b270-8716313bbc73",
+   "dur_s": 1711.8,
+   "n_events": 1855,
+   "n_labels": 211817,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 459,
+    "speech_s": 781.96,
+    "n_turns": 218,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 266,
+    "speech_s": 368.44,
+    "n_turns": 132,
+    "gold": false
+   }
+  },
+  {
+   "session": "62693a9e-edd8-40a1-a073-2a91fdfd0297",
+   "dur_s": 1844.1,
+   "n_events": 1564,
+   "n_labels": 207232,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 397,
+    "speech_s": 943.83,
+    "n_turns": 105,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 229,
+    "speech_s": 581.23,
+    "n_turns": 87,
+    "gold": false
+   }
+  },
+  {
+   "session": "63b17d05-e2ff-48c8-8e9f-68ce4a9ed951",
+   "dur_s": 2836.5,
+   "n_events": 2148,
+   "n_labels": 352300,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 499,
+    "speech_s": 975.22,
+    "n_turns": 200,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 371,
+    "speech_s": 928.8100000000001,
+    "n_turns": 140,
+    "gold": false
+   }
+  },
+  {
+   "session": "65271581-3117-4b65-a54c-64486d5e5453",
+   "dur_s": 1615.2,
+   "n_events": 1510,
+   "n_labels": 191819,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 288,
+    "speech_s": 681.74,
+    "n_turns": 111,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 378,
+    "speech_s": 511.01,
+    "n_turns": 131,
+    "gold": false
+   }
+  },
+  {
+   "session": "670a5595-30d2-4917-a91a-09ddd8f5f5dc",
+   "dur_s": 1888.8,
+   "n_events": 2058,
+   "n_labels": 225028,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 414,
+    "speech_s": 790.83,
+    "n_turns": 170,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 353,
+    "speech_s": 602.52,
+    "n_turns": 178,
+    "gold": false
+   }
+  },
+  {
+   "session": "67488a81-9de6-4c8a-be03-817c716a3912",
+   "dur_s": 2123.3,
+   "n_events": 2122,
+   "n_labels": 258779,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 311,
+    "speech_s": 482.38,
+    "n_turns": 193,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 524,
+    "speech_s": 1006.35,
+    "n_turns": 224,
+    "gold": false
+   }
+  },
+  {
+   "session": "6805b7d1-d362-4731-b766-b39aba421c6c",
+   "dur_s": 1854.4,
+   "n_events": 2077,
+   "n_labels": 225845,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 370,
+    "speech_s": 653.82,
+    "n_turns": 140,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 431,
+    "speech_s": 644.77,
+    "n_turns": 203,
+    "gold": false
+   }
+  },
+  {
+   "session": "68e5b791-3931-440e-a603-4e3a063d8521",
+   "dur_s": 2571.5,
+   "n_events": 2329,
+   "n_labels": 262526,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 513,
+    "speech_s": 1566.1100000000001,
+    "n_turns": 201,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 401,
+    "speech_s": 945.58,
+    "n_turns": 232,
+    "gold": false
+   }
+  },
+  {
+   "session": "69fef050-eda2-4dbd-957a-80a8ae7112f4",
+   "dur_s": 1948.5,
+   "n_events": 1484,
+   "n_labels": 222652,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 277,
+    "speech_s": 551.1,
+    "n_turns": 113,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 338,
+    "speech_s": 1017.19,
+    "n_turns": 80,
+    "gold": false
+   }
+  },
+  {
+   "session": "2c92dd3e-6e7a-4968-871d-5674790e7a74",
+   "dur_s": 1670.5,
+   "n_events": 1586,
+   "n_labels": 206856,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 250,
+    "speech_s": 329.53000000000003,
+    "n_turns": 128,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 339,
+    "speech_s": 803.44,
+    "n_turns": 139,
+    "gold": false
+   }
+  },
+  {
+   "session": "2ec76af8-c231-488a-95bf-4269bef6996b",
+   "dur_s": 1715.4,
+   "n_events": 1283,
+   "n_labels": 194912,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 213,
+    "speech_s": 596.51,
+    "n_turns": 69,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 325,
+    "speech_s": 798.0500000000001,
+    "n_turns": 110,
+    "gold": false
+   }
+  },
+  {
+   "session": "3186a2ea-47f5-45cf-8c9c-ba4182d2c0a7",
+   "dur_s": 1654.2,
+   "n_events": 1672,
+   "n_labels": 182987,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 351,
+    "speech_s": 650.2,
+    "n_turns": 137,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 281,
+    "speech_s": 765.94,
+    "n_turns": 102,
+    "gold": false
+   }
+  },
+  {
+   "session": "339012e4-ada1-4c88-839d-08a6842b5903",
+   "dur_s": 2140.1,
+   "n_events": 1713,
+   "n_labels": 248721,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 424,
+    "speech_s": 1013.8000000000001,
+    "n_turns": 108,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 302,
+    "speech_s": 649.58,
+    "n_turns": 112,
+    "gold": false
+   }
+  },
+  {
+   "session": "3a51d3fd-a343-4177-b48e-a694a14c5891",
+   "dur_s": 1905.9,
+   "n_events": 2543,
+   "n_labels": 221003,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 423,
+    "speech_s": 860.4200000000001,
+    "n_turns": 187,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 442,
+    "speech_s": 634.53,
+    "n_turns": 249,
+    "gold": false
+   }
+  },
+  {
+   "session": "3e4b373e-f0c5-49f1-9bf0-20332f3ec712",
+   "dur_s": 2102.8,
+   "n_events": 2107,
+   "n_labels": 261045,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 363,
+    "speech_s": 840.28,
+    "n_turns": 147,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 411,
+    "speech_s": 578.35,
+    "n_turns": 187,
+    "gold": false
+   }
+  },
+  {
+   "session": "46747c83-d53f-43a6-9de0-17298e3b633f",
+   "dur_s": 1672.6,
+   "n_events": 1487,
+   "n_labels": 188992,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 295,
+    "speech_s": 761.4,
+    "n_turns": 102,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 321,
+    "speech_s": 606.61,
+    "n_turns": 85,
+    "gold": false
+   }
+  },
+  {
+   "session": "4b3fc3a3-8714-407c-b142-bf2e242e0ae9",
+   "dur_s": 2775.2,
+   "n_events": 2533,
+   "n_labels": 301353,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 605,
+    "speech_s": 1802.72,
+    "n_turns": 198,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 365,
+    "speech_s": 648.45,
+    "n_turns": 238,
+    "gold": false
+   }
+  },
+  {
+   "session": "4da5f1a9-e9ae-4837-802a-27c8b6675b4c",
+   "dur_s": 2106.9,
+   "n_events": 1984,
+   "n_labels": 289931,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 510,
+    "speech_s": 772.38,
+    "n_turns": 290,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 212,
+    "speech_s": 257.76,
+    "n_turns": 175,
+    "gold": false
+   }
+  },
+  {
+   "session": "52e38736-df36-4dfc-97c3-7f7a2ca790ad",
+   "dur_s": 1820.0,
+   "n_events": 2122,
+   "n_labels": 220827,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 423,
+    "speech_s": 796.75,
+    "n_turns": 156,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 388,
+    "speech_s": 490.52,
+    "n_turns": 153,
+    "gold": false
+   }
+  },
+  {
+   "session": "5a69b66a-61bc-45b5-98bd-ffb14fb1e1ec",
+   "dur_s": 1612.5,
+   "n_events": 1273,
+   "n_labels": 228105,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 202,
+    "speech_s": 372.8,
+    "n_turns": 118,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 273,
+    "speech_s": 335.18,
+    "n_turns": 167,
+    "gold": false
+   }
+  },
+  {
+   "session": "5c91528b-686c-4446-82dc-5dd830d4d7b1",
+   "dur_s": 1783.6,
+   "n_events": 2454,
+   "n_labels": 194696,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 414,
+    "speech_s": 782.45,
+    "n_turns": 191,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 415,
+    "speech_s": 784.21,
+    "n_turns": 193,
+    "gold": false
+   }
+  },
+  {
+   "session": "5ebef664-8567-4425-8ca9-9be90745a61d",
+   "dur_s": 2258.7,
+   "n_events": 1951,
+   "n_labels": 276116,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 178,
+    "speech_s": 430.11,
+    "n_turns": 98,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 640,
+    "speech_s": 1135.24,
+    "n_turns": 131,
+    "gold": false
+   }
+  },
+  {
+   "session": "61e32a88-cbee-4319-9f54-564af7e118a5",
+   "dur_s": 1928.2,
+   "n_events": 1704,
+   "n_labels": 214484,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 311,
+    "speech_s": 554.09,
+    "n_turns": 150,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 337,
+    "speech_s": 1082.79,
+    "n_turns": 111,
+    "gold": false
+   }
+  },
+  {
+   "session": "64d2a057-f8ac-4e44-9e0f-6645a3da8a91",
+   "dur_s": 2080.6,
+   "n_events": 2215,
+   "n_labels": 239940,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 497,
+    "speech_s": 1145.63,
+    "n_turns": 170,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 295,
+    "speech_s": 500.81,
+    "n_turns": 157,
+    "gold": false
+   }
+  },
+  {
+   "session": "660c942e-6681-4f6f-9d9d-0aff9f2e5561",
+   "dur_s": 1876.2,
+   "n_events": 1981,
+   "n_labels": 218669,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 320,
+    "speech_s": 656.8000000000001,
+    "n_turns": 146,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 424,
+    "speech_s": 793.75,
+    "n_turns": 189,
+    "gold": false
+   }
+  },
+  {
+   "session": "6ec9ed5c-3b53-4661-bb3c-e83308de804f",
+   "dur_s": 2294.2,
+   "n_events": 2725,
+   "n_labels": 260207,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 477,
+    "speech_s": 651.86,
+    "n_turns": 271,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 494,
+    "speech_s": 1231.7,
+    "n_turns": 241,
+    "gold": false
+   }
+  },
+  {
+   "session": "74566dc5-b8cd-4835-91ec-7e4e245dc318",
+   "dur_s": 1966.0,
+   "n_events": 1857,
+   "n_labels": 227925,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 318,
+    "speech_s": 510.87,
+    "n_turns": 135,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 426,
+    "speech_s": 1017.57,
+    "n_turns": 144,
+    "gold": false
+   }
+  },
+  {
+   "session": "796f2826-b2cc-4848-a32c-a19892cd7919",
+   "dur_s": 1721.7,
+   "n_events": 1866,
+   "n_labels": 215605,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 237,
+    "speech_s": 446.23,
+    "n_turns": 142,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 449,
+    "speech_s": 683.29,
+    "n_turns": 213,
+    "gold": false
+   }
+  },
+  {
+   "session": "7d0033eb-06d9-48f7-a551-b3ca5507d99a",
+   "dur_s": 3406.1,
+   "n_events": 3221,
+   "n_labels": 399513,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 408,
+    "speech_s": 755.44,
+    "n_turns": 230,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 847,
+    "speech_s": 1838.08,
+    "n_turns": 294,
+    "gold": false
+   }
+  },
+  {
+   "session": "7f32f80f-9412-43c2-87c1-df810a781a94",
+   "dur_s": 1958.9,
+   "n_events": 1873,
+   "n_labels": 237117,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 294,
+    "speech_s": 672.9300000000001,
+    "n_turns": 120,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 489,
+    "speech_s": 720.63,
+    "n_turns": 151,
+    "gold": false
+   }
+  },
+  {
+   "session": "826248c3-018b-4b56-8844-ef762f5b60cd",
+   "dur_s": 2074.8,
+   "n_events": 1651,
+   "n_labels": 265105,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 170,
+    "speech_s": 247.68,
+    "n_turns": 102,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 513,
+    "speech_s": 1046.78,
+    "n_turns": 113,
+    "gold": false
+   }
+  },
+  {
+   "session": "8712e06c-82bc-46dc-ba0f-4181c1feaf48",
+   "dur_s": 1639.0,
+   "n_events": 2151,
+   "n_labels": 197930,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 443,
+    "speech_s": 665.23,
+    "n_turns": 206,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 334,
+    "speech_s": 513.28,
+    "n_turns": 173,
+    "gold": false
+   }
+  },
+  {
+   "session": "8b1f3ac0-a641-4574-9763-2218bfb4bdd1",
+   "dur_s": 1565.3,
+   "n_events": 1869,
+   "n_labels": 173261,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 404,
+    "speech_s": 907.11,
+    "n_turns": 173,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 247,
+    "speech_s": 433.01,
+    "n_turns": 172,
+    "gold": false
+   }
+  },
+  {
+   "session": "8e88babc-8098-4a2b-b533-252a2419f7be",
+   "dur_s": 2519.1,
+   "n_events": 1638,
+   "n_labels": 305849,
+   "cached": false,
+   "ch0": {
+    "n_ipus": 373,
+    "speech_s": 675.27,
+    "n_turns": 149,
+    "gold": false
+   },
+   "ch1": {
+    "n_ipus": 345,
+    "speech_s": 1110.27,
+    "n_turns": 131,
+    "gold": false
+   }
+  }
+ ]
+}

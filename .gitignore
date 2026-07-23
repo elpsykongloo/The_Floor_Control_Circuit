@@ -6,6 +6,7 @@ __pycache__/
 *.so
 *.egg-info/
 .pytest_cache/
+/.pytest_tmp_e1_*/
 .mypy_cache/
 .ruff_cache/
 .hypothesis/
@@ -29,6 +30,7 @@ Desktop.ini
 *.log
 *.tmp
 *.temp
+/reports/*_构建失败.png
 tmp/
 temp/
 

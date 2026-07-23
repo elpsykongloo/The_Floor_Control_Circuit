@@ -1,0 +1,10 @@
+{
+ "generated_at": "2026-07-22T16:16:39.991362+00:00",
+ "plan_id": "e1r1-moshi-37e1701082b0",
+ "n_roles": 1000,
+ "ok": 892,
+ "skipped": 108,
+ "failed": 0,
+ "verdict": "passed",
+ "failures": []
+}

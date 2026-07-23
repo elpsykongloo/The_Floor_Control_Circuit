@@ -1,0 +1,1619 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "E1 完整实验结论（Moshi R1）",
+    "description": "Moshi R1 的 E1 正式探针网格、G2 裁决、质量审计与有效秩事后诊断。",
+    "generatedAt": "2026-07-23T05:12:44.970745+00:00",
+    "cards": [
+      {
+        "id": "t4_card",
+        "description": "T4 在最早稳定高分层 L29 相对最强基线 Mimi 的 AUC 优势。",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "T4 AUC 优势",
+            "field": "t4_advantage",
+            "format": "number"
+          },
+          {
+            "label": "95% CI 下界",
+            "field": "t4_ci_low",
+            "format": "number"
+          },
+          {
+            "label": "选定层",
+            "field": "selected_layer",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "stability_card",
+        "description": "同一 L29 上三种子方向的最小绝对余弦。",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "方向最小 |cos|",
+            "field": "direction_min_cos",
+            "format": "number"
+          },
+          {
+            "label": "门限",
+            "field": "direction_threshold",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "rank_card",
+        "description": "正式预设 k 网格的保守有效秩及冻结上限。",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "正式有效秩",
+            "field": "formal_effective_rank",
+            "format": "number"
+          },
+          {
+            "label": "门限",
+            "field": "rank_threshold",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "diagnostic_card",
+        "description": "事后逐整数细扫与逐 k 嵌套选 C 得到的最小保守秩，仅作解释。",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "metrics": [
+          {
+            "label": "诊断最小秩",
+            "field": "diagnostic_best_rank",
+            "format": "number"
+          },
+          {
+            "label": "仍高于门限",
+            "field": "diagnostic_excess",
+            "format": "number"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "spec_auc_comparison",
+        "title": "十项规格的探针与最强基线 AUC",
+        "subtitle": "T4 的独立优势最突出；T2、T3、T5 与 Mimi 基本重合",
+        "intent": "comparison",
+        "question": "各目标的最优稳定层相对同规格最强基线表现如何？",
+        "rationale": "十项规格使用同一 AUC 尺度，分组柱形图可同时呈现绝对可读性与基线差距。",
+        "comparisonContext": {
+          "baseline": "同规格最强可用基线",
+          "denominator": "冻结主评估会话的有效目标行",
+          "grain": "目标规格",
+          "unit": "AUC 或 macro-OVR AUC"
+        },
+        "type": "bar",
+        "dataset": "spec_results",
+        "sourceId": "spec_results_sql",
+        "encodings": {
+          "x": {
+            "field": "spec_label",
+            "type": "nominal",
+            "label": "目标规格"
+          },
+          "y": {
+            "fields": [
+              "probe_auc",
+              "baseline_auc"
+            ],
+            "type": "quantitative",
+            "format": "number",
+            "label": "AUC"
+          },
+          "tooltip": [
+            {
+              "field": "selected_layer",
+              "type": "quantitative",
+              "label": "选定层"
+            },
+            {
+              "field": "advantage",
+              "type": "quantitative",
+              "label": "优势"
+            },
+            {
+              "field": "ci_text",
+              "type": "text",
+              "label": "优势 95% CI"
+            },
+            {
+              "field": "baseline",
+              "type": "text",
+              "label": "最强基线"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full",
+        "palette": {
+          "kind": "categorical",
+          "name": "blue-orange"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "settings": {
+          "groupMode": "grouped",
+          "sort": "custom",
+          "showValues": false
+        },
+        "surface": {
+          "surface": "compact",
+          "compact": true,
+          "showControls": false,
+          "viewMode": "visualization"
+        }
+      },
+      {
+        "id": "t1_horizon_curve",
+        "title": "T1 发言起始预测随前瞻量变化",
+        "subtitle": "前瞻越远，绝对 AUC 下降；探针相对 Mimi 的优势逐步扩大",
+        "intent": "trend",
+        "question": "发言起始预测的绝对性能与相对基线优势如何随 δ 变化？",
+        "rationale": "δ 是有序时间轴，双线能直接比较模型内部表征与 Mimi 的衰减速度。",
+        "comparisonContext": {
+          "baseline": "Mimi 同规格探针",
+          "denominator": "T1 冻结行域",
+          "grain": "前瞻量",
+          "unit": "AUC"
+        },
+        "type": "line",
+        "dataset": "t1_horizon",
+        "sourceId": "t1_horizon_sql",
+        "encodings": {
+          "x": {
+            "field": "delta_ms",
+            "type": "quantitative",
+            "format": "number",
+            "label": "δ（毫秒）"
+          },
+          "y": {
+            "fields": [
+              "probe_auc",
+              "baseline_auc"
+            ],
+            "type": "quantitative",
+            "format": "number",
+            "label": "AUC"
+          },
+          "tooltip": [
+            {
+              "field": "advantage",
+              "type": "quantitative",
+              "label": "优势"
+            },
+            {
+              "field": "ci_low",
+              "type": "quantitative",
+              "label": "CI 下界"
+            },
+            {
+              "field": "ci_high",
+              "type": "quantitative",
+              "label": "CI 上界"
+            },
+            {
+              "field": "selected_layer",
+              "type": "quantitative",
+              "label": "选定层"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full",
+        "palette": {
+          "kind": "categorical",
+          "name": "blue-orange"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "读出"
+        },
+        "surface": {
+          "surface": "compact",
+          "compact": true,
+          "showControls": false,
+          "viewMode": "visualization"
+        }
+      },
+      {
+        "id": "t4_layer_curve",
+        "title": "T4 跨层 AUC 曲线",
+        "subtitle": "L29–L31 在三种子中共同占据前三；L29 是交集内最早层",
+        "intent": "trend",
+        "question": "T4 信息沿 32 层如何浮现，稳定高分区间在哪里？",
+        "rationale": "逐层曲线可区分单点尖峰与连续晚层平台。",
+        "comparisonContext": {
+          "baseline": "Mimi T4 AUC",
+          "denominator": "T4 冻结评估行域",
+          "grain": "Transformer 层",
+          "unit": "AUC"
+        },
+        "type": "line",
+        "dataset": "t4_layers",
+        "sourceId": "t4_layers_sql",
+        "encodings": {
+          "x": {
+            "field": "layer",
+            "type": "quantitative",
+            "label": "层号"
+          },
+          "y": {
+            "fields": [
+              "probe_auc_mean",
+              "mimi_auc"
+            ],
+            "type": "quantitative",
+            "format": "number",
+            "label": "AUC"
+          },
+          "tooltip": [
+            {
+              "field": "probe_auc_min",
+              "type": "quantitative",
+              "label": "种子最小值"
+            },
+            {
+              "field": "probe_auc_max",
+              "type": "quantitative",
+              "label": "种子最大值"
+            },
+            {
+              "field": "is_shared_top3",
+              "type": "text",
+              "label": "共同 top-3"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full",
+        "palette": {
+          "kind": "categorical",
+          "name": "blue-orange"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "读出"
+        },
+        "surface": {
+          "surface": "compact",
+          "compact": true,
+          "showControls": false,
+          "viewMode": "visualization"
+        }
+      },
+      {
+        "id": "formal_rank_curve",
+        "title": "L29 正式有效秩曲线",
+        "subtitle": "k=64 仍未达到 95% 保留线；原预设网格直到 k=128 才共同过线",
+        "intent": "trend",
+        "question": "T4 线性信号需要多少个 PCA 方向才能保留 95% 的超随机 AUC？",
+        "rationale": "AUC 曲线与逐种子门线的均值同图，直接展示正式秩裁决。",
+        "comparisonContext": {
+          "baseline": "随机 AUC=0.5；保留 95% 的超随机部分",
+          "denominator": "L29 全维 T4 AUC",
+          "grain": "PCA 投影秩",
+          "unit": "AUC"
+        },
+        "type": "line",
+        "dataset": "formal_rank_curve",
+        "sourceId": "formal_rank_curve_sql",
+        "encodings": {
+          "x": {
+            "field": "rank",
+            "type": "quantitative",
+            "label": "PCA 秩 k"
+          },
+          "y": {
+            "fields": [
+              "auc_mean",
+              "retention_threshold_mean"
+            ],
+            "type": "quantitative",
+            "format": "number",
+            "label": "AUC"
+          },
+          "tooltip": [
+            {
+              "field": "auc_min",
+              "type": "quantitative",
+              "label": "种子最小 AUC"
+            },
+            {
+              "field": "auc_max",
+              "type": "quantitative",
+              "label": "种子最大 AUC"
+            },
+            {
+              "field": "all_seeds_pass",
+              "type": "text",
+              "label": "三种子均过线"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full",
+        "palette": {
+          "kind": "categorical",
+          "name": "blue-orange"
+        },
+        "legend": {
+          "position": "bottom",
+          "sort": "spec",
+          "title": "曲线"
+        },
+        "surface": {
+          "surface": "compact",
+          "compact": true,
+          "showControls": false,
+          "viewMode": "visualization"
+        }
+      },
+      {
+        "id": "diagnostic_rank_comparison",
+        "title": "L29–L31 的事后有效秩复核",
+        "subtitle": "最优诊断值为 L30 嵌套选 C 的 57，仍是冻结上限 16 的 3.56 倍",
+        "intent": "comparison",
+        "question": "固定 C、低维重选 C 与相邻层能否解释正式有效秩失败？",
+        "rationale": "三层两种训练口径与冻结上限处在同一维数尺度，可直接比较。",
+        "comparisonContext": {
+          "baseline": "G2 有效秩上限 16",
+          "denominator": "三种子最小过线 k 的最大值",
+          "grain": "层",
+          "unit": "维"
+        },
+        "type": "bar",
+        "dataset": "rank_diagnostics",
+        "sourceId": "rank_diagnostics_sql",
+        "encodings": {
+          "x": {
+            "field": "layer",
+            "type": "nominal",
+            "label": "层"
+          },
+          "y": {
+            "fields": [
+              "fixed_rank",
+              "nested_rank",
+              "gate_max"
+            ],
+            "type": "quantitative",
+            "format": "number",
+            "label": "保守有效秩"
+          },
+          "tooltip": [
+            {
+              "field": "fixed_seed_ranks",
+              "type": "text",
+              "label": "固定 C 三种子"
+            },
+            {
+              "field": "nested_seed_ranks",
+              "type": "text",
+              "label": "嵌套 C 三种子"
+            },
+            {
+              "field": "pca_var_k16_mean",
+              "type": "quantitative",
+              "label": "k=16 方差占比"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full",
+        "palette": {
+          "kind": "categorical",
+          "name": "blue-orange"
+        },
+        "labels": {
+          "values": "auto"
+        },
+        "settings": {
+          "groupMode": "grouped",
+          "sort": "custom",
+          "showValues": true
+        },
+        "surface": {
+          "surface": "compact",
+          "compact": true,
+          "showControls": false,
+          "viewMode": "visualization"
+        }
+      }
+    ],
+    "tables": [],
+    "sources": [
+      {
+        "id": "formal_summary",
+        "label": "E1 正式探针与 G2 汇总",
+        "path": "reports/wp_e1_probe_summary.json"
+      },
+      {
+        "id": "formal_grid_report",
+        "label": "E1 正式探针网格简表",
+        "path": "reports/e1_探针网格报告.md"
+      },
+      {
+        "id": "rank_diagnostics",
+        "label": "有效秩事后诊断",
+        "path": "reports/wp_e1_effective_rank_diagnostics.json"
+      },
+      {
+        "id": "cache_audit",
+        "label": "E1 激活缓存审计",
+        "path": "reports/wp_e1_cache_audit.json"
+      },
+      {
+        "id": "cache_parity",
+        "label": "E1 缓存奇偶校验",
+        "path": "reports/wp_e1_cache_parity.json"
+      },
+      {
+        "id": "probe_parity",
+        "label": "E1 探针训练器奇偶校验",
+        "path": "reports/wp_e1_probe_parity.json"
+      },
+      {
+        "id": "ingest",
+        "label": "E1 Zarr 摄取报告",
+        "path": "reports/wp_e1_ingest.json"
+      },
+      {
+        "id": "labels",
+        "label": "E1 标签闭合报告",
+        "path": "reports/wp_e1_probe_labels.json"
+      },
+      {
+        "id": "mve_summary",
+        "label": "E1 前置 MVE 正式汇总",
+        "path": "reports/mve_summary.json"
+      },
+      {
+        "id": "prereg",
+        "label": "预注册与变更登记",
+        "path": "PREREG.md"
+      },
+      {
+        "id": "headline_sql",
+        "label": "E1 核心指标查询",
+        "path": "scripts/wp_e1_complete_report.py",
+        "query": {
+          "id": "e1_complete_headline",
+          "language": "sql",
+          "engine": "SQLite",
+          "description": "从已复核的 E1 正式 JSON 派生 E1 核心指标查询。",
+          "sql": "SELECT * FROM headline;",
+          "tables_used": [
+            "headline"
+          ],
+          "metric_definitions": [
+            "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+            "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+            "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+            "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+          ]
+        }
+      },
+      {
+        "id": "spec_results_sql",
+        "label": "十规格正式结果查询",
+        "path": "scripts/wp_e1_complete_report.py",
+        "query": {
+          "id": "e1_complete_spec_results",
+          "language": "sql",
+          "engine": "SQLite",
+          "description": "从已复核的 E1 正式 JSON 派生 十规格正式结果查询。",
+          "sql": "SELECT * FROM spec_results ORDER BY sort_order;",
+          "tables_used": [
+            "spec_results"
+          ],
+          "metric_definitions": [
+            "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+            "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+            "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+            "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+          ]
+        }
+      },
+      {
+        "id": "t1_horizon_sql",
+        "label": "T1 前瞻曲线查询",
+        "path": "scripts/wp_e1_complete_report.py",
+        "query": {
+          "id": "e1_complete_t1_horizon",
+          "language": "sql",
+          "engine": "SQLite",
+          "description": "从已复核的 E1 正式 JSON 派生 T1 前瞻曲线查询。",
+          "sql": "SELECT * FROM t1_horizon ORDER BY delta_ms;",
+          "tables_used": [
+            "t1_horizon"
+          ],
+          "metric_definitions": [
+            "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+            "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+            "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+            "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+          ]
+        }
+      },
+      {
+        "id": "t4_layers_sql",
+        "label": "T4 跨层曲线查询",
+        "path": "scripts/wp_e1_complete_report.py",
+        "query": {
+          "id": "e1_complete_t4_layers",
+          "language": "sql",
+          "engine": "SQLite",
+          "description": "从已复核的 E1 正式 JSON 派生 T4 跨层曲线查询。",
+          "sql": "SELECT * FROM t4_layers ORDER BY layer;",
+          "tables_used": [
+            "t4_layers"
+          ],
+          "metric_definitions": [
+            "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+            "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+            "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+            "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+          ]
+        }
+      },
+      {
+        "id": "formal_rank_curve_sql",
+        "label": "正式有效秩曲线查询",
+        "path": "scripts/wp_e1_complete_report.py",
+        "query": {
+          "id": "e1_complete_formal_rank_curve",
+          "language": "sql",
+          "engine": "SQLite",
+          "description": "从已复核的 E1 正式 JSON 派生 正式有效秩曲线查询。",
+          "sql": "SELECT * FROM formal_rank_curve ORDER BY rank;",
+          "tables_used": [
+            "formal_rank_curve"
+          ],
+          "metric_definitions": [
+            "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+            "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+            "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+            "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+          ]
+        }
+      },
+      {
+        "id": "rank_diagnostics_sql",
+        "label": "事后有效秩诊断查询",
+        "path": "scripts/wp_e1_complete_report.py",
+        "query": {
+          "id": "e1_complete_rank_diagnostics",
+          "language": "sql",
+          "engine": "SQLite",
+          "description": "从已复核的 E1 正式 JSON 派生 事后有效秩诊断查询。",
+          "sql": "SELECT * FROM rank_diagnostics ORDER BY layer;",
+          "tables_used": [
+            "rank_diagnostics"
+          ],
+          "metric_definitions": [
+            "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+            "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+            "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+            "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+          ]
+        }
+      },
+      {
+        "id": "g2_conditions_sql",
+        "label": "G2 条件对账查询",
+        "path": "scripts/wp_e1_complete_report.py",
+        "query": {
+          "id": "e1_complete_g2_conditions",
+          "language": "sql",
+          "engine": "SQLite",
+          "description": "从已复核的 E1 正式 JSON 派生 G2 条件对账查询。",
+          "sql": "SELECT * FROM g2_conditions ORDER BY sort_order;",
+          "tables_used": [
+            "g2_conditions"
+          ],
+          "metric_definitions": [
+            "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+            "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+            "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+            "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+          ]
+        }
+      },
+      {
+        "id": "quality_checks_sql",
+        "label": "质量门对账查询",
+        "path": "scripts/wp_e1_complete_report.py",
+        "query": {
+          "id": "e1_complete_quality_checks",
+          "language": "sql",
+          "engine": "SQLite",
+          "description": "从已复核的 E1 正式 JSON 派生 质量门对账查询。",
+          "sql": "SELECT * FROM quality_checks ORDER BY sort_order;",
+          "tables_used": [
+            "quality_checks"
+          ],
+          "metric_definitions": [
+            "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+            "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+            "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+            "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+          ]
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# E1 完整实验结论（Moshi R1）​",
+        "layout": "full"
+      },
+      {
+        "id": "summary",
+        "type": "markdown",
+        "sourceId": "formal_summary",
+        "layout": "full",
+        "body": "## 技术摘要\n\n**G2=​`fail`：​仅有效秩失败，​128 > 16。​** T4·L29 的 AUC 为 0.8348，​相对 Mimi +​0.0659 [+​0.0581,+​0.0743]；​共同 top-3=​L29/​L30/​L31，​|cos|≥​0.9757。​细扫最低秩 57；​T1 有小幅增量，​T2/​T3/​T5 无确认增量。​当前范围仅为 Moshi R1；​完整章节与精确表​见同名 Markdown。​"
+      },
+      {
+        "id": "diagnostic_chart_block",
+        "type": "chart",
+        "chartId": "diagnostic_rank_comparison",
+        "layout": "full"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-23T05:12:44.970745+00:00",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "g2_verdict": "fail",
+          "primary_target": "T4",
+          "selected_layer": 29,
+          "t4_advantage": 0.06594753421172439,
+          "t4_ci_low": 0.05807435809562649,
+          "direction_min_cos": 0.9756926410911649,
+          "direction_threshold": 0.8,
+          "formal_effective_rank": 128,
+          "rank_threshold": 16,
+          "diagnostic_best_rank": 57,
+          "diagnostic_excess": 41,
+          "sessions": 500,
+          "roles": 1000,
+          "cache_gb": 789.529024
+        }
+      ],
+      "spec_results": [
+        {
+          "spec": "T1_d0",
+          "sort_order": 0,
+          "spec_label": "T1·0 ms",
+          "n_classes": 2,
+          "selected_layer": 4,
+          "probe_auc": 0.9588921136719516,
+          "probe_auc_min": 0.9502072760706597,
+          "probe_auc_max": 0.9651656139539944,
+          "seed_range": 0.014958337883334671,
+          "baseline": "Mimi",
+          "baseline_auc": 0.9483856595403711,
+          "advantage": 0.010506454131580467,
+          "ci_low": -0.009890905467784913,
+          "ci_high": 0.04222190230701075,
+          "ci_text": "[-0.0099, +0.0422]",
+          "significant": "否",
+          "top3_overlap": 0
+        },
+        {
+          "spec": "T1_d80",
+          "sort_order": 1,
+          "spec_label": "T1·80 ms",
+          "n_classes": 2,
+          "selected_layer": 29,
+          "probe_auc": 0.9490236248109719,
+          "probe_auc_min": 0.9489964383628744,
+          "probe_auc_max": 0.9490665223533443,
+          "seed_range": 7.008399046992686e-05,
+          "baseline": "Mimi",
+          "baseline_auc": 0.9422205283523084,
+          "advantage": 0.0068030964586635045,
+          "ci_low": 0.00514651047317981,
+          "ci_high": 0.008649311040661061,
+          "ci_text": "[+0.0051, +0.0086]",
+          "significant": "是",
+          "top3_overlap": 3
+        },
+        {
+          "spec": "T1_d160",
+          "sort_order": 2,
+          "spec_label": "T1·160 ms",
+          "n_classes": 2,
+          "selected_layer": 29,
+          "probe_auc": 0.9287307632697362,
+          "probe_auc_min": 0.9286474001135735,
+          "probe_auc_max": 0.9287893499116688,
+          "seed_range": 0.00014194979809534214,
+          "baseline": "Mimi",
+          "baseline_auc": 0.9164703535797326,
+          "advantage": 0.012260409690003637,
+          "ci_low": 0.010428179567902077,
+          "ci_high": 0.01412171196080291,
+          "ci_text": "[+0.0104, +0.0141]",
+          "significant": "是",
+          "top3_overlap": 3
+        },
+        {
+          "spec": "T1_d240",
+          "sort_order": 3,
+          "spec_label": "T1·240 ms",
+          "n_classes": 2,
+          "selected_layer": 29,
+          "probe_auc": 0.9177132489675058,
+          "probe_auc_min": 0.9175709626257518,
+          "probe_auc_max": 0.9178422246641436,
+          "seed_range": 0.0002712620383917841,
+          "baseline": "Mimi",
+          "baseline_auc": 0.9033572692390167,
+          "advantage": 0.014355979728489121,
+          "ci_low": 0.012258618489354833,
+          "ci_high": 0.016644915841610503,
+          "ci_text": "[+0.0123, +0.0166]",
+          "significant": "是",
+          "top3_overlap": 3
+        },
+        {
+          "spec": "T1_d400",
+          "sort_order": 4,
+          "spec_label": "T1·400 ms",
+          "n_classes": 2,
+          "selected_layer": 29,
+          "probe_auc": 0.9037806131990669,
+          "probe_auc_min": 0.9036618341062652,
+          "probe_auc_max": 0.9040153075449355,
+          "seed_range": 0.00035347343867031533,
+          "baseline": "Mimi",
+          "baseline_auc": 0.8886514269461648,
+          "advantage": 0.01512918625290205,
+          "ci_low": 0.012679580128852303,
+          "ci_high": 0.017525725021373357,
+          "ci_text": "[+0.0127, +0.0175]",
+          "significant": "是",
+          "top3_overlap": 3
+        },
+        {
+          "spec": "T1_d800",
+          "sort_order": 5,
+          "spec_label": "T1·800 ms",
+          "n_classes": 2,
+          "selected_layer": 29,
+          "probe_auc": 0.86783185620527,
+          "probe_auc_min": 0.8675732818590463,
+          "probe_auc_max": 0.8682103653890851,
+          "seed_range": 0.0006370835300388844,
+          "baseline": "Mimi",
+          "baseline_auc": 0.844072124303111,
+          "advantage": 0.023759731902159076,
+          "ci_low": 0.019126789548139726,
+          "ci_high": 0.028736459057695254,
+          "ci_text": "[+0.0191, +0.0287]",
+          "significant": "是",
+          "top3_overlap": 3
+        },
+        {
+          "spec": "T2",
+          "sort_order": 6,
+          "spec_label": "T2·让位",
+          "n_classes": 2,
+          "selected_layer": 28,
+          "probe_auc": 0.7962479624459754,
+          "probe_auc_min": 0.7951425182591979,
+          "probe_auc_max": 0.7969123834260847,
+          "seed_range": 0.0017698651668868193,
+          "baseline": "Mimi",
+          "baseline_auc": 0.7971535359331735,
+          "advantage": -0.000905573487198108,
+          "ci_low": -0.012418238117813873,
+          "ci_high": 0.011306539989329834,
+          "ci_text": "[-0.0124, +0.0113]",
+          "significant": "否",
+          "top3_overlap": 3
+        },
+        {
+          "spec": "T3",
+          "sort_order": 7,
+          "spec_label": "T3·来话",
+          "n_classes": 3,
+          "selected_layer": 30,
+          "probe_auc": 0.970907344933527,
+          "probe_auc_min": 0.9705925859950065,
+          "probe_auc_max": 0.9711309009284058,
+          "seed_range": 0.0005383149333992865,
+          "baseline": "Mimi",
+          "baseline_auc": 0.9707739343861426,
+          "advantage": 0.00013341054738447156,
+          "ci_low": -0.0017139674323806615,
+          "ci_high": 0.0020401612723453225,
+          "ci_text": "[-0.0017, +0.0020]",
+          "significant": "否",
+          "top3_overlap": 2
+        },
+        {
+          "spec": "T4",
+          "sort_order": 8,
+          "spec_label": "T4·终点",
+          "n_classes": 2,
+          "selected_layer": 29,
+          "probe_auc": 0.8348347223710012,
+          "probe_auc_min": 0.83461655195808,
+          "probe_auc_max": 0.8351296999276934,
+          "seed_range": 0.0005131479696133256,
+          "baseline": "Mimi",
+          "baseline_auc": 0.7688871881592768,
+          "advantage": 0.06594753421172439,
+          "ci_low": 0.05807435809562649,
+          "ci_high": 0.07434013246483805,
+          "ci_text": "[+0.0581, +0.0743]",
+          "significant": "是",
+          "top3_overlap": 3
+        },
+        {
+          "spec": "T5",
+          "sort_order": 9,
+          "spec_label": "T5·状态",
+          "n_classes": 5,
+          "selected_layer": 30,
+          "probe_auc": 0.9941539311723547,
+          "probe_auc_min": 0.9941066637641687,
+          "probe_auc_max": 0.9941775823233614,
+          "seed_range": 7.091855919272305e-05,
+          "baseline": "Mimi",
+          "baseline_auc": 0.9939874838060473,
+          "advantage": 0.00016644736630744283,
+          "ci_low": -0.0001993597842222361,
+          "ci_high": 0.0007106591530725264,
+          "ci_text": "[-0.0002, +0.0007]",
+          "significant": "否",
+          "top3_overlap": 2
+        }
+      ],
+      "t1_horizon": [
+        {
+          "delta_ms": 0,
+          "probe_auc": 0.9588921136719516,
+          "baseline_auc": 0.9483856595403711,
+          "advantage": 0.010506454131580467,
+          "ci_low": -0.009890905467784913,
+          "ci_high": 0.04222190230701075,
+          "selected_layer": 4,
+          "significant": "否"
+        },
+        {
+          "delta_ms": 80,
+          "probe_auc": 0.9490236248109719,
+          "baseline_auc": 0.9422205283523084,
+          "advantage": 0.0068030964586635045,
+          "ci_low": 0.00514651047317981,
+          "ci_high": 0.008649311040661061,
+          "selected_layer": 29,
+          "significant": "是"
+        },
+        {
+          "delta_ms": 160,
+          "probe_auc": 0.9287307632697362,
+          "baseline_auc": 0.9164703535797326,
+          "advantage": 0.012260409690003637,
+          "ci_low": 0.010428179567902077,
+          "ci_high": 0.01412171196080291,
+          "selected_layer": 29,
+          "significant": "是"
+        },
+        {
+          "delta_ms": 240,
+          "probe_auc": 0.9177132489675058,
+          "baseline_auc": 0.9033572692390167,
+          "advantage": 0.014355979728489121,
+          "ci_low": 0.012258618489354833,
+          "ci_high": 0.016644915841610503,
+          "selected_layer": 29,
+          "significant": "是"
+        },
+        {
+          "delta_ms": 400,
+          "probe_auc": 0.9037806131990669,
+          "baseline_auc": 0.8886514269461648,
+          "advantage": 0.01512918625290205,
+          "ci_low": 0.012679580128852303,
+          "ci_high": 0.017525725021373357,
+          "selected_layer": 29,
+          "significant": "是"
+        },
+        {
+          "delta_ms": 800,
+          "probe_auc": 0.86783185620527,
+          "baseline_auc": 0.844072124303111,
+          "advantage": 0.023759731902159076,
+          "ci_low": 0.019126789548139726,
+          "ci_high": 0.028736459057695254,
+          "selected_layer": 29,
+          "significant": "是"
+        }
+      ],
+      "t4_layers": [
+        {
+          "layer": 0,
+          "probe_auc_mean": 0.7382426953244721,
+          "probe_auc_min": 0.7365423841532542,
+          "probe_auc_max": 0.7409569351829535,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 1,
+          "probe_auc_mean": 0.7621284849614216,
+          "probe_auc_min": 0.7614008395597333,
+          "probe_auc_max": 0.7631328360024281,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 2,
+          "probe_auc_mean": 0.7653402045041345,
+          "probe_auc_min": 0.7646923650723512,
+          "probe_auc_max": 0.7658533989671764,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 3,
+          "probe_auc_mean": 0.7696938956360152,
+          "probe_auc_min": 0.7688903729591244,
+          "probe_auc_max": 0.7704296773876793,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 4,
+          "probe_auc_mean": 0.7719155608669648,
+          "probe_auc_min": 0.7715676970354303,
+          "probe_auc_max": 0.7725017965060746,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 5,
+          "probe_auc_mean": 0.7752113637749986,
+          "probe_auc_min": 0.7746843840104264,
+          "probe_auc_max": 0.7757624271354989,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 6,
+          "probe_auc_mean": 0.774522354412338,
+          "probe_auc_min": 0.7736901685368184,
+          "probe_auc_max": 0.7751517127063192,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 7,
+          "probe_auc_mean": 0.7773369270893775,
+          "probe_auc_min": 0.7763662372905564,
+          "probe_auc_max": 0.7780235420404739,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 8,
+          "probe_auc_mean": 0.7799779397980772,
+          "probe_auc_min": 0.7793123398766325,
+          "probe_auc_max": 0.7803351488087268,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 9,
+          "probe_auc_mean": 0.7808165417667206,
+          "probe_auc_min": 0.7803218981816235,
+          "probe_auc_max": 0.781096292725601,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 10,
+          "probe_auc_mean": 0.7871058240644034,
+          "probe_auc_min": 0.7863464701445239,
+          "probe_auc_max": 0.7876019321924962,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 11,
+          "probe_auc_mean": 0.7927679332592414,
+          "probe_auc_min": 0.7920086025860761,
+          "probe_auc_max": 0.7932779429224356,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 12,
+          "probe_auc_mean": 0.7987975497591269,
+          "probe_auc_min": 0.7979923765655267,
+          "probe_auc_max": 0.7992322865616882,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 13,
+          "probe_auc_mean": 0.8035019640683907,
+          "probe_auc_min": 0.8029518073297448,
+          "probe_auc_max": 0.8039117803933121,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 14,
+          "probe_auc_mean": 0.8108400451246619,
+          "probe_auc_min": 0.810286238651884,
+          "probe_auc_max": 0.8112950298153058,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 15,
+          "probe_auc_mean": 0.8150302653621726,
+          "probe_auc_min": 0.81313072985012,
+          "probe_auc_max": 0.8160270379743445,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 16,
+          "probe_auc_mean": 0.8162132674019323,
+          "probe_auc_min": 0.815521282459852,
+          "probe_auc_max": 0.8171944182221508,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 17,
+          "probe_auc_mean": 0.8182125080712592,
+          "probe_auc_min": 0.8172101097542469,
+          "probe_auc_max": 0.8189031911973434,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 18,
+          "probe_auc_mean": 0.818152113107725,
+          "probe_auc_min": 0.8170794167269222,
+          "probe_auc_max": 0.8188259888594307,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 19,
+          "probe_auc_mean": 0.8236130452377339,
+          "probe_auc_min": 0.8220979173919641,
+          "probe_auc_max": 0.8246190235487355,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 20,
+          "probe_auc_mean": 0.8277755553918987,
+          "probe_auc_min": 0.8270677394374369,
+          "probe_auc_max": 0.828429624943092,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 21,
+          "probe_auc_mean": 0.8279119903576349,
+          "probe_auc_min": 0.8269852368486829,
+          "probe_auc_max": 0.8284644950144167,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 22,
+          "probe_auc_mean": 0.8287229054896464,
+          "probe_auc_min": 0.8275511781062818,
+          "probe_auc_max": 0.829669046758255,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 23,
+          "probe_auc_mean": 0.8294461107689195,
+          "probe_auc_min": 0.8288090113191041,
+          "probe_auc_max": 0.8300440395052802,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 24,
+          "probe_auc_mean": 0.8308247339088104,
+          "probe_auc_min": 0.830606214795176,
+          "probe_auc_max": 0.8312004705506905,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 25,
+          "probe_auc_mean": 0.8312455691762703,
+          "probe_auc_min": 0.8308606268355605,
+          "probe_auc_max": 0.8319829549512153,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 26,
+          "probe_auc_mean": 0.8312209973993436,
+          "probe_auc_min": 0.8307655012809869,
+          "probe_auc_max": 0.8319230481686797,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 27,
+          "probe_auc_mean": 0.8305688573254302,
+          "probe_auc_min": 0.8303170024236094,
+          "probe_auc_max": 0.8308633467011238,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 28,
+          "probe_auc_mean": 0.8328648655484439,
+          "probe_auc_min": 0.8325887875704097,
+          "probe_auc_max": 0.8330971932103228,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "否"
+        },
+        {
+          "layer": 29,
+          "probe_auc_mean": 0.8348347223710012,
+          "probe_auc_min": 0.83461655195808,
+          "probe_auc_max": 0.8351296999276934,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "是"
+        },
+        {
+          "layer": 30,
+          "probe_auc_mean": 0.8375028639951915,
+          "probe_auc_min": 0.8373772155048517,
+          "probe_auc_max": 0.8376051262910296,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "是"
+        },
+        {
+          "layer": 31,
+          "probe_auc_mean": 0.8379527344087078,
+          "probe_auc_min": 0.8377238937539613,
+          "probe_auc_max": 0.838163396132937,
+          "mimi_auc": 0.7688871881592768,
+          "is_shared_top3": "是"
+        }
+      ],
+      "formal_rank_curve": [
+        {
+          "rank": 1,
+          "auc_mean": 0.5750569451511446,
+          "auc_min": 0.5749680032225525,
+          "auc_max": 0.575138727091758,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "否"
+        },
+        {
+          "rank": 2,
+          "auc_mean": 0.5703009928764629,
+          "auc_min": 0.5696058231345349,
+          "auc_max": 0.5709413468662685,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "否"
+        },
+        {
+          "rank": 4,
+          "auc_mean": 0.6245965997682024,
+          "auc_min": 0.623266050833311,
+          "auc_max": 0.6260601896485544,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "否"
+        },
+        {
+          "rank": 8,
+          "auc_mean": 0.7438225808911265,
+          "auc_min": 0.7433430244235559,
+          "auc_max": 0.7441402937343224,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "否"
+        },
+        {
+          "rank": 16,
+          "auc_mean": 0.7935409097536518,
+          "auc_min": 0.7931631506476349,
+          "auc_max": 0.7937792350677986,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "否"
+        },
+        {
+          "rank": 24,
+          "auc_mean": 0.7967347758198465,
+          "auc_min": 0.7964539090186836,
+          "auc_max": 0.7969299552324076,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "否"
+        },
+        {
+          "rank": 32,
+          "auc_mean": 0.8055833586257584,
+          "auc_min": 0.8054660092123939,
+          "auc_max": 0.8058091307142283,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "否"
+        },
+        {
+          "rank": 64,
+          "auc_mean": 0.8152151697270501,
+          "auc_min": 0.8149784251894701,
+          "auc_max": 0.8155486205957705,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "否"
+        },
+        {
+          "rank": 128,
+          "auc_mean": 0.8271897381936447,
+          "auc_min": 0.8268352258018442,
+          "auc_max": 0.8275871640198887,
+          "retention_threshold_mean": 0.8180929641680726,
+          "all_seeds_pass": "是"
+        }
+      ],
+      "rank_diagnostics": [
+        {
+          "layer": "L29",
+          "fixed_rank": 84,
+          "nested_rank": 84,
+          "gate_max": 16,
+          "fixed_seed_ranks": "79/84/81",
+          "nested_seed_ranks": "79/84/78",
+          "full_auc_mean": 0.8348347223710012,
+          "pca_var_k16_mean": 0.3905022745487455
+        },
+        {
+          "layer": "L30",
+          "fixed_rank": 68,
+          "nested_rank": 57,
+          "gate_max": 16,
+          "fixed_seed_ranks": "68/68/67",
+          "nested_seed_ranks": "57/56/56",
+          "full_auc_mean": 0.8375028639951915,
+          "pca_var_k16_mean": 0.3830833765244123
+        },
+        {
+          "layer": "L31",
+          "fixed_rank": 66,
+          "nested_rank": 66,
+          "gate_max": 16,
+          "fixed_seed_ranks": "66/65/66",
+          "nested_seed_ranks": "66/65/65",
+          "full_auc_mean": 0.8379527344087078,
+          "pca_var_k16_mean": 0.4479573060003366
+        }
+      ],
+      "g2_conditions": [
+        {
+          "sort_order": 0,
+          "condition": "三种子 top-3 交集",
+          "observed": 3.0,
+          "criterion": "≥ 2",
+          "status": "通过",
+          "detail": "L29, L30, L31"
+        },
+        {
+          "sort_order": 1,
+          "condition": "保守有效秩",
+          "observed": 128.0,
+          "criterion": "≤ 16",
+          "status": "失败",
+          "detail": "正式预设 k 网格的首次共同过线点"
+        },
+        {
+          "sort_order": 2,
+          "condition": "方向最小 |cos|",
+          "observed": 0.9756926410911649,
+          "criterion": "≥ 0.8",
+          "status": "通过",
+          "detail": "三对种子方向的最小绝对余弦"
+        }
+      ],
+      "quality_checks": [
+        {
+          "sort_order": 0,
+          "check": "冻结计划",
+          "observed": "500 会话 / 1000 角色",
+          "status": "通过"
+        },
+        {
+          "sort_order": 1,
+          "check": "激活缓存审计",
+          "observed": "1000/1000 路",
+          "status": "通过"
+        },
+        {
+          "sort_order": 2,
+          "check": "Zarr 摄取",
+          "observed": "892 新写 + 108 断点复用",
+          "status": "通过"
+        },
+        {
+          "sort_order": 3,
+          "check": "标签闭合",
+          "observed": "500 会话 / 1000 角色",
+          "status": "通过"
+        },
+        {
+          "sort_order": 4,
+          "check": "缓存历史前缀奇偶校验",
+          "observed": "2/2 精确全等",
+          "status": "通过"
+        },
+        {
+          "sort_order": 5,
+          "check": "GPU/CPU 探针奇偶校验",
+          "observed": "最大 |ΔAUC|=0.000267；最小 |cos|=0.999997",
+          "status": "通过"
+        },
+        {
+          "sort_order": 6,
+          "check": "有效秩诊断收敛",
+          "observed": "741 断点 / 3705 候选拟合 / 0 未收敛",
+          "status": "通过"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "formal_summary",
+      "label": "E1 正式探针与 G2 汇总",
+      "path": "reports/wp_e1_probe_summary.json"
+    },
+    {
+      "id": "formal_grid_report",
+      "label": "E1 正式探针网格简表",
+      "path": "reports/e1_探针网格报告.md"
+    },
+    {
+      "id": "rank_diagnostics",
+      "label": "有效秩事后诊断",
+      "path": "reports/wp_e1_effective_rank_diagnostics.json"
+    },
+    {
+      "id": "cache_audit",
+      "label": "E1 激活缓存审计",
+      "path": "reports/wp_e1_cache_audit.json"
+    },
+    {
+      "id": "cache_parity",
+      "label": "E1 缓存奇偶校验",
+      "path": "reports/wp_e1_cache_parity.json"
+    },
+    {
+      "id": "probe_parity",
+      "label": "E1 探针训练器奇偶校验",
+      "path": "reports/wp_e1_probe_parity.json"
+    },
+    {
+      "id": "ingest",
+      "label": "E1 Zarr 摄取报告",
+      "path": "reports/wp_e1_ingest.json"
+    },
+    {
+      "id": "labels",
+      "label": "E1 标签闭合报告",
+      "path": "reports/wp_e1_probe_labels.json"
+    },
+    {
+      "id": "mve_summary",
+      "label": "E1 前置 MVE 正式汇总",
+      "path": "reports/mve_summary.json"
+    },
+    {
+      "id": "prereg",
+      "label": "预注册与变更登记",
+      "path": "PREREG.md"
+    },
+    {
+      "id": "headline_sql",
+      "label": "E1 核心指标查询",
+      "path": "scripts/wp_e1_complete_report.py",
+      "query": {
+        "id": "e1_complete_headline",
+        "language": "sql",
+        "engine": "SQLite",
+        "description": "从已复核的 E1 正式 JSON 派生 E1 核心指标查询。",
+        "sql": "SELECT * FROM headline;",
+        "tables_used": [
+          "headline"
+        ],
+        "metric_definitions": [
+          "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+          "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+          "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+          "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+        ]
+      }
+    },
+    {
+      "id": "spec_results_sql",
+      "label": "十规格正式结果查询",
+      "path": "scripts/wp_e1_complete_report.py",
+      "query": {
+        "id": "e1_complete_spec_results",
+        "language": "sql",
+        "engine": "SQLite",
+        "description": "从已复核的 E1 正式 JSON 派生 十规格正式结果查询。",
+        "sql": "SELECT * FROM spec_results ORDER BY sort_order;",
+        "tables_used": [
+          "spec_results"
+        ],
+        "metric_definitions": [
+          "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+          "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+          "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+          "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+        ]
+      }
+    },
+    {
+      "id": "t1_horizon_sql",
+      "label": "T1 前瞻曲线查询",
+      "path": "scripts/wp_e1_complete_report.py",
+      "query": {
+        "id": "e1_complete_t1_horizon",
+        "language": "sql",
+        "engine": "SQLite",
+        "description": "从已复核的 E1 正式 JSON 派生 T1 前瞻曲线查询。",
+        "sql": "SELECT * FROM t1_horizon ORDER BY delta_ms;",
+        "tables_used": [
+          "t1_horizon"
+        ],
+        "metric_definitions": [
+          "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+          "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+          "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+          "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+        ]
+      }
+    },
+    {
+      "id": "t4_layers_sql",
+      "label": "T4 跨层曲线查询",
+      "path": "scripts/wp_e1_complete_report.py",
+      "query": {
+        "id": "e1_complete_t4_layers",
+        "language": "sql",
+        "engine": "SQLite",
+        "description": "从已复核的 E1 正式 JSON 派生 T4 跨层曲线查询。",
+        "sql": "SELECT * FROM t4_layers ORDER BY layer;",
+        "tables_used": [
+          "t4_layers"
+        ],
+        "metric_definitions": [
+          "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+          "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+          "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+          "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+        ]
+      }
+    },
+    {
+      "id": "formal_rank_curve_sql",
+      "label": "正式有效秩曲线查询",
+      "path": "scripts/wp_e1_complete_report.py",
+      "query": {
+        "id": "e1_complete_formal_rank_curve",
+        "language": "sql",
+        "engine": "SQLite",
+        "description": "从已复核的 E1 正式 JSON 派生 正式有效秩曲线查询。",
+        "sql": "SELECT * FROM formal_rank_curve ORDER BY rank;",
+        "tables_used": [
+          "formal_rank_curve"
+        ],
+        "metric_definitions": [
+          "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+          "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+          "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+          "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+        ]
+      }
+    },
+    {
+      "id": "rank_diagnostics_sql",
+      "label": "事后有效秩诊断查询",
+      "path": "scripts/wp_e1_complete_report.py",
+      "query": {
+        "id": "e1_complete_rank_diagnostics",
+        "language": "sql",
+        "engine": "SQLite",
+        "description": "从已复核的 E1 正式 JSON 派生 事后有效秩诊断查询。",
+        "sql": "SELECT * FROM rank_diagnostics ORDER BY layer;",
+        "tables_used": [
+          "rank_diagnostics"
+        ],
+        "metric_definitions": [
+          "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+          "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+          "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+          "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+        ]
+      }
+    },
+    {
+      "id": "g2_conditions_sql",
+      "label": "G2 条件对账查询",
+      "path": "scripts/wp_e1_complete_report.py",
+      "query": {
+        "id": "e1_complete_g2_conditions",
+        "language": "sql",
+        "engine": "SQLite",
+        "description": "从已复核的 E1 正式 JSON 派生 G2 条件对账查询。",
+        "sql": "SELECT * FROM g2_conditions ORDER BY sort_order;",
+        "tables_used": [
+          "g2_conditions"
+        ],
+        "metric_definitions": [
+          "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+          "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+          "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+          "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+        ]
+      }
+    },
+    {
+      "id": "quality_checks_sql",
+      "label": "质量门对账查询",
+      "path": "scripts/wp_e1_complete_report.py",
+      "query": {
+        "id": "e1_complete_quality_checks",
+        "language": "sql",
+        "engine": "SQLite",
+        "description": "从已复核的 E1 正式 JSON 派生 质量门对账查询。",
+        "sql": "SELECT * FROM quality_checks ORDER BY sort_order;",
+        "tables_used": [
+          "quality_checks"
+        ],
+        "metric_definitions": [
+          "AUC：二分类 ROC AUC；多分类规格为逐类一对多 AUC 的宏平均，评估缺类时跳过该类并登记。",
+          "优势：选定层三种子探针相对同规格最强可用基线的会话级主指标差。",
+          "95% CI：以会话为聚类单位的 1000 次 bootstrap 百分位区间。",
+          "有效秩：满足 (AUC_k−0.5)≥0.95×(AUC_full−0.5) 的最小 PCA 投影秩，G2 取三种子最大值。"
+        ]
+      }
+    }
+  ]
+}
