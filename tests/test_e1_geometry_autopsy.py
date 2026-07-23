@@ -1,12 +1,15 @@
-"""E1 几何解剖脚本（PREREG #32/#35/#36/#37）的合成数据测试。
+"""E1 几何解剖脚本（PREREG #32/#35/#36/#37/#38）的合成数据测试。
 
-#37 核心：#36 的两个替代量本身仍有缺陷（云端实证）——
-  - feature_split 仍受类内协方差混淆：判别均值方向稠密均匀分布、但高 SNR 依赖跨
-    坐标噪声抵消的信号，半切后保留率仅 0.12，会被误判"局部化"（本文件反例固化）。
-    → 降为描述量；坐标分布性判读改协方差无关的 participation ratio（PR）。
-  - 白化残差塌缩是 mean-projection tautology（随机标签也塌缩），且白化子空间漏
-    信号时仍 collapsed=True（无 full-auc 复现门）→ 撤销；秩-1 改解析陈述。
-另：转向包 proj_std 改去重训练并集口径，与 E1-X 一致（本文件 dedup 测试固化）。
+#38 核心：participation ratio 也不是"分布式 vs 局部化"的可靠判据，α/β 判据撤销——
+  - CE1 尺度非不变：对某方向仅重缩放两个坐标（可逆对角、保 AUC）即可把 PR/D 从 1.0
+    砸到 <0.01（本文件 test_participation_ratio_not_scale_invariant 固化）；
+  - CE2 有限样本抬高：真支撑=1 的信号，经验 d̂ 的 PR/D 被估计噪声抬到 ≫β 门
+    （test_empirical_diffmeans_pr_inflated_by_finite_sample 固化），β 门几乎永不触发；
+  - 紧凑来源经稠密输出投影写满残差坐标 → 残差坐标分布不约束来源定位。
+  故 PR(v*)/PR(d)/PR(w) 只作描述量，"分布式 vs 局部化"交因果组件级证据（换位点 patching）。
+  top16 判读改嵌套 inner_val 部署 C* 处配对掉幅（test_top16_drop_stats_* 固化）；秩-1 收窄
+  为"单一 Fisher 判别轴，不蕴含唯一/无冗余"。
+#37 遗留：feature_split 受协方差混淆（降描述量）、白化 tautology（撤销）、proj_std 去重并集。
 """
 
 from __future__ import annotations
@@ -123,7 +126,7 @@ def test_top_pc_removal_keeps_misaligned_signal():
 
 
 # --------------------------------------------------------------------------- #
-# #37：participation ratio 是协方差无关的坐标分布度量
+# #38：participation ratio 只作描述量（α/β 判据撤销：尺度非不变 + 有限样本 + 不可辨识）
 # --------------------------------------------------------------------------- #
 
 
@@ -141,30 +144,88 @@ def test_participation_ratio_dense_vs_sparse():
     assert conc["top16_coord_mass"] == pytest.approx(1.0)
 
 
-def test_participation_ratio_solves_covariance_trap_where_feature_split_fails():
-    """核心 #37：稠密均匀信号 + 低方差判别方向。feature_split 误判局部化（<0.25），
-    而 PR(v*)/D 正确判分布式（高）。固化"为什么改用 participation ratio"。"""
+def test_feature_split_and_pr_are_both_descriptive_on_covariance_trap():
+    """#38：稠密均匀信号 + 低方差判别方向上，feature_split 被协方差混淆（保留率 <0.25，
+    会被旧 α/β 误判"局部化"），PR(v*)/D 则偏高——**两者都只是描述量**，均不作分布性判据。
+    PR 的独立缺陷（尺度非不变、有限样本抬高）见下两测试。"""
     module = _load_module()
     x, y = _dense_covariance_trap()
     xtr, xte, ytr, yte = x[:4000], x[4000:], y[:4000], y[4000:]
-    # feature_split（描述量）被协方差混淆：稠密信号却给低保留率。
     fs = module.feature_split_redundancy(xtr, ytr, xte, yte, C_GRID, TRAINER, "cpu", folds=4, seed=0)
     assert fs["full_auc"] > 0.85
-    assert fs["median_retention"] < 0.25  # 会被旧 α/β 误判"局部化"
-    # participation ratio（协方差无关）正确判分布式。
+    assert fs["median_retention"] < 0.25  # 协方差混淆的描述量
     probe = pg.fit_linear_probe(xtr, ytr, 2, 0.1, device="cpu")
     v_star = module.orig_space_direction(probe.weight[0], probe.scale)
     conc = module.coordinate_concentration(v_star)
-    assert conc["participation_fraction"] >= 0.5  # 稠密读出
+    assert 0.0 < conc["participation_fraction"] <= 1.0  # 描述量，无判读含义
 
 
-def test_participation_ratio_calls_localized_sparse():
+def test_participation_ratio_describes_localized_sparse():
+    """描述量测试：干净局部化信号 PR/D 偏低（仅描述，非判据）。"""
     module = _load_module()
     x, y = _localized_dataset()
     probe = pg.fit_linear_probe(x, y, 2, 0.1, device="cpu")
     v_star = module.orig_space_direction(probe.weight[0], probe.scale)
     conc = module.coordinate_concentration(v_star)
-    assert conc["participation_fraction"] < 0.1  # 集中于少数神经元
+    assert conc["participation_fraction"] < 0.1  # 描述量：集中于少数坐标
+
+
+def test_participation_ratio_not_scale_invariant():
+    """#38 CE1：PR 不是规范不变量——对某方向仅重缩放两个坐标（可逆对角、保线性可分性）
+    即可把 PR/D 从 ~1.0 砸到 <0.01，翻转"分布式↔局部化"。故 PR 不能作定位判据。"""
+    module = _load_module()
+    D = 4096
+    uniform = module.coordinate_concentration(np.ones(D))
+    assert uniform["participation_fraction"] == pytest.approx(1.0)
+    scaled = np.ones(D)
+    scaled[0] *= 30.0
+    scaled[1] /= 30.0
+    conc = module.coordinate_concentration(scaled)
+    assert conc["participation_fraction"] < 0.01  # 同一"信号"因坐标单位翻转为"局部化"
+
+
+def test_empirical_diffmeans_pr_inflated_by_finite_sample():
+    """#38 CE2：真支撑=1 的信号，经验 diff-in-means 的 PR/D 被有限样本估计噪声抬高，
+    远超 β 门（<0.01）与总体 PR/D=1/D——β 门几乎永不触发，PR(d̂) 不度量真支撑。"""
+    module = _load_module()
+    rng = np.random.default_rng(0)
+    D, nper = 1024, 200
+    mu = np.zeros(D)
+    mu[0] = 1.0  # 单坐标均值移位（真支撑严格=1）
+    fracs = []
+    for _ in range(60):
+        a = rng.standard_normal((nper, D)) + mu
+        b = rng.standard_normal((nper, D))
+        dhat = a.mean(0) - b.mean(0)
+        fracs.append(module.coordinate_concentration(dhat)["participation_fraction"])
+    median = float(np.median(fracs))
+    assert median > 0.02  # β 门（0.01）失效：真支撑=1 却测得远大于阈值
+    assert median > 20.0 / D  # 且远超总体支撑 1/D
+
+
+def test_top16_drop_stats_nested_vs_evalmax():
+    """#38：top16 掉幅三口径。较弱剔除条件在评估集取 C 最大有乐观上偏（eval_max 偏 α）、
+    在非部署微 C 有大掉幅（paired_max_over_c 偏 β）；nested 只取部署 C* 处配对掉幅，稳健。"""
+    module = _load_module()
+    full = {"0.0001": 0.70, "0.1": 0.840, "1.0": 0.842}
+    rem16 = {"0.0001": 0.60, "0.1": 0.838, "1.0": 0.845}
+    stats = module.top16_drop_stats(full, rem16, 0.1)
+    assert stats["nested_drop_at_chosen_c"] == pytest.approx(0.002, abs=1e-9)
+    assert stats["eval_max_drop"] == pytest.approx(0.842 - 0.845, abs=1e-9)  # 负=乐观（偏 α）
+    assert stats["paired_max_over_c_drop"] == pytest.approx(0.10, abs=1e-9)  # 微 C 主导（偏 β）
+    assert stats["nested_drop_at_chosen_c"] > stats["eval_max_drop"]
+    assert stats["paired_max_over_c_drop"] > stats["nested_drop_at_chosen_c"]
+    with pytest.raises(KeyError):
+        module.top16_drop_stats(full, rem16, 0.5)  # chosen_c 不在网格
+
+
+def test_pr_gate_retired_and_nested_helpers_present():
+    """#38 回归：PR α/β 阈值常量已删除；nested top16 助手与阈值常量在位。"""
+    module = _load_module()
+    assert not hasattr(module, "PR_ALPHA_MIN")
+    assert not hasattr(module, "PR_BETA_MAX")
+    assert hasattr(module, "top16_drop_stats")
+    assert hasattr(module, "TOP16_NO_CONTRIBUTION_MAX_DROP")
 
 
 # --------------------------------------------------------------------------- #
@@ -392,9 +453,16 @@ def _minimal_finalize_result(with_trajectory: bool) -> dict:
             "mean_projection_train_auc": [0.50, 0.50, 0.50],
         },
         "coordinate_concentration_descriptive": {
+            "note": "PR 判据已撤销（#38）；描述量",
             "pr_fraction_vstar": [0.31, 0.32, 0.33],
             "pr_fraction_d": [0.30, 0.31, 0.32],
+            "pr_fraction_readout_std_basis_ce1_invariant": [0.28, 0.29, 0.30],
             "native_half_split_median_retention_covariance_dependent": [0.9, 0.9, 0.9],
+            "top16_drops": {
+                "nested_at_chosen_c_decisive": [0.003, 0.004, 0.005],
+                "eval_max_generous_descriptive": [0.001, 0.002, 0.003],
+                "paired_max_over_c_conservative_descriptive": [0.02, 0.03, 0.04],
+            },
         },
         "alignment_rank_095_by_layer": {"29": 84, "30": 57, "31": 66},
         "verdict_matrix": verdicts,

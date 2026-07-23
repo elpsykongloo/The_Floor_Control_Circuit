@@ -2,24 +2,31 @@
 
 对 G2 有效秩失败做机制解剖（文档/04 §2）：T4 的线性读出在数学上是一维方向
 v* = (w/σ)/‖w/σ‖（AUC 对单调变换不变），本脚本量化该方向与激活方差主轴的
-错向程度、其空间分布性，并给出 E2 方向注入所需的转向向量包。四个 stage：
+错向程度、其坐标分布性（**描述量，非定位判据**），并给出 E2 方向注入所需的转向
+向量包。四个 stage：
 
   directions  零激活载入：8 个二分类规格 × 32 层 × 3 种子的原始空间方向族
               （来自 work/fits 断点），层间传播、跨种子稳定性、T1×T4 方向关系；
-  spectrum    L29/L30/L31 × 3 种子：PCA 能量谱与对齐秩、特征折冗余、白化秩-1
-              确认、均值投影自检、补空间重训、Mimi 主轴鉴定、转向包（e1x schema）；
+  spectrum    L29/L30/L31 × 3 种子：PCA 能量谱与对齐秩、坐标 participation ratio
+              （描述量）、均值投影自检、补空间重训、Mimi 主轴鉴定、转向包（e1x schema）；
   trajectory  评估集事件锁定轨迹：对方 IPU 末步 ±25 步窗内方向投影按
               complete/incomplete 分组的会话级 bootstrap 均值带（sup-t 同时带）；
   finalize    汇总判读矩阵（文档/04 §2.2）并写 reports/。
 
-冗余度量的两条数学约束（#36 修订，均由合成测试固化）：
-  (1) 均值信号的线性擦除秩恒为 1（LEACE guardedness）：擦除 diff-in-means 后两类
-      质心精确相等，凸损失下零权重最优，一轮归零对 1/k 维均值信号一视同仁——
-      "擦除轮数"不度量维数；本脚本仅保留为 Mean Projection 实现自检。
-  (2) 方向剔除法（INLP r₁）受协方差旋转混淆：最优判别方向 ≈ Σ⁻¹d 偏离均值方向 d，
-      剔除后 d 的正交分量仍可读，单均值信号被误判为厚方向束（#36 实证 r₁=0.78）——
-      已撤销。冗余改协方差无关的**特征折**（不相交半空间各自重训，判"分布式 vs
-      局部化"）；秩由**白化秩-1 确认**（白化后剔除唯一判别方向，残差→0.5）刻画。
+"读出分布于众多神经元 vs 局部化于少数神经元"这一问题**在几何上不可辨识**（#38，
+经三路对抗子代理复核）：连续五种冗余/分布性度量各自携带一个协方差/尺度/tautology
+混淆——(1) 均值差擦除秩恒为 1（LEACE，对任意维均值信号一视同仁）；(2) 方向剔除
+（INLP r₁）受 Σ⁻¹d 旋转混淆；(3) 原生坐标特征折受跨坐标噪声抵消混淆；(4) 白化剔除
+残差塌缩为 mean-projection tautology 且漏信号也过；(5) participation ratio 本身**不是
+规范不变量**——对某方向仅重缩放两个坐标（可逆对角变换、保 AUC）即可把 PR/D 从 1.0
+砸到 0.007（CE1），且经验 d̂ 的 PR/D 受有限样本噪声抬高（真支撑=1 的信号 PR/D 随 SNR
+在 0.002–0.34 间游走，CE2），v*=w/σ 又天然受协方差整形。**故 PR 只作描述量**；且即便
+一个真正紧凑的来源（单 head/MLP/通道）也经稠密输出投影写满残差坐标，残差坐标分布无法
+约束来源定位——"分布式 vs 局部化"改由**因果组件级证据**裁决（E2 方向注入 + attn/MLP
+换位点 patching，后者保持无条件执行，几何不得取消）。几何上真正成立的只有：AUC 恒等式
+（基于排序、规范不变）、S_B 秩恒为 1 的解析事实（单一 Fisher 判别轴，**不**蕴含读出方向
+唯一或无冗余）、以及 v* 落在方差主轴之外这一**本征基相对**结构事实（非规范不变常数）。
+top16 判读改嵌套 inner_val 在部署 C 处取值（原评估集取 C 最大有选择上偏，#38）。
 
 一切结果不回写正式汇总，不改变 G2=fail；断点按协议哈希（v2：绑定 script/probe_gpu/
 grid/engine/alignment 源码摘要、行域签名、正式汇总摘要，续跑另比对逐任务 fit SHA）
@@ -61,9 +68,9 @@ MIMI_TOP_PCS = 32
 RIDGE_LAMBDA_SCALE = 1e-3
 FEATURE_SPLIT_FOLDS = 4
 FEATURE_SPLIT_SEED = 20260723
-# 坐标分布性阈值（暂定，#37）：参照随机高斯方向 PR/D≈1/3；α 门为其约 1/3，β 门≤~41 神经元。
-PR_ALPHA_MIN = 0.10
-PR_BETA_MAX = 0.01
+# #38：participation ratio 判据已撤销（尺度非不变 + 有限样本抬高 + 来源不可辨识），
+# PR 只作描述量，不再有 α/β 阈值；"分布式 vs 局部化"交由因果组件级证据（换位点 patching）。
+TOP16_NO_CONTRIBUTION_MAX_DROP = 0.01  # top16 判读：部署 C 处逐任务掉幅上界（嵌套口径）
 MEAN_PROJECTION_TOL = 0.05
 TRAJ_HALF_WINDOW = 25
 TRAJ_N_BOOT = 1000
@@ -186,17 +193,25 @@ def diff_in_means(features: np.ndarray, labels: np.ndarray) -> np.ndarray:
 
 
 def coordinate_concentration(direction: np.ndarray) -> dict:
-    """给定方向在原始神经元基上的坐标集中度（#37）。
+    """给定方向在原始神经元基上的坐标集中度（**纯描述量，非定位判据**，#38）。
 
-    participation_ratio PR = (Σ v_i²)² / Σ v_i⁴ = 有效非零坐标数（1..D）：稠密均匀
-    → PR≈D（方向密布于众多神经元）；集中于少数坐标 → PR≈少数。另报 PR/D、前 16
-    坐标能量占比、Gini。**PR 算子本身是向量坐标分布的纯函数（不重训、不涉及 Σ）**；
-    但注意读出方向 v\*=w/σ≈Σ⁻¹d 本身受类内协方差整形（实证：单神经元信号在相干负
-    相关协方差下 PR(v\*)/D 可达 0.965 → 单看 v\* 会误判分布式）。因此判读用 v\* 与
-    **信号方向 d=μ₊−μ₀（协方差无关）双门**：二者皆稠密才判分布式，读出因协方差稠密
-    但 d 稀疏时判 indeterminate（见 _summarize 与 tests）。d 取原始空间（"哪些神经元
-    承载原始均值移位"），其经验估计在近零信号上有 ~1/3 采样噪声底，故 d 门对强信号
-    （如 T4 AUC 0.83）才是有效证书。
+    participation_ratio PR = (Σ v_i²)² / Σ v_i⁴ = 有效非零坐标数（1..D）；另报 PR/D、
+    前 16 坐标能量占比、Gini。**PR 不是"信号分布于多少神经元"的可靠度量，已撤销 α/β
+    判据**（#38，经对抗子代理复核），四重混淆：
+      (a) 尺度非不变：对某方向仅重缩放两个坐标（可逆对角变换、保线性可分性/AUC）即可
+          把 PR/D 从 1.0 砸到 0.007（CE1）——残差流坐标尺度是下一层归一化吸收的规范
+          自由度，PR 需要一个它不提供的计数度规；
+      (b) 读出方向 v*=w/σ≈Σ⁻¹d 天然受类内协方差整形（单神经元信号在相干协方差下
+          PR(v*)/D 可达 0.965，误判分布式）；
+      (c) 经验信号方向 d̂=μ̂₊−μ̂₀ 的 PR 受有限样本估计噪声抬高——真支撑=1 的信号，
+          D=4096、n≈300/类时 PR(d̂)/D 随 SNR 在 0.002–0.34 间游走（CE2），β 门几乎
+          永不触发、α 门可假触发；
+      (d) 即便来源真正紧凑（单 head/MLP/通道），也经稠密输出投影写满残差坐标——残差
+          坐标分布无法约束来源定位。
+    因此 PR(v*)、PR(d)、Gini 一律**只登记为描述量**；"分布式 vs 局部化"交由因果组件级
+    证据（E2 方向注入 + attn/MLP 换位点 patching）裁决，不由本量判读。另在 spectrum 里
+    同时报标准化基读出权重 w 的 PR（PR(w)，即 v* 的 z-score 版）：它对 CE1 重缩放不变，
+    但仍受相干簇混淆（真支撑=1 落在紧相关簇内时 PR(w)/D 仍可低估），故同样非判据。
     """
     v = unit(direction)
     squared = np.square(v)
@@ -303,6 +318,33 @@ def refit_auc_grid(
         "auc_by_c": auc_by_c,
         "max_auc": max(auc_by_c.values()),
         "nonconverged": nonconverged,
+    }
+
+
+def top16_drop_stats(full_auc_by_c: dict, remove16_auc_by_c: dict, chosen_c: float) -> dict:
+    """剔除 top-16 方差主轴后 AUC 掉幅的三种 C 口径（#38，仅 nested 进硬判读）。
+
+    对抗子代理复核否定了 #37 的"评估集取 C 最大"口径与本轮设想的"配对取全网格最差 C"
+    口径：前者对较弱剔除条件有选择上偏（偏向 α），后者在纯噪声/非部署微 C 上把真 α 翻成
+    假 β（P(假 β)≈0.29–0.99）。正确硬口径 = **嵌套 inner_val**——在正式 inner_val 选出的
+    部署 C*（=chosen_c，与正式 G2 协议同口径）处对两条件配对取掉幅，无需新拟合。
+
+      nested_drop_at_chosen_c = full(C*) − remove16(C*)（**唯一进判读**）；
+      eval_max_drop           = maxC full − maxC remove16（α 生成、乐观下界，仅描述）；
+      paired_max_over_c_drop  = maxC [full(C) − remove16(C)]（β 保守上界，仅描述）。
+    """
+    key = str(float(chosen_c))
+    if key not in full_auc_by_c or key not in remove16_auc_by_c:
+        raise KeyError(f"chosen_c={key} 不在 auc_by_c 键内：{sorted(full_auc_by_c)}")
+    shared = sorted(set(full_auc_by_c) & set(remove16_auc_by_c), key=float)
+    if not shared:
+        raise ValueError("full 与 remove16 的 C 网格无公共键，无法配对")
+    paired = [full_auc_by_c[c] - remove16_auc_by_c[c] for c in shared]
+    return {
+        "nested_drop_at_chosen_c": float(full_auc_by_c[key] - remove16_auc_by_c[key]),
+        "eval_max_drop": float(max(full_auc_by_c.values()) - max(remove16_auc_by_c.values())),
+        "paired_max_over_c_drop": float(max(paired)),
+        "chosen_c": float(chosen_c),
     }
 
 
@@ -594,7 +636,7 @@ def _protocol(probe_cfg: dict, summary: dict, roots: dict, train: list[str], eva
         raise SystemExit("正式汇总不再是 G2=fail，#32 几何解剖前提失效，请先复核")
     protocol = {
         "name": PROTOCOL_NAME,
-        "prereg": [32, 35, 36, 37],
+        "prereg": [32, 35, 36, 37, 38],
         "target": TARGET,
         "binary_specs": list(BINARY_SPECS),
         "n_layers": N_LAYERS,
@@ -604,14 +646,16 @@ def _protocol(probe_cfg: dict, summary: dict, roots: dict, train: list[str], eva
         "align_rhos": list(ALIGN_RHOS),
         "mimi_top_pcs": MIMI_TOP_PCS,
         "ridge_lambda_scale": RIDGE_LAMBDA_SCALE,
-        # #37：feature_split 受协方差混淆（降为描述量）、whitened 残差塌缩为 tautology
-        # 且漏信号也过（撤销）；坐标分布性判读改协方差无关的 participation ratio。
-        "distribution_method": "coordinate_participation_ratio_dual_gate_v1",
-        "pr_thresholds": {"alpha_min": PR_ALPHA_MIN, "beta_max": PR_BETA_MAX, "random_baseline": "≈1/3"},
+        # #38：PR 判据撤销（尺度非不变 CE1 + 经验 d̂ 有限样本抬高 CE2 + v* 协方差整形 +
+        # 稠密输出投影使来源不可辨识）；PR 只作描述量，"分布式 vs 局部化"交因果组件级证据。
+        "distribution_method": "coordinate_participation_ratio_descriptive_only_v2_not_decisive",
+        "localization_policy": "deferred_to_causal_component_patching_geometry_non_identifying",
         "feature_split_descriptive": {"folds": FEATURE_SPLIT_FOLDS, "seed": FEATURE_SPLIT_SEED},
-        "rank_one_binary": "analytical_S_B_rank_1_no_experiment",
+        "rank_one_binary": "analytical_S_B_rank_1_single_fisher_axis_not_uniqueness_not_no_redundancy",
         "mean_projection": "sanity_check_only_not_a_criterion",
         "refit_c_policy": "full_c_grid_eval_max_sensitivity_bound",
+        "top16_c_policy": "nested_inner_val_paired_drop_at_deployed_chosen_c",
+        "top16_no_contribution_max_drop": TOP16_NO_CONTRIBUTION_MAX_DROP,
         "steering": {"schema": "e1x-directions-v1", "n_random": _n_random(), "proj_std_scale": "train_pooled_deduped"},
         "trajectory": {
             "half_window": TRAJ_HALF_WINDOW,
@@ -1105,10 +1149,12 @@ def _run_spectrum_task(
             tolerance_grad=float(trainer["lbfgs_tolerance_grad"]),
         )
 
-    # 坐标集中度（协方差无关，#37 判读用）：读出/信号方向权重多少个神经元。
+    # 坐标集中度（#38 纯描述量，非判据）：原始基读出 v*、信号 d，以及标准化基读出
+    # 权重 w（= v* 的 z-score 版，对 CE1 重缩放不变但仍受相干簇混淆）。
     concentration = {
         "v_star": coordinate_concentration(v_star),
         "d": coordinate_concentration(d_unit),
+        "readout_std_basis": coordinate_concentration(np.asarray(fit_entry["std"], dtype=np.float64)),
     }
     # 原生坐标半切可解码性（#37 降级为描述量，非 α/β；受协方差混淆）。
     feature_split = feature_split_redundancy(
@@ -1536,16 +1582,27 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
         return [metric(record) for record in spectrum.values()]
 
     e16 = across(lambda r: r["energy_v_star"]["at_k"]["16"])
-    # 坐标集中度（#37，协方差无关）：读出方向的 participation ratio 占比。
+    # 坐标 participation ratio（#38 纯描述量，非判据）：原始基读出 v*、信号 d、标准化基读出 w。
     pr_frac_vstar = across(lambda r: float(r["coordinate_concentration"]["v_star"]["participation_fraction"]))
     pr_frac_d = across(lambda r: float(r["coordinate_concentration"]["d"]["participation_fraction"]))
+    pr_frac_wstd = across(
+        lambda r: float(r["coordinate_concentration"]["readout_std_basis"]["participation_fraction"])
+    )
     # 描述量（非判据）：原生坐标半切可解码性（受协方差混淆）。
     split_median = across(lambda r: float(r["feature_split_descriptive"]["median_retention"]))
     mp_train = across(lambda r: r["mean_projection"]["train_auc"])
-    # top16 基线与变换值同口径（全 C 档评估集最大，#36 claim 6：消除选择偏差错配）。
-    remove_top16_drop = across(
-        lambda r: r["removal_auc"]["full_refit"]["max_auc"] - r["removal_auc"]["remove_top_pc_16"]["max_auc"]
-    )
+    # top16 掉幅三口径（#38）：仅 nested（部署 C 处配对）进硬判读；eval_max/paired_max 仅描述。
+    top16_stats = [
+        top16_drop_stats(
+            r["removal_auc"]["full_refit"]["auc_by_c"],
+            r["removal_auc"]["remove_top_pc_16"]["auc_by_c"],
+            r["chosen_c"],
+        )
+        for r in spectrum.values()
+    ]
+    top16_nested_drop = [t["nested_drop_at_chosen_c"] for t in top16_stats]
+    top16_evalmax_drop = [t["eval_max_drop"] for t in top16_stats]
+    top16_paired_maxc_drop = [t["paired_max_over_c_drop"] for t in top16_stats]
     cos_d = across(lambda r: r["diff_means"]["abs_cos_to_v_star"])
     mimi_gap = across(
         lambda r: float(np.mean(r["mimi_r2"]["per_pc"][:8])) - r["mimi_r2"]["v_star"]
@@ -1554,20 +1611,14 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
     full_refit_gap = across(lambda r: r["full_refit_gap_at_formal_c"])
     nonconverged_total = int(sum(across(lambda r: r["nonconverged_fits"])))
 
-    # 坐标分布性判读（#37）：读出方向 v* 与原始信号方向 d 的 participation ratio 占比。
-    # 参照系：随机高斯方向 PR/D≈1/3（实测），故阈值 0.10 处于"局部化 ~0.03"与"稠密 ~0.33"
-    # 之间。要求 v* 与 d **同时** 满足才裁决——若读出仅因协方差而稠密、原始信号却稀疏，
-    # 二者不一致 → indeterminate（对冲 PR(v*)=Σ⁻¹d 的协方差整形残余风险）。
-    per_task_min = [min(a, b) for a, b in zip(pr_frac_vstar, pr_frac_d, strict=True)]
-    per_task_max = [max(a, b) for a, b in zip(pr_frac_vstar, pr_frac_d, strict=True)]
-    worst_pr = min(per_task_min)  # 最集中任务里 {v*,d} 更稀疏的一个
-    best_pr = max(per_task_max)
-    if worst_pr >= PR_ALPHA_MIN:
-        distributed_verdict = "alpha"  # 每任务 v* 与 d 皆稠密
-    elif best_pr < PR_BETA_MAX:
-        distributed_verdict = "beta"  # 每任务 v* 与 d 皆稀疏
-    else:
-        distributed_verdict = "indeterminate"
+    # 坐标分布性判据已撤销（#38）：PR 尺度非不变（CE1）+ 经验 d̂ 有限样本抬高（CE2）+
+    # v*=w/σ 受协方差整形 + 紧凑来源经稠密输出投影写满残差坐标 → 几何不可辨识来源定位。
+    # PR(v*)/PR(d)/PR(w) 一律只登记为描述量；"分布式 vs 局部化"交由因果组件级证据（换位点
+    # patching + E2 方向注入）裁决。下量仅供描述行展示，无 α/β 含义。
+    pr_vstar_worst = min(pr_frac_vstar)
+
+    # top16 硬判读（#38）：nested 逐任务掉幅（部署 C 处配对）取最大，< 阈值 → 主轴无贡献。
+    top16_worst_nested = max(top16_nested_drop)
 
     # 均值投影自检（非判读行）：训练 AUC 偏离 0.5 超过容差说明实现有误。
     mp_sanity_ok = all(abs(value - 0.5) <= MEAN_PROJECTION_TOL for value in mp_train)
@@ -1635,24 +1686,38 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
             "values": e16,
             "worst": max(e16),
             "verdict": _verdict_interval(max(e16), 0.5, 0.8),
-            "reading": "alpha=错向主张成立（E(16)<0.5）；beta=与 rank-k 曲线矛盾须查实现",
+            "reading": (
+                "在模型本征残差流基下 v* 落在方差前 16 主轴的能量占比：alpha=错向结构成立"
+                "（E(16)<0.5，v* 避开方差主轴）；beta=与 rank-k 曲线矛盾须查实现。**本征基相对"
+                "结构事实、非规范不变常数**（对抗性重缩放可令信号坐标进入高方差轴使 E(16) 抬升）"
+                "——规范不变的核心是 AUC 恒等式 + rank-1 解析 + rank-k PCA 重训曲线"
+            ),
         },
         "coordinate_distribution": {
-            "values": [f"v*/d={a:.3f}/{b:.3f}" for a, b in zip(pr_frac_vstar, pr_frac_d, strict=True)],
-            "worst": worst_pr,
-            "verdict": distributed_verdict,
+            "values": [
+                f"v*/d/w={a:.3f}/{b:.3f}/{c:.3f}"
+                for a, b, c in zip(pr_frac_vstar, pr_frac_d, pr_frac_wstd, strict=True)
+            ],
+            "worst": pr_vstar_worst,
+            "verdict": "descriptive_non_decisive",
             "reading": (
-                "读出方向 v* 与原始信号方向 d 的 participation ratio 占比 PR/D（参照随机方向"
-                "≈1/3）：alpha=分布式（每任务 v* 与 d 皆≥0.10，即≥~410/4096）；beta=局部化"
-                "（皆<0.01）；v*/d 不一致（读出因协方差稠密但信号稀疏）→ indeterminate。取代 #36"
-                "受协方差混淆的特征折（实证把稠密全局信号误判局部化，保留为描述量）。阈值为暂定值"
+                "读出/信号方向 participation ratio 占比 PR/D（v*=w/σ 原始基、d 信号、w 标准化基）"
+                "**仅描述、不判读（#38）**：PR 尺度非不变（CE1：重缩放 2 坐标即 1.0→0.007）、经验 d̂"
+                "有限样本抬高（CE2：真支撑=1 的 PR/D 随 SNR 在 0.002–0.34 间）、v* 受协方差整形，且"
+                "紧凑来源经稠密输出投影写满残差坐标——残差坐标分布无法约束来源定位。'分布式 vs"
+                "局部化'交由因果组件级证据（attn/MLP 换位点 patching + E2 方向注入）裁决，几何不取消 patching"
             ),
         },
         "top16_contribution": {
-            "values": remove_top16_drop,
-            "worst": max(remove_top16_drop),
-            "verdict": "alpha" if max(remove_top16_drop) < 0.01 else "beta",
-            "reading": "alpha=方差前 16 主轴对读出无实质贡献（全 C 档上界掉幅<0.01）",
+            "values": top16_nested_drop,
+            "worst": top16_worst_nested,
+            "verdict": "alpha" if top16_worst_nested < TOP16_NO_CONTRIBUTION_MAX_DROP else "beta",
+            "reading": (
+                "alpha=方差前 16 主轴对读出无实质贡献（嵌套 inner_val 部署 C* 处逐任务配对掉幅"
+                f"<{TOP16_NO_CONTRIBUTION_MAX_DROP}）。#38 改嵌套口径：原评估集取 C 最大对较弱剔除条件"
+                "有选择上偏（偏 α）、配对取全网格最差 C 又在非部署微 C 上偏 β；eval_max/paired_max"
+                "仅作描述性括号（见 coordinate_concentration_descriptive.top16_drops）"
+            ),
         },
         "diff_means_alignment": {
             "values": cos_d,
@@ -1696,10 +1761,12 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
     }
     return {
         "kind": "exploratory_non_decisive",
-        "prereg": [32, 35, 36, 37],
+        "prereg": [32, 35, 36, 37, 38],
         "formal_g2_unchanged": True,
-        "rank_one_binary": "二类间散度 S_B 秩恒为 1（解析事实），线性可分性只有一个判别方向；"
-        "不做实验'确认'（白化残差塌缩为 mean-projection tautology，且漏信号也过，已撤销 #37）",
+        "rank_one_binary": "二类间散度 S_B=dd^T 秩恒为 1 是任意二分类的解析事实，仅表明类均值差"
+        "由单一向量描述（单一 Fisher 判别轴）；据此只能称'发现了一个稳定的一维线性读出方向'，"
+        "**不**蕴含读出方向唯一、亦**不**排除多个不相交坐标子集各自可解码/多组件冗余承载/"
+        "协方差-非线性-条件分布中的额外标签信息（这些是 patching 与冗余分析的问题，非 S_B 秩所能定）",
         "protocol": protocol,
         "protocol_hash": protocol_hash,
         "identity_gap_max": max(identity_gap),
@@ -1710,9 +1777,16 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
             "mean_projection_train_auc": mp_train,
         },
         "coordinate_concentration_descriptive": {
+            "note": "PR 判据已撤销（#38，尺度非不变+有限样本+来源不可辨识）；以下皆描述量，非 α/β",
             "pr_fraction_vstar": pr_frac_vstar,
             "pr_fraction_d": pr_frac_d,
+            "pr_fraction_readout_std_basis_ce1_invariant": pr_frac_wstd,
             "native_half_split_median_retention_covariance_dependent": split_median,
+            "top16_drops": {
+                "nested_at_chosen_c_decisive": top16_nested_drop,
+                "eval_max_generous_descriptive": top16_evalmax_drop,
+                "paired_max_over_c_conservative_descriptive": top16_paired_maxc_drop,
+            },
         },
         "alignment_rank_095_by_layer": {str(k): v for k, v in rank_by_layer.items()},
         "verdict_matrix": verdicts,
@@ -1763,20 +1837,34 @@ def _write_markdown(result: dict) -> Path:
             f"- 正式 C 全维重训复现最大偏差：{audit['full_refit_gap_max']:.2e}"
             f"（硬门 {FULL_REFIT_TOLERANCE}）。",
             f"- 未收敛拟合总数：{audit['nonconverged_fits_total']}（硬门：>0 拒绝出矩阵）。",
-            "- 秩-1 为解析事实（二类间散度秩=1），不做实验确认（白化残差塌缩为 mean-projection "
-            "tautology 且漏信号也过，已撤销）。",
+            "- 秩-1 为解析事实（二类间散度 S_B=dd^T 秩恒为 1，单一 Fisher 判别轴）：仅表明类均值差"
+            "由单一向量描述，只能称'发现了一个稳定的一维线性读出方向'——**不**蕴含读出方向唯一、"
+            "**不**排除多子集/冗余组件承载（这些交由换位点 patching）。",
             "- 均值投影自检（train AUC 应≈0.5，Mean Projection 非 LEACE）："
             + "、".join(f"{value:.4f}" for value in audit["mean_projection_train_auc"])
             + ("（通过）" if audit["mean_projection_sanity_ok"] else "（**异常，查实现**）")
             + "。",
-            "- 坐标集中度描述量（协方差无关）：PR(v*)/D="
+            "- 坐标 participation ratio（#38 **描述量、非判据**：尺度非不变+有限样本抬高+来源不可辨识）："
+            + "PR(v*)/D="
             + "、".join(f"{value:.3f}" for value in concentration["pr_fraction_vstar"])
             + "；PR(d)/D="
             + "、".join(f"{value:.3f}" for value in concentration["pr_fraction_d"])
-            + "；原生半切中位保留率（受协方差混淆，仅描述）="
+            + "；PR(w)/D（标准化基、CE1 不变但受相干簇混淆）="
             + "、".join(
                 f"{value:.3f}"
-                for value in concentration["native_half_split_median_retention_covariance_dependent"]
+                for value in concentration["pr_fraction_readout_std_basis_ce1_invariant"]
+            )
+            + "。'分布式 vs 局部化'交由 attn/MLP 换位点 patching + E2 方向注入裁决。",
+            "- top16 掉幅（嵌套 inner_val 部署 C* 处配对，唯一判读口径）："
+            + "、".join(f"{value:.4f}" for value in concentration["top16_drops"]["nested_at_chosen_c_decisive"])
+            + f"（阈值 {TOP16_NO_CONTRIBUTION_MAX_DROP}）；描述性括号 eval_max="
+            + "、".join(
+                f"{value:.4f}" for value in concentration["top16_drops"]["eval_max_generous_descriptive"]
+            )
+            + " / paired_maxC="
+            + "、".join(
+                f"{value:.4f}"
+                for value in concentration["top16_drops"]["paired_max_over_c_conservative_descriptive"]
             )
             + "。",
             f"- fit↔cell 方向最小 |cos|：{result['directions']['min_fit_vs_cell_abs_cos']:.6f}。",
@@ -1848,7 +1936,7 @@ def run(args) -> None:
     roots = engine._roots()
     train, evals = engine._sessions()
     protocol, protocol_hash = _protocol(probe_cfg, summary, roots, train, evals)
-    print(f"#32/#35 几何解剖协议 {protocol_hash[:12]}，stage={args.stage}", flush=True)
+    print(f"#32–#38 几何解剖协议 {protocol_hash[:12]}，stage={args.stage}", flush=True)
     if args.stage in ("directions", "all"):
         stage_directions(args, protocol, protocol_hash)
     if args.stage in ("spectrum", "all"):
