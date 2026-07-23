@@ -1,28 +1,29 @@
-"""E1 几何解剖第一梯队（PREREG #32/#35，探索性、严格非裁决）。
+"""E1 几何解剖第一梯队（PREREG #32/#35/#36，探索性、严格非裁决）。
 
 对 G2 有效秩失败做机制解剖（文档/04 §2）：T4 的线性读出在数学上是一维方向
 v* = (w/σ)/‖w/σ‖（AUC 对单调变换不变），本脚本量化该方向与激活方差主轴的
-错向程度，并给出 E2 方向注入所需的转向向量包。四个 stage：
+错向程度、其空间分布性，并给出 E2 方向注入所需的转向向量包。四个 stage：
 
   directions  零激活载入：8 个二分类规格 × 32 层 × 3 种子的原始空间方向族
               （来自 work/fits 断点），层间传播、跨种子稳定性、T1×T4 方向关系；
-  spectrum    L29/L30/L31 × 3 种子：PCA 能量谱与对齐秩、INLP 冗余谱、均值差
-              擦除自检、补空间重训、Mimi 主轴鉴定、转向向量包（e1x schema）；
+  spectrum    L29/L30/L31 × 3 种子：PCA 能量谱与对齐秩、特征折冗余、白化秩-1
+              确认、均值投影自检、补空间重训、Mimi 主轴鉴定、转向包（e1x schema）；
   trajectory  评估集事件锁定轨迹：对方 IPU 末步 ±25 步窗内方向投影按
               complete/incomplete 分组的会话级 bootstrap 均值带（sup-t 同时带）；
   finalize    汇总判读矩阵（文档/04 §2.2）并写 reports/。
 
-必要性度量的两条数学约束（#35 修订，二者都由合成测试固化）：
-  (1) 擦除训练集 diff-in-means 会使两类质心精确相等，凸损失 + L2 下零权重成为
-      全局最优——"一轮崩塌"是算子的数学必然（LEACE 线性 guardedness 定理），
-      对 1 维与 k 维均值信号毫无区分度，绝不可作判读；本脚本仅将其保留为
-      实现正确性自检（mean_erasure_check）。
-  (2) 均值信号的线性擦除秩恒为 1，因此"擦除轮数"不度量信息维数；冗余结构
-      改由 INLP 冗余谱刻画：逐轮剔除重训探针方向，看次优正交读出保留多少
-      超机会性能（retention_after_1）。
+冗余度量的两条数学约束（#36 修订，均由合成测试固化）：
+  (1) 均值信号的线性擦除秩恒为 1（LEACE guardedness）：擦除 diff-in-means 后两类
+      质心精确相等，凸损失下零权重最优，一轮归零对 1/k 维均值信号一视同仁——
+      "擦除轮数"不度量维数；本脚本仅保留为 Mean Projection 实现自检。
+  (2) 方向剔除法（INLP r₁）受协方差旋转混淆：最优判别方向 ≈ Σ⁻¹d 偏离均值方向 d，
+      剔除后 d 的正交分量仍可读，单均值信号被误判为厚方向束（#36 实证 r₁=0.78）——
+      已撤销。冗余改协方差无关的**特征折**（不相交半空间各自重训，判"分布式 vs
+      局部化"）；秩由**白化秩-1 确认**（白化后剔除唯一判别方向，残差→0.5）刻画。
 
-一切结果不回写正式汇总，不改变 G2=fail；断点按协议哈希（v2：绑定脚本与核心库
-源码摘要、行域签名、正式汇总摘要）隔离，重复启动只算缺失点。
+一切结果不回写正式汇总，不改变 G2=fail；断点按协议哈希（v2：绑定 script/probe_gpu/
+grid/engine/alignment 源码摘要、行域签名、正式汇总摘要，续跑另比对逐任务 fit SHA）
+隔离，重复启动只算缺失点。
 """
 
 from __future__ import annotations
@@ -41,8 +42,10 @@ import numpy as np
 import wp_e1_probe_grid as engine
 from _bootstrap import REPO_ROOT, write_report_json
 
+from floor_circuit.config import load_config
 from floor_circuit.e1 import grid as g
 from floor_circuit.e1 import probe_gpu as pg
+from floor_circuit.mve import alignment as _alignment
 from floor_circuit.mve.alignment import ANALYSIS_MAX_LABEL_STEP
 
 SCHEMA_VERSION = 2
@@ -56,8 +59,12 @@ ENERGY_KS = (1, 2, 4, 8, 16, 24, 32, 64, 128, 256, 512)
 ALIGN_RHOS = (0.5, 0.8, 0.95)
 MIMI_TOP_PCS = 32
 RIDGE_LAMBDA_SCALE = 1e-3
-INLP_MAX_REMOVALS = 4
-STEERING_N_RANDOM = 2
+FEATURE_SPLIT_FOLDS = 4
+FEATURE_SPLIT_SEED = 20260723
+WHITEN_PCA_K = 512
+WHITEN_SHRINKAGE = 1e-2
+WHITEN_COLLAPSE_MAX = 0.60
+MEAN_PROJECTION_TOL = 0.05
 TRAJ_HALF_WINDOW = 25
 TRAJ_N_BOOT = 1000
 TRAJ_SEED = 20260723
@@ -223,88 +230,6 @@ def projection_stats(scores: np.ndarray, labels: np.ndarray) -> dict[str, float]
     }
 
 
-def inlp_redundancy_spectrum(
-    x_train: np.ndarray,
-    y_train: np.ndarray,
-    x_eval: np.ndarray,
-    y_eval: np.ndarray,
-    *,
-    fit_fn,
-    max_removals: int,
-) -> dict:
-    """INLP 冗余谱：每轮重训探针、记录评估 AUC、剔除其原始空间方向。
-
-    数学约束（#35）：均值信号的线性擦除秩恒为 1（LEACE guardedness 定理——
-    擦除 diff-in-means 一轮后凸损失下零权重最优，AUC 必然 0.5，对任意维数的
-    均值信号都成立），因此"擦除轮数"不度量信息维数，不作判读。本谱度量的
-    是**读出方向的冗余结构**：r_0 = 完整特征重训 AUC，r_i = 已剔除 i 个探针
-    方向后次优正交读出的 AUC。retention_after_1 = (r_1−0.5)/(r_0−0.5)：
-    同质一维码 → 低；上下文异质方向混合（真·厚方向束）→ 高。序列平台化
-    （信号与噪声共线的病理几何）由 auc_sequence 自身呈现，归 indeterminate。
-    fit_fn(x_tr, y_tr) 返回二分类 LinearProbe（注入以便测试与设备解耦）。
-    """
-    x_tr = np.array(x_train, dtype=np.float32, copy=True)
-    x_ev = np.array(x_eval, dtype=np.float32, copy=True)
-    auc_sequence: list[float] = []
-    removed_cos_to_first: list[float] = []
-    nonconverged = 0
-    first_direction: np.ndarray | None = None
-    for removed in range(int(max_removals) + 1):
-        probe = fit_fn(x_tr, y_train)
-        nonconverged += int(not probe.converged)
-        auc = float(pg.primary_metric(y_eval, probe.predict_proba(x_ev), 2))
-        auc_sequence.append(auc)
-        if removed == int(max_removals):
-            break
-        direction = orig_space_direction(probe.weight[0], probe.scale)
-        if first_direction is None:
-            first_direction = direction
-            removed_cos_to_first.append(1.0)
-        else:
-            removed_cos_to_first.append(abs_cosine(direction, first_direction))
-        x_tr = remove_directions(x_tr, direction)
-        x_ev = remove_directions(x_ev, direction)
-    base = auc_sequence[0] - 0.5
-    retention = None if base <= 0 else max(auc_sequence[1] - 0.5, 0.0) / base
-    return {
-        "auc_sequence": auc_sequence,
-        "retention_after_1": retention,
-        "removed_abs_cos_to_first": removed_cos_to_first,
-        "nonconverged": nonconverged,
-        "max_removals": int(max_removals),
-    }
-
-
-def mean_erasure_check(
-    x_train: np.ndarray,
-    y_train: np.ndarray,
-    x_eval: np.ndarray,
-    y_eval: np.ndarray,
-    *,
-    fit_fn,
-) -> dict:
-    """LEACE 自检（非判据）：擦除训练集 diff-in-means 后重训。
-
-    训练集两类质心被精确置零 ⇒ 凸损失 + L2 下重训 AUC 必然 ≈0.5——这是对
-    实现正确性的 sanity check；评估侧残余偏移是"样本外均值泄漏 + 非均值线性
-    结构"的描述量。任何把本检验当"崩塌证据"的解读都是错的（#35）。
-    """
-    direction = unit(diff_in_means(x_train, y_train))
-    x_tr = remove_directions(x_train, direction)
-    x_ev = remove_directions(x_eval, direction)
-    residual_mean_gap = float(np.linalg.norm(diff_in_means(x_tr, y_train)))
-    probe = fit_fn(x_tr, y_train)
-    train_auc = float(pg.primary_metric(y_train, probe.predict_proba(x_tr), 2))
-    eval_auc = float(pg.primary_metric(y_eval, probe.predict_proba(x_ev), 2))
-    return {
-        "train_auc": train_auc,
-        "eval_auc": eval_auc,
-        "train_mean_gap_after_erasure": residual_mean_gap,
-        "converged": bool(probe.converged),
-        "expectation": "train_auc≈0.5 为数学必然（LEACE），仅作实现自检",
-    }
-
-
 def refit_auc_grid(
     x_train: np.ndarray,
     y_train: np.ndarray,
@@ -343,6 +268,152 @@ def refit_auc_grid(
         "auc_by_c": auc_by_c,
         "max_auc": max(auc_by_c.values()),
         "nonconverged": nonconverged,
+    }
+
+
+def feature_split_redundancy(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_eval: np.ndarray,
+    y_eval: np.ndarray,
+    c_grid: list[float],
+    trainer: dict,
+    device: str,
+    *,
+    folds: int,
+    seed: int,
+) -> dict:
+    """特征子集冗余（分布式 vs 集中；协方差无关，#36）。
+
+    把激活维度随机对半分为不相交两折，各折独立重训探针（全 C 档评估集最大），
+    retention_f = (min(AUC_A, AUC_B) − 0.5) / (AUC_full − 0.5)。分布式编码
+    （信号密布于众多神经元）→ 任一半都强可读 → 高；集中编码（少数神经元）→
+    某一半失效 → 低。这度量论文核心命题"1 维方向是否分布式承载于众多神经元"，
+    且不受方向空间的协方差旋转混淆——后者使方向剔除法把单均值信号误判为厚方向束
+    （#36 实证：单均值信号方向剔除 r₁=0.78 误入 β；白化残差与本特征折均判 α）。
+    """
+    n_dim = int(x_train.shape[1])
+    full = refit_auc_grid(x_train, y_train, x_eval, y_eval, c_grid, trainer, device)
+    base = full["max_auc"] - 0.5
+    nonconverged = int(full["nonconverged"])
+    rng = np.random.default_rng(int(seed))
+    per_fold = []
+    for _ in range(int(folds)):
+        perm = rng.permutation(n_dim)
+        half = n_dim // 2
+        cols_a = np.sort(perm[:half])
+        cols_b = np.sort(perm[half:])
+        fit_a = refit_auc_grid(
+            np.ascontiguousarray(x_train[:, cols_a]), y_train,
+            np.ascontiguousarray(x_eval[:, cols_a]), y_eval, c_grid, trainer, device,
+        )
+        fit_b = refit_auc_grid(
+            np.ascontiguousarray(x_train[:, cols_b]), y_train,
+            np.ascontiguousarray(x_eval[:, cols_b]), y_eval, c_grid, trainer, device,
+        )
+        nonconverged += int(fit_a["nonconverged"]) + int(fit_b["nonconverged"])
+        min_auc = min(fit_a["max_auc"], fit_b["max_auc"])
+        per_fold.append(
+            {
+                "auc_a": fit_a["max_auc"],
+                "auc_b": fit_b["max_auc"],
+                "min_auc": min_auc,
+                "retention": (min_auc - 0.5) / base if base > 0 else None,
+            }
+        )
+    retentions = [f["retention"] for f in per_fold if f["retention"] is not None]
+    return {
+        "full_auc": full["max_auc"],
+        "per_fold": per_fold,
+        "median_retention": float(np.median(retentions)) if retentions else None,
+        "min_retention": float(min(retentions)) if retentions else None,
+        "folds": int(folds),
+        "nonconverged": nonconverged,
+    }
+
+
+def whitened_rank_check(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_eval: np.ndarray,
+    y_eval: np.ndarray,
+    center: np.ndarray,
+    vt: np.ndarray,
+    c_grid: list[float],
+    trainer: dict,
+    device: str,
+    *,
+    k: int,
+    shrinkage: float,
+) -> dict:
+    """白化秩-1 确认（LEACE 一致；描述性、非 α/β 判据，#36）。
+
+    二类间散度 S_B = (μ₁−μ₀)(μ₁−μ₀)ᵀ 秩恒为 1 ⇒ 线性可分性只有一个判别方向，
+    "多独立线性载体"的厚方向束设想对二分类线性读出不成立。在 top-k PCA 子空间内
+    按类内协方差（shrinkage）白化，剔除唯一白化判别方向 d_w 后重训（全 C 档评估集
+    最大）：残差 AUC 应 ≈0.5。白化消除了 Σ⁻¹d 相对 d 的旋转混淆（#36 实证：单均值
+    信号白化残差 0.51 判 α；未白化方向剔除误判 β）。残差显著 >0.5 提示异方差/非高斯
+    结构（线性探针通常也读不出纯协方差差异，实测异方差全 AUC≈0.49），登记备查不裁决。
+    """
+    k = min(int(k), int(vt.shape[0]))
+    basis = np.asarray(vt[:k], dtype=np.float64)
+    center = np.asarray(center, dtype=np.float64)
+    ztr = (np.asarray(x_train, dtype=np.float64) - center) @ basis.T
+    zev = (np.asarray(x_eval, dtype=np.float64) - center) @ basis.T
+    within = np.zeros((k, k), dtype=np.float64)
+    for cls in (0, 1):
+        block = ztr[y_train == cls]
+        block = block - block.mean(axis=0)
+        within += block.T @ block
+    within /= len(ztr)
+    lam = float(shrinkage)
+    within = (1.0 - lam) * within + lam * (np.trace(within) / k) * np.eye(k)
+    eigvals, eigvecs = np.linalg.eigh(within)
+    if float(eigvals.min()) <= 0:
+        raise RuntimeError("白化类内协方差非正定，请增大 shrinkage")
+    whiten = eigvecs @ np.diag(eigvals ** -0.5) @ eigvecs.T
+    wtr = ztr @ whiten
+    wev = zev @ whiten
+    d_w = unit(wtr[y_train == 1].mean(axis=0) - wtr[y_train == 0].mean(axis=0))
+    full = refit_auc_grid(wtr.astype(np.float32), y_train, wev.astype(np.float32), y_eval, c_grid, trainer, device)
+    rtr = (wtr - np.outer(wtr @ d_w, d_w)).astype(np.float32)
+    rev = (wev - np.outer(wev @ d_w, d_w)).astype(np.float32)
+    residual = refit_auc_grid(rtr, y_train, rev, y_eval, c_grid, trainer, device)
+    return {
+        "pca_k": k,
+        "shrinkage": lam,
+        "whitened_full_auc": full["max_auc"],
+        "residual_auc": residual["max_auc"],
+        "collapsed": bool(residual["max_auc"] <= WHITEN_COLLAPSE_MAX),
+        "nonconverged": full["nonconverged"] + residual["nonconverged"],
+    }
+
+
+def mean_projection_check(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_eval: np.ndarray,
+    y_eval: np.ndarray,
+    *,
+    fit_fn,
+) -> dict:
+    """正交均值投影自检（Mean Projection；非 LEACE——无白化/斜投影，#36 命名更正）。
+
+    剔除训练集 diff-in-means 后两类训练质心精确相等，凸损失 + L2 下重训 train AUC
+    必然 ≈0.5（实现自检的硬信号，偏离 > MEAN_PROJECTION_TOL 即实现错误）。评估 AUC
+    为样本外均值泄漏 + 非均值结构的描述量。这不是维数/冗余度量（对任意维均值信号
+    一律一轮归零），只作 sanity gate。
+    """
+    direction = unit(diff_in_means(x_train, y_train))
+    x_tr = remove_directions(x_train, direction)
+    x_ev = remove_directions(x_eval, direction)
+    residual_mean_gap = float(np.linalg.norm(diff_in_means(x_tr, y_train)))
+    probe = fit_fn(x_tr, y_train)
+    return {
+        "train_auc": float(pg.primary_metric(y_train, probe.predict_proba(x_tr), 2)),
+        "eval_auc": float(pg.primary_metric(y_eval, probe.predict_proba(x_ev), 2)),
+        "train_mean_gap_after_projection": residual_mean_gap,
+        "converged": bool(probe.converged),
     }
 
 
@@ -533,12 +604,17 @@ def _geometry_root(roots: dict) -> Path:
     return roots["work"] / "geometry"
 
 
+def _n_random() -> int:
+    """E2-lite 范数匹配随机方向数（与 E1-X 同源配置，#36 claim 4）。"""
+    return int(load_config("grids")["e1"]["e1x"]["n_random_directions"])
+
+
 def _protocol(probe_cfg: dict, summary: dict, roots: dict, train: list[str], evals: list[str]) -> tuple[dict, str]:
     if summary.get("g2", {}).get("verdict", {}).get("verdict") != "fail":
         raise SystemExit("正式汇总不再是 G2=fail，#32 几何解剖前提失效，请先复核")
     protocol = {
         "name": PROTOCOL_NAME,
-        "prereg": [32, 35],
+        "prereg": [32, 35, 36],
         "target": TARGET,
         "binary_specs": list(BINARY_SPECS),
         "n_layers": N_LAYERS,
@@ -548,10 +624,13 @@ def _protocol(probe_cfg: dict, summary: dict, roots: dict, train: list[str], eva
         "align_rhos": list(ALIGN_RHOS),
         "mimi_top_pcs": MIMI_TOP_PCS,
         "ridge_lambda_scale": RIDGE_LAMBDA_SCALE,
-        "inlp": {"max_removals": INLP_MAX_REMOVALS},
-        "mean_erasure": "sanity_check_only_not_a_criterion",
+        # #36：方向剔除判据受 Σ 旋转混淆，撤销；改协方差无关的特征折 + 白化秩1确认。
+        "redundancy_method": "feature_split_covariance_free_v1",
+        "feature_split": {"folds": FEATURE_SPLIT_FOLDS, "seed": FEATURE_SPLIT_SEED},
+        "whitened_rank": {"pca_k": WHITEN_PCA_K, "shrinkage": WHITEN_SHRINKAGE, "collapse_max": WHITEN_COLLAPSE_MAX},
+        "mean_projection": "sanity_check_only_not_a_criterion",
         "refit_c_policy": "full_c_grid_eval_max_sensitivity_bound",
-        "steering": {"schema": "e1x-directions-v1", "n_random": STEERING_N_RANDOM},
+        "steering": {"schema": "e1x-directions-v1", "n_random": _n_random(), "proj_std_scale": "train_pooled"},
         "trajectory": {
             "half_window": TRAJ_HALF_WINDOW,
             "n_boot": TRAJ_N_BOOT,
@@ -561,14 +640,17 @@ def _protocol(probe_cfg: dict, summary: dict, roots: dict, train: list[str], eva
         },
         "identity_auc_tolerance": IDENTITY_AUC_TOLERANCE,
         "full_refit_tolerance": FULL_REFIT_TOLERANCE,
+        "mean_projection_tol": MEAN_PROJECTION_TOL,
         "c_grid": [float(c) for c in probe_cfg["c_grid"]],
         "trainer": probe_cfg["trainer"],
         "pca_solver": "numpy.linalg.svd/full_matrices=False/float64",
         "formal_summary_sha256": _sha256(Path(REPO_ROOT) / "reports" / "wp_e1_probe_summary.json"),
-        # 源码与行域绑定（#35 高风险 2）：代码或冻结行域变化必须令旧断点失效。
+        # 源码与行域绑定（#35/#36）：代码或冻结行域变化必须令旧断点失效。
         "script_sha256": _sha256(Path(__file__)),
         "probe_gpu_sha256": _sha256(Path(pg.__file__)),
         "grid_sha256": _sha256(Path(g.__file__)),
+        "engine_sha256": _sha256(Path(engine.__file__)),
+        "alignment_sha256": _sha256(Path(_alignment.__file__)),
         "row_plan_signature": engine._row_plan_signature(probe_cfg, roots, train, evals),
     }
     encoded = json.dumps(protocol, ensure_ascii=False, sort_keys=True).encode()
@@ -608,8 +690,32 @@ def _load_fit_directions(roots: dict, spec_name: str, layer: int, seed: int) -> 
     }
 
 
-def _npz_meta_valid(path: Path, protocol_hash: str) -> bool:
-    """向量/转向 NPZ 的协议校验：__meta__.protocol_hash 必须匹配（#35 高风险 2）。"""
+def _fit_sha(roots: dict, spec_name: str, layer: int, seed: int) -> str | None:
+    path = engine._fit_path(roots, spec_name, layer, seed)
+    return _sha256(path) if path.is_file() else None
+
+
+def _fits_aggregate_sha(roots: dict, seeds: list[int]) -> str:
+    """全部二分类 fit 文件内容的聚合摘要（#36 claim 5：cache 命中也重算比对）。"""
+    return hashlib.sha256(
+        "\n".join(
+            f"{spec_name}|{layer}|{seed}|{_fit_sha(roots, spec_name, layer, seed)}"
+            for spec_name in BINARY_SPECS
+            for layer in range(N_LAYERS)
+            for seed in seeds
+        ).encode()
+    ).hexdigest()
+
+
+def _npz_meta_valid(
+    path: Path,
+    protocol_hash: str,
+    *,
+    schema: str | None = None,
+    layer: int | None = None,
+    seed: int | None = None,
+) -> bool:
+    """向量/转向 NPZ 的协议校验：protocol_hash 必匹配，可选校验 schema/layer/seed。"""
     if not path.is_file():
         return False
     try:
@@ -617,7 +723,28 @@ def _npz_meta_valid(path: Path, protocol_hash: str) -> bool:
             meta = json.loads(bytes(payload["__meta__"]).decode())
     except (OSError, ValueError, KeyError, json.JSONDecodeError):
         return False
-    return meta.get("protocol_hash") == protocol_hash
+    if meta.get("protocol_hash") != protocol_hash:
+        return False
+    if schema is not None and meta.get("schema") != schema:
+        return False
+    if layer is not None and meta.get("layer") != layer:
+        return False
+    return not (seed is not None and meta.get("seed") != seed)
+
+
+def _spectrum_fresh(roots: dict, root: Path, protocol_hash: str, layer: int, seed: int) -> bool:
+    """spectrum (层,种子) 断点是否可复用：协议匹配 + fit SHA 匹配 + 向量 NPZ 有效。"""
+    record = _load_json_checkpoint(
+        _spectrum_checkpoint_path(root, layer, seed), protocol_hash, {"layer": layer, "seed": seed}
+    )
+    if record is None:
+        return False
+    if record.get("fit_sha256") != _fit_sha(roots, TARGET, layer, seed):
+        return False
+    return _npz_meta_valid(
+        _vectors_path(root, layer, seed), protocol_hash,
+        schema="geometry-vectors-v1", layer=layer, seed=seed,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -634,9 +761,12 @@ def stage_directions(args, protocol: dict, protocol_hash: str) -> dict:
     checkpoint = root / "directions.json"
     if not args.force:
         cached = _load_json_checkpoint(checkpoint, protocol_hash, {"stage": "directions"})
-        if cached is not None:
-            print("directions 断点已存在，跳过（--force 重算）")
+        # cache 命中也重算 768-fit 聚合摘要并比对（#36 claim 5：内容变化令旧断点失效）。
+        if cached is not None and cached.get("fits_aggregate_sha256") == _fits_aggregate_sha(roots, seeds):
+            print("directions 断点已存在且 fit 聚合摘要一致，跳过（--force 重算）")
             return cached
+        if cached is not None:
+            print("directions 断点存在但 fit 聚合摘要不一致，重算")
 
     started = perf_counter()
     missing: list[str] = []
@@ -674,12 +804,20 @@ def stage_directions(args, protocol: dict, protocol_hash: str) -> dict:
         for layer in range(N_LAYERS):
             orig = [bank[(spec_name, layer, seed)]["orig"] for seed in seeds]
             std = [bank[(spec_name, layer, seed)]["std"] for seed in seeds]
-            pairs_orig = [abs_cosine(orig[i], orig[j]) for i in range(3) for j in range(i + 1, 3)]
-            pairs_std = [abs_cosine(std[i], std[j]) for i in range(3) for j in range(i + 1, 3)]
-            mean_dirs[(spec_name, layer)] = sign_aligned_mean(orig)
+            # 探针方向 w/σ 天然指向 label=1（正 logit → 类 1），跨种子同向：
+            # 直接平均，不做 sign_aligned_mean 的符号翻转（#36 secondary：避免掩盖符号错误）。
+            signed_pairs = [float(np.dot(unit(orig[i]), unit(orig[j]))) for i in range(3) for j in range(i + 1, 3)]
+            if min(signed_pairs) <= 0:
+                raise RuntimeError(
+                    f"{spec_name}@L{layer} 三种子探针方向未一致指向 label=1"
+                    f"（最小带符号 cos={min(signed_pairs):.4f}）"
+                )
+            mean_dirs[(spec_name, layer)] = unit(np.mean(np.stack([unit(v) for v in orig]), axis=0))
             layers_out[str(layer)] = {
-                "min_pairwise_abs_cos_orig": float(min(pairs_orig)),
-                "min_pairwise_abs_cos_std": float(min(pairs_std)),
+                "min_pairwise_abs_cos_orig": float(min(abs(v) for v in signed_pairs)),
+                "min_pairwise_abs_cos_std": float(
+                    min(abs_cosine(std[i], std[j]) for i in range(3) for j in range(i + 1, 3))
+                ),
                 "auc_seed_mean": float(np.mean([auc_table[str(s)][str(layer)] for s in seeds])),
             }
         per_spec[spec_name] = {"layers": layers_out}
@@ -714,18 +852,14 @@ def stage_directions(args, protocol: dict, protocol_hash: str) -> dict:
         for spec_name in BINARY_SPECS
         if spec_name.startswith("T1_")
     }
-    fits_aggregate = hashlib.sha256(
-        "\n".join(
-            f"{spec_name}|{layer}|{seed}|{bank[(spec_name, layer, seed)]['sha256']}"
-            for spec_name in BINARY_SPECS
-            for layer in range(N_LAYERS)
-            for seed in seeds
-        ).encode()
-    ).hexdigest()
+    fits_aggregate = _fits_aggregate_sha(roots, seeds)
 
     arrays: dict[str, np.ndarray] = {
         "__meta__": np.frombuffer(
-            json.dumps({"protocol_hash": protocol_hash, "seeds": seeds}, ensure_ascii=False).encode(),
+            json.dumps(
+                {"schema": "geometry-directions-bank-v1", "protocol_hash": protocol_hash, "seeds": seeds},
+                ensure_ascii=False,
+            ).encode(),
             dtype=np.uint8,
         )
     }
@@ -775,28 +909,63 @@ def _steering_path(root: Path, layer: int) -> Path:
     return root / f"steering_L{layer}.npz"
 
 
+def _steering_proj_std(
+    directions: dict[str, np.ndarray], store: dict, train_rows: dict, seeds: list[int]
+) -> dict[str, float]:
+    """全部方向在训练行原始空间的投影标准差（train pooled，#36 claim 4）。
+
+    流式遍历每个种子的训练激活（store 已载入的压紧层），单块累计 count/sum/sumsq，
+    峰值内存 = 单种子特征块。与 E1-X `projection_std(x_all, ·)` 同口径（所有训练
+    角色行拼接，跨种子重叠行按各自出现计数），供 E2-lite α·s_v 剂量标定。
+    """
+    names = list(directions)
+    basis = np.stack([directions[name] for name in names], axis=1).astype(np.float32)
+    count = 0
+    total = np.zeros(len(names), dtype=np.float64)
+    total_sq = np.zeros(len(names), dtype=np.float64)
+    for seed in seeds:
+        x, _, _ = g.assemble(train_rows[(TARGET, seed)], "acts", store, dtype=np.float32)
+        proj = np.asarray(x, dtype=np.float64) @ basis
+        count += len(proj)
+        total += proj.sum(axis=0)
+        total_sq += np.square(proj).sum(axis=0)
+        del x, proj
+        gc.collect()
+    if count < 2:
+        raise RuntimeError("转向投影标准差需要至少 2 行训练数据")
+    mean = total / count
+    var = np.maximum(total_sq / count - np.square(mean), 0.0)
+    return {name: float(np.sqrt(var[i])) for i, name in enumerate(names)}
+
+
 def _write_steering(
     root: Path,
     layer: int,
     seeds: list[int],
-    x_eval: np.ndarray,
+    store: dict,
+    train_rows: dict,
     protocol_hash: str,
 ) -> None:
     """合成文档/04 §2.1-G 承诺的转向包（schema 兼容 e1x-directions-v1）。
 
     键名与 wp_e2_lite_plan.py 的消费口径一致：probe_s{seed}/probe_meanseed/
-    diffmeans_s{seed}/diffmeans/random_r{i}；__meta__.proj_std 提供 α·s_v 标定。
-    逐种子方向的 s_v 取各自训练集口径（fragment 的 pooled_std）；种子均值方向与
-    随机方向在评估集上直接计算（meta 注明来源）。符号约定：+v 指向 T4 label=1，
-    由 mean_direction_label1 显式核验，不做静默翻转。
+    diffmeans_s{seed}/diffmeans/random_r{i}；random 方向数取自配置 n_random_directions
+    （与 E1-X 同源，#36 claim 4）。所有方向的 proj_std 统一取训练行原始空间标准差
+    （_steering_proj_std，train pooled，与 E1-X 一致）。符号约定：+v 指向 T4 label=1，
+    由类条件投影统计显式核验（mean_direction_label1），不做静默翻转。
     """
+    n_random = _n_random()
     directions: dict[str, np.ndarray] = {}
-    proj_std: dict[str, float] = {}
     probe_dirs: list[np.ndarray] = []
     diff_dirs: list[np.ndarray] = []
     probe_stats: list[dict] = []
     diff_stats: list[dict] = []
     for seed in seeds:
+        if not _npz_meta_valid(
+            _vectors_path(root, layer, seed), protocol_hash,
+            schema="geometry-vectors-v1", layer=layer, seed=seed,
+        ):
+            raise RuntimeError(f"steering 合成缺少或过期的 L{layer}/s{seed} 向量 NPZ")
         with np.load(_vectors_path(root, layer, seed), allow_pickle=False) as payload:
             v_star = np.asarray(payload["v_star"], dtype=np.float64)
             d_vec = np.asarray(payload["d"], dtype=np.float64)
@@ -808,8 +977,6 @@ def _write_steering(
         stats = record["projection_stats"]
         directions[f"probe_s{seed}"] = unit(v_star)
         directions[f"diffmeans_s{seed}"] = unit(d_vec)
-        proj_std[f"probe_s{seed}"] = float(stats["v_star"]["pooled_std"])
-        proj_std[f"diffmeans_s{seed}"] = float(stats["d"]["pooled_std"])
         probe_dirs.append(v_star)
         diff_dirs.append(d_vec)
         probe_stats.append(stats["v_star"])
@@ -817,12 +984,9 @@ def _write_steering(
     directions["probe_meanseed"] = mean_direction_label1(probe_dirs, probe_stats)
     directions["diffmeans"] = mean_direction_label1(diff_dirs, diff_stats)
     rng = np.random.default_rng(TRAJ_SEED + layer)
-    for index in range(STEERING_N_RANDOM):
+    for index in range(n_random):
         directions[f"random_r{index}"] = unit(rng.standard_normal(len(probe_dirs[0])))
-    eval64 = np.asarray(x_eval, dtype=np.float64)
-    for name in ("probe_meanseed", "diffmeans", *[f"random_r{i}" for i in range(STEERING_N_RANDOM)]):
-        proj_std[name] = float((eval64 @ directions[name]).std())
-    del eval64
+    proj_std = _steering_proj_std(directions, store, train_rows, seeds)
     npz_payload = {name: vec.astype(np.float32) for name, vec in directions.items()}
     npz_payload["__meta__"] = np.frombuffer(
         json.dumps(
@@ -831,20 +995,22 @@ def _write_steering(
                 "source": "wp_e1_geometry_autopsy.spectrum",
                 "protocol_hash": protocol_hash,
                 "layer": layer,
-                "sign": "+v 指向 T4 label=1（对方话轮 complete）",
+                "n_random": n_random,
+                "sign": "+v 指向 T4 label=1（对方话轮 complete，可接话感知）",
                 "scale": "steer = alpha * proj_std[name] * unit(v)",
                 "proj_std": proj_std,
-                "proj_std_source": {
-                    "per_seed": "train_pooled",
-                    "meanseed_and_random": "eval_pooled",
-                },
+                "proj_std_source": "train_pooled",
             },
             ensure_ascii=False,
         ).encode(),
         dtype=np.uint8,
     )
     _atomic_write_npz(_steering_path(root, layer), npz_payload)
-    print(f"L{layer}：转向包已写入 {_steering_path(root, layer)}", flush=True)
+    print(
+        f"L{layer}：转向包已写入 {_steering_path(root, layer)}"
+        f"（{len(directions)} 方向，{n_random} 随机，train 尺度）",
+        flush=True,
+    )
 
 
 def _run_spectrum_task(
@@ -919,6 +1085,8 @@ def _run_spectrum_task(
         del x_tr_removed, x_ev_removed
         gc.collect()
     for k in REMOVE_TOP_PC_KS:
+        if k >= int(vt.shape[0]):  # 谱不足时跳过（真实 4096 维不触发）
+            continue
         x_tr_removed = remove_top_pcs(x_train, center, vt, k)
         x_ev_removed = remove_top_pcs(x_eval, center, vt, k)
         removals[f"remove_top_pc_{k}"] = refit_auc_grid(
@@ -938,11 +1106,25 @@ def _run_spectrum_task(
             tolerance_grad=float(trainer["lbfgs_tolerance_grad"]),
         )
 
-    inlp = inlp_redundancy_spectrum(
-        x_train, y_train, x_eval, y_eval, fit_fn=_fit, max_removals=INLP_MAX_REMOVALS
+    # 冗余判读改协方差无关的特征折（#36）：方向剔除法受 Σ 旋转混淆已撤销。
+    feature_split = feature_split_redundancy(
+        x_train, y_train, x_eval, y_eval, c_grid, trainer, device,
+        folds=FEATURE_SPLIT_FOLDS, seed=FEATURE_SPLIT_SEED + layer,
     )
     gc.collect()
-    erasure = mean_erasure_check(x_train, y_train, x_eval, y_eval, fit_fn=_fit)
+    # 白化秩-1 确认（LEACE 一致，描述性）：复用已算 PCA 基。
+    whitened = whitened_rank_check(
+        x_train, y_train, x_eval, y_eval, center, vt, c_grid, trainer, device,
+        k=WHITEN_PCA_K, shrinkage=WHITEN_SHRINKAGE,
+    )
+    gc.collect()
+    # 正交均值投影自检（非判据）：train AUC 必≈0.5，硬门。
+    mean_projection = mean_projection_check(x_train, y_train, x_eval, y_eval, fit_fn=_fit)
+    if abs(mean_projection["train_auc"] - 0.5) > MEAN_PROJECTION_TOL:
+        raise RuntimeError(
+            f"L{layer}/s{seed} 均值投影自检失败：擦除后 train AUC="
+            f"{mean_projection['train_auc']:.4f} 偏离 0.5 > {MEAN_PROJECTION_TOL}，实现有误"
+        )
     gc.collect()
 
     # 目标投影用 f32 输入（train 侧避免再造 float64 大副本；R²/统计在 float64 汇总）。
@@ -977,9 +1159,15 @@ def _run_spectrum_task(
 
     nonconverged_total = (
         sum(entry["nonconverged"] for entry in removals.values())
-        + inlp["nonconverged"]
-        + int(not erasure["converged"])
+        + int(feature_split["nonconverged"])
+        + int(whitened["nonconverged"])
+        + int(not mean_projection["converged"])
     )
+    if nonconverged_total > 0:
+        raise RuntimeError(
+            f"L{layer}/s{seed} 存在 {nonconverged_total} 个未收敛拟合（grad_norm≥1e-3），"
+            "变换后重训不稳定，拒绝写入断点（#36 硬门）"
+        )
     record = {
         "schema_version": SCHEMA_VERSION,
         "stage": "spectrum",
@@ -1006,8 +1194,9 @@ def _run_spectrum_task(
         },
         "pca_variance_cum_at_k": energy_at_ks(variance_cum, ENERGY_KS),
         "removal_auc": removals,
-        "inlp": inlp,
-        "mean_erasure_check": erasure,
+        "feature_split": feature_split,
+        "whitened_rank": whitened,
+        "mean_projection": mean_projection,
         "mimi_r2": mimi_r2,
         "projection_stats": {"v_star": stats_v, "d": stats_d},
         "nonconverged_fits": nonconverged_total,
@@ -1043,19 +1232,16 @@ def stage_spectrum(args, protocol: dict, protocol_hash: str) -> None:
         (layer, seed)
         for layer in layers
         for seed in seeds
-        if args.force
-        or _load_json_checkpoint(
-            _spectrum_checkpoint_path(root, layer, seed), protocol_hash, {"layer": layer, "seed": seed}
-        )
-        is None
-        or not _npz_meta_valid(_vectors_path(root, layer, seed), protocol_hash)
+        if args.force or not _spectrum_fresh(roots, root, protocol_hash, layer, seed)
     ]
     steering_pending = [
         layer
         for layer in layers
         if args.force
         or any((layer, seed) in pending for seed in seeds)
-        or not _npz_meta_valid(_steering_path(root, layer), protocol_hash)
+        or not _npz_meta_valid(
+            _steering_path(root, layer), protocol_hash, schema="e1x-directions-v1", layer=layer
+        )
     ]
     print(
         f"spectrum：待计算 {len(pending)}/{len(layers) * len(seeds)} 个层×种子任务，"
@@ -1120,7 +1306,12 @@ def stage_spectrum(args, protocol: dict, protocol_hash: str) -> None:
             record["protocol_hash"] = protocol_hash
             vectors["__meta__"] = np.frombuffer(
                 json.dumps(
-                    {"protocol_hash": protocol_hash, "layer": layer, "seed": seed},
+                    {
+                        "schema": "geometry-vectors-v1",
+                        "protocol_hash": protocol_hash,
+                        "layer": layer,
+                        "seed": seed,
+                    },
                     ensure_ascii=False,
                 ).encode(),
                 dtype=np.uint8,
@@ -1129,10 +1320,9 @@ def stage_spectrum(args, protocol: dict, protocol_hash: str) -> None:
             _atomic_write_json(_spectrum_checkpoint_path(root, layer, seed), record)
             print(
                 f"L{layer}/s{seed} 完成：E(16)={record['energy_v_star']['at_k']['16']:.4f}，"
-                f"INLP r1 保留率={_format_metric(record['inlp']['retention_after_1'])}，"
-                f"LEACE 自检 train AUC={record['mean_erasure_check']['train_auc']:.4f}，"
+                f"特征折中位保留率={_format_metric(record['feature_split']['median_retention'])}，"
+                f"白化残差 AUC={record['whitened_rank']['residual_auc']:.4f}，"
                 f"cos(d,v*)={record['diff_means']['abs_cos_to_v_star']:.4f}，"
-                f"未收敛拟合={record['nonconverged_fits']}，"
                 f"耗时 {record['wall_seconds']:.1f}s",
                 flush=True,
             )
@@ -1140,7 +1330,7 @@ def stage_spectrum(args, protocol: dict, protocol_hash: str) -> None:
             gc.collect()
             engine._empty_cuda_cache(str(args.device))
         if layer in steering_pending:
-            _write_steering(root, layer, seeds, x_eval, protocol_hash)
+            _write_steering(root, layer, seeds, store, train_rows, protocol_hash)
         store.clear()
         del store, x_eval, y_eval
         gc.collect()
@@ -1168,7 +1358,7 @@ def stage_trajectory(args, protocol: dict, protocol_hash: str) -> dict:
             return cached
 
     steering_file = _steering_path(root, layer)
-    if not _npz_meta_valid(steering_file, protocol_hash):
+    if not _npz_meta_valid(steering_file, protocol_hash, schema="e1x-directions-v1", layer=layer):
         raise SystemExit(f"缺少或过期的转向包 {steering_file}——trajectory 依赖 spectrum 完成该层")
     with np.load(steering_file, allow_pickle=False) as payload:
         steering_meta = json.loads(bytes(payload["__meta__"]).decode())
@@ -1180,12 +1370,12 @@ def stage_trajectory(args, protocol: dict, protocol_hash: str) -> dict:
     pc1_members = []
     for seed in seeds:
         path = _vectors_path(root, layer, seed)
-        if not _npz_meta_valid(path, protocol_hash):
+        if not _npz_meta_valid(path, protocol_hash, schema="geometry-vectors-v1", layer=layer, seed=seed):
             raise SystemExit(f"缺少或过期的 {path}——请先以当前协议重跑 spectrum")
         with np.load(path, allow_pickle=False) as payload:
             pc1_members.append(np.asarray(payload["pc1"], dtype=np.float64))
     directions["pc1"] = sign_aligned_mean(pc1_members)
-    # σ 标准化用转向包里种子均值方向自身的投影标准差（评估集口径，#35 中风险 4）。
+    # σ 标准化用转向包里方向自身的训练行投影标准差（train pooled，#36 claim 4）。
     projection_norms = {
         "probe_meanseed": float(steering_meta["proj_std"]["probe_meanseed"]),
         "diffmeans": float(steering_meta["proj_std"]["diffmeans"]),
@@ -1333,14 +1523,14 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
         return [metric(record) for record in spectrum.values()]
 
     e16 = across(lambda r: r["energy_v_star"]["at_k"]["16"])
-    inlp_retention = across(
-        lambda r: (
-            float("nan") if r["inlp"]["retention_after_1"] is None else r["inlp"]["retention_after_1"]
-        )
-    )
-    erasure_train = across(lambda r: r["mean_erasure_check"]["train_auc"])
+    # 特征折分布式冗余（#36）：中位保留率越高越分布式。
+    split_median = across(lambda r: float(r["feature_split"]["median_retention"]))
+    split_min = across(lambda r: float(r["feature_split"]["min_retention"]))
+    whitened_residual = across(lambda r: float(r["whitened_rank"]["residual_auc"]))
+    mp_train = across(lambda r: r["mean_projection"]["train_auc"])
+    # top16 基线与变换值同口径（全 C 档评估集最大，#36 claim 6：消除选择偏差错配）。
     remove_top16_drop = across(
-        lambda r: r["formal_auc"] - r["removal_auc"]["remove_top_pc_16"]["max_auc"]
+        lambda r: r["removal_auc"]["full_refit"]["max_auc"] - r["removal_auc"]["remove_top_pc_16"]["max_auc"]
     )
     cos_d = across(lambda r: r["diff_means"]["abs_cos_to_v_star"])
     mimi_gap = across(
@@ -1350,19 +1540,24 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
     full_refit_gap = across(lambda r: r["full_refit_gap_at_formal_c"])
     nonconverged_total = int(sum(across(lambda r: r["nonconverged_fits"])))
 
-    # INLP 冗余（#35 修订）：保守取跨任务最大保留率；擦除轮数不是维数度量。
-    worst_retention = max(inlp_retention)
-    if np.isnan(worst_retention):
-        redundancy_verdict = "indeterminate"
-    elif worst_retention <= 0.3:
-        redundancy_verdict = "alpha"
-    elif min(inlp_retention) >= 0.7:
-        redundancy_verdict = "beta"
+    # 分布式判读（#36）：保守取跨任务最低中位保留率——最集中的任务也≥0.5 才判分布式。
+    worst_split = min(split_median)
+    best_split = max(split_median)
+    if worst_split >= 0.5:
+        distributed_verdict = "alpha"
+    elif best_split < 0.25:
+        distributed_verdict = "beta"
     else:
-        redundancy_verdict = "indeterminate"
+        distributed_verdict = "indeterminate"
 
-    # 均值差擦除自检（非判读行）：训练 AUC 偏离 0.5 超过 0.03 说明实现有误。
-    erasure_check_ok = all(abs(value - 0.5) <= 0.03 for value in erasure_train)
+    # 白化秩-1 确认（描述性硬门，非 α/β）：残差应 ≤ collapse_max，确认二分类线性读出秩=1。
+    whitened_all_collapsed = all(v <= WHITEN_COLLAPSE_MAX for v in whitened_residual)
+    # 均值投影自检（非判读行）：训练 AUC 偏离 0.5 超过容差说明实现有误。
+    mp_sanity_ok = all(abs(value - 0.5) <= MEAN_PROJECTION_TOL for value in mp_train)
+    if not mp_sanity_ok:
+        raise SystemExit("均值投影自检异常（train AUC 偏离 0.5），实现有误，拒绝出判读矩阵")
+    if nonconverged_total > 0:
+        raise SystemExit(f"存在 {nonconverged_total} 个未收敛拟合，拒绝出判读矩阵（#36 硬门）")
 
     # T1×T4 方向关系（@L29，种子均值方向）。
     t1_cos_l29 = {
@@ -1425,14 +1620,14 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
             "verdict": _verdict_interval(max(e16), 0.5, 0.8),
             "reading": "alpha=错向主张成立（E(16)<0.5）；beta=与 rank-k 曲线矛盾须查实现",
         },
-        "inlp_redundancy": {
-            "values": inlp_retention,
-            "worst": worst_retention,
-            "verdict": redundancy_verdict,
+        "feature_split_distributed": {
+            "values": split_median,
+            "worst": worst_split,
+            "verdict": distributed_verdict,
             "reading": (
-                "INLP r1 保留率 (r1−0.5)/(r0−0.5)：alpha=近一维码（≤0.3，次优正交读出弱）；"
-                "beta=厚方向束/上下文异质方向混合（≥0.7）。擦除轮数不是维数度量"
-                "（LEACE：均值信号线性擦除秩恒为 1，#35）"
+                "特征折中位保留率 (min(AUC_A,AUC_B)−0.5)/(AUC_full−0.5)：alpha=分布式承载于"
+                "众多神经元（最集中任务也≥0.5）；beta=集中于少数神经元（<0.25）。协方差无关，"
+                "取代受 Σ 旋转混淆的方向剔除法（#36：单均值信号方向剔除误判 β，特征折与白化判 α）"
             ),
         },
         "top16_contribution": {
@@ -1483,7 +1678,7 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
     }
     return {
         "kind": "exploratory_non_decisive",
-        "prereg": [32, 35],
+        "prereg": [32, 35, 36],
         "formal_g2_unchanged": True,
         "protocol": protocol,
         "protocol_hash": protocol_hash,
@@ -1491,8 +1686,11 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
         "fit_audit": {
             "full_refit_gap_max": max(full_refit_gap),
             "nonconverged_fits_total": nonconverged_total,
-            "mean_erasure_sanity_ok": erasure_check_ok,
-            "mean_erasure_train_auc": erasure_train,
+            "mean_projection_sanity_ok": mp_sanity_ok,
+            "mean_projection_train_auc": mp_train,
+            "feature_split_min_retention": split_min,
+            "whitened_residual_auc": whitened_residual,
+            "whitened_all_collapsed_rank1": whitened_all_collapsed,
         },
         "alignment_rank_095_by_layer": {str(k): v for k, v in rank_by_layer.items()},
         "verdict_matrix": verdicts,
@@ -1539,12 +1737,18 @@ def _write_markdown(result: dict) -> Path:
             f"- 一维投影恒等自检最大偏差：{result['identity_gap_max']:.2e}（门限 {IDENTITY_AUC_TOLERANCE}）。",
             f"- 正式 C 全维重训复现最大偏差：{audit['full_refit_gap_max']:.2e}"
             f"（硬门 {FULL_REFIT_TOLERANCE}）。",
-            f"- 未收敛拟合总数：{audit['nonconverged_fits_total']}"
-            + ("（全部收敛）" if audit["nonconverged_fits_total"] == 0 else "（存在未收敛，判读需谨慎）")
+            f"- 未收敛拟合总数：{audit['nonconverged_fits_total']}（硬门：>0 拒绝出矩阵）。",
+            "- 白化秩-1 确认（LEACE 一致，残差 AUC 应≈0.5，非判据）："
+            + "、".join(f"{value:.4f}" for value in audit["whitened_residual_auc"])
+            + (
+                "（全部塌缩，确认二分类线性读出秩=1）"
+                if audit["whitened_all_collapsed_rank1"]
+                else "（**残差偏高，查异方差/实现**）"
+            )
             + "。",
-            "- LEACE 均值差擦除自检（训练 AUC 应≈0.5，非判据）："
-            + "、".join(f"{value:.4f}" for value in audit["mean_erasure_train_auc"])
-            + ("（通过）" if audit["mean_erasure_sanity_ok"] else "（**异常，查实现**）")
+            "- 均值投影自检（train AUC 应≈0.5，Mean Projection 非 LEACE）："
+            + "、".join(f"{value:.4f}" for value in audit["mean_projection_train_auc"])
+            + ("（通过）" if audit["mean_projection_sanity_ok"] else "（**异常，查实现**）")
             + "。",
             f"- fit↔cell 方向最小 |cos|：{result['directions']['min_fit_vs_cell_abs_cos']:.6f}。",
             "- T4 方向层间传播（种子均值方向，相邻层 |cos|）：L28→L29 "

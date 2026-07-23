@@ -89,17 +89,39 @@ def main() -> None:
             f"缺方向文件 {directions_npz}：先跑 wp_e1x_suite.py --stage geometry，"
             "或用 --directions-npz 指向 wp_e1_geometry_autopsy.py spectrum 的 steering_L29.npz"
         )
+    n_random_cfg = int(load_config("grids")["e1"]["e1x"]["n_random_directions"])
     with np.load(directions_npz, allow_pickle=False) as payload:
         meta = json.loads(bytes(payload["__meta__"]).decode())
         direction_names = [k for k in payload.files if k != "__meta__"]
+        dims = set()
         for name in direction_names:
             vec = payload[name]
             if vec.ndim != 1 or not np.isfinite(vec).all():
                 raise SystemExit(f"方向 {name} 非法")
+            dims.add(int(vec.shape[0]))
+    # 方向包契约校验（#36 claim 4）：schema / 层号 / 必需键 / 随机数 / 维度 / 尺度。
+    if meta.get("schema") != "e1x-directions-v1":
+        raise SystemExit(f"方向包 schema={meta.get('schema')} 非 e1x-directions-v1")
+    if int(meta.get("layer", -1)) != int(cfg["layer"]):
+        raise SystemExit(
+            f"方向包层号 {meta.get('layer')} ≠ 计划层号 {cfg['layer']}（拒绝跨层注入）"
+        )
+    required_keys = {"probe_meanseed", "diffmeans"}
+    missing_keys = required_keys - set(direction_names)
+    if missing_keys:
+        raise SystemExit(f"方向包缺必需键：{sorted(missing_keys)}")
+    random_names = [n for n in direction_names if n.startswith("random_r")]
+    if len(random_names) != n_random_cfg:
+        raise SystemExit(f"随机方向数 {len(random_names)} ≠ 配置 {n_random_cfg}")
+    if len(dims) != 1:
+        raise SystemExit(f"方向包维度不一致：{sorted(dims)}")
     proj_std = meta["proj_std"]
     missing_std = [n for n in direction_names if n not in proj_std]
     if missing_std:
         raise SystemExit(f"方向缺投影尺度：{missing_std}")
+    bad_std = [n for n in direction_names if not (np.isfinite(proj_std[n]) and float(proj_std[n]) > 0)]
+    if bad_std:
+        raise SystemExit(f"方向投影尺度非正或非有限：{bad_std}")
 
     splits = json.loads(
         (Path(__file__).resolve().parents[1] / "configs" / "splits" / "candor.json").read_text(encoding="utf-8")

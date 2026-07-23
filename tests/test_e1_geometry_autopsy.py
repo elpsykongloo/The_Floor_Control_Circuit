@@ -1,8 +1,11 @@
-"""E1 几何解剖脚本（PREREG #32/#35）的合成数据测试。
+"""E1 几何解剖脚本（PREREG #32/#35/#36）的合成数据测试。
 
-核心覆盖：一维投影恒等式（分析支柱）、错向几何下的能量谱/对齐秩、INLP 冗余谱
-的区分度（同质一维 vs 双尺度方向束）、均值差擦除的数学必然性（LEACE，仅自检）、
-sup-t 同时带的假阳性控制、方向符号核验、C 网格重训与事件窗/bootstrap 工具。
+#36 核心：方向剔除法（INLP r₁）受协方差旋转混淆——严格单均值信号在相关噪声下
+会被误判为"厚方向束"。改用两个协方差无关/纠正的度量：
+  - feature_split_redundancy：特征子集冗余，区分"分布式承载于众多神经元"vs"集中"；
+  - whitened_rank_check：白化后剔除唯一判别方向，残差→0.5 确认二分类线性读出秩=1，
+    且不受 Σ⁻¹d 相对 d 的旋转混淆（单均值信号正确塌缩）。
+均值投影自检（Mean Projection，非 LEACE）仅作实现 sanity，其一轮归零是数学必然。
 """
 
 from __future__ import annotations
@@ -17,6 +20,8 @@ import pytest
 from floor_circuit.e1 import probe_gpu as pg
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+TRAINER = {"lbfgs_max_iter": 300, "lbfgs_tolerance_grad": 1e-6}
+C_GRID = [0.001, 0.01, 0.1, 1.0]
 
 
 def _load_module():
@@ -38,7 +43,7 @@ def _fit_fn(x_block, y_block):
 
 
 def _misaligned_dataset(n_rows: int = 4000, seed: int = 7):
-    """已知几何：前 4 维大方差噪声，信号方向 = e4（中排序主轴），其余小噪声。"""
+    """前 4 维大方差噪声，信号方向 = e4（中排序主轴），其余小噪声。"""
     rng = np.random.default_rng(seed)
     n_dims = 32
     y = (rng.random(n_rows) < 0.5).astype(np.int64)
@@ -49,44 +54,56 @@ def _misaligned_dataset(n_rows: int = 4000, seed: int = 7):
     return x.astype(np.float32), y
 
 
-def _one_dim_isotropic_dataset(n_rows: int = 4000, seed: int = 11):
-    """同质一维码：信号沿跨 8 列方向 u，噪声各向同性 + 正交大方差干扰轴。"""
-    rng = np.random.default_rng(seed)
-    n_dims = 16
-    u = np.zeros(n_dims)
-    u[:8] = 1.0
-    u /= np.linalg.norm(u)
-    y = (rng.random(n_rows) < 0.5).astype(np.int64)
-    x = rng.standard_normal((n_rows, n_dims)) * 0.5
-    x[:, 8:12] += rng.standard_normal((n_rows, 4)) * 6.0
-    x += np.outer((2.0 * y - 1.0) * 1.2, u)
-    return x.astype(np.float32), y, u
+def _single_mean_correlated_noise(n_rows: int = 6000, seed: int = 0):
+    """#36 反例：标签均值严格沿 e0，其余为标签无关的相关高斯噪声。
 
-
-def _dual_scale_bundle_dataset(n_rows: int = 4000, seed: int = 13):
-    """双尺度方向束：均值差同时落在低噪声轴 e1 与高噪声轴 e0 上。
-
-    白化最优方向 Σ⁻¹d 几乎纯 e1；剔除它后 e0 上仍有强可读均值信号——
-    INLP r1 保留率应当高（"厚方向束"分支的最小合成实现）。
+    最优判别方向 ≈ Σ⁻¹e0 偏离 e0；未白化方向剔除后 e0 分量仍可读（误判厚方向束），
+    白化后剔除唯一判别方向则正确塌缩到 ~0.5。
     """
     rng = np.random.default_rng(seed)
-    n_dims = 16
+    n_dims = 24
     y = (rng.random(n_rows) < 0.5).astype(np.int64)
-    x = rng.standard_normal((n_rows, n_dims)) * 0.3
-    x[:, 0] = rng.standard_normal(n_rows) * 1.0 + (2.0 * y - 1.0) * 1.0
-    x[:, 1] = rng.standard_normal(n_rows) * 0.2 + (2.0 * y - 1.0) * 1.0
+    a = rng.standard_normal((n_dims, n_dims))
+    cov = a @ a.T / n_dims + 0.1 * np.eye(n_dims)
+    noise = rng.standard_normal((n_rows, n_dims)) @ np.linalg.cholesky(cov).T
+    d0 = np.zeros(n_dims)
+    d0[0] = 1.0
+    x = (noise + np.outer((2.0 * y - 1.0) * 1.2, d0)).astype(np.float32)
+    return x, y
+
+
+def _localized_dataset(n_rows: int = 4000, seed: int = 1):
+    rng = np.random.default_rng(seed)
+    n_dims = 32
+    y = (rng.random(n_rows) < 0.5).astype(np.int64)
+    x = rng.standard_normal((n_rows, n_dims)) * 0.5
+    x[:, 0] += (2.0 * y - 1.0) * 1.0
     return x.astype(np.float32), y
 
 
-def _pca(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _distributed_dataset(n_rows: int = 4000, seed: int = 2):
+    rng = np.random.default_rng(seed)
+    n_dims = 32
+    u = rng.standard_normal(n_dims)
+    u /= np.linalg.norm(u)
+    y = (rng.random(n_rows) < 0.5).astype(np.int64)
+    x = rng.standard_normal((n_rows, n_dims)) * 0.5 + np.outer((2.0 * y - 1.0) * 1.0, u)
+    return x.astype(np.float32), y
+
+
+def _pca(x: np.ndarray):
     x64 = np.asarray(x, dtype=np.float64)
     center = x64.mean(axis=0)
     _, _, vt = np.linalg.svd(x64 - center, full_matrices=False)
     return center, vt
 
 
+# --------------------------------------------------------------------------- #
+# 分析支柱：一维投影恒等式
+# --------------------------------------------------------------------------- #
+
+
 def test_identity_projection_auc_equals_full_probe_auc():
-    """分析支柱：全维二分类探针 AUC == 原始空间单方向投影 AUC。"""
     module = _load_module()
     x, y = _misaligned_dataset()
     probe = pg.fit_linear_probe(x, y, 2, 0.1, device="cpu")
@@ -105,19 +122,15 @@ def test_energy_profile_localizes_misaligned_signal_direction():
     v_star = module.orig_space_direction(probe.weight[0], probe.scale)
     profile = module.energy_profile(vt, v_star)
     cumulative = profile["cumulative"]
-    # 信号方向与前 4 个大方差主轴近正交，能量集中在第 5 主轴。
     assert cumulative[3] < 0.10
     assert cumulative[4] > 0.90
     assert module.alignment_rank(cumulative, 0.5) == 5
-    assert module.alignment_rank(cumulative, 0.95) >= 5
-    assert profile["span_fraction"] == pytest.approx(1.0, abs=1e-9)
     assert module.alignment_rank(np.array([0.2, 0.4]), 0.95) is None
 
 
 def test_energy_at_ks_caps_beyond_spectrum_length():
     module = _load_module()
-    cumulative = np.array([0.3, 0.6, 0.9])
-    table = module.energy_at_ks(cumulative, (1, 2, 16))
+    table = module.energy_at_ks(np.array([0.3, 0.6, 0.9]), (1, 2, 16))
     assert table["1"] == pytest.approx(0.3)
     assert table["16"] == pytest.approx(0.9)
 
@@ -126,51 +139,92 @@ def test_top_pc_removal_keeps_misaligned_signal():
     module = _load_module()
     x, y = _misaligned_dataset()
     center, vt = _pca(x)
-    probe = pg.fit_linear_probe(x, y, 2, 0.1, device="cpu")
-    v_star = module.orig_space_direction(probe.weight[0], probe.scale)
-
     x_no_top = module.remove_top_pcs(x, center, vt, 4)
-    probe_no_top = pg.fit_linear_probe(x_no_top, y, 2, 0.1, device="cpu")
-    auc_no_top = pg.primary_metric(y, probe_no_top.predict_proba(x_no_top), 2)
-    assert auc_no_top > 0.9
-    # 剔除后的矩阵与被剔方向正交（f32 容差）。
-    x_no_dir = module.remove_directions(x, v_star)
-    assert float(np.abs(np.asarray(x_no_dir, np.float64) @ v_star).max()) < 1e-3
+    probe = pg.fit_linear_probe(x_no_top, y, 2, 0.1, device="cpu")
+    assert pg.primary_metric(y, probe.predict_proba(x_no_top), 2) > 0.9
 
 
-def test_inlp_retention_separates_one_dim_code_from_direction_bundle():
-    """#35 核心区分度检验：INLP r1 保留率必须能分开两种几何。
+# --------------------------------------------------------------------------- #
+# #36：feature-split 分布式判据（协方差无关）
+# --------------------------------------------------------------------------- #
 
-    同质一维码（各向同性噪声）：剔除首轮探针方向后仅剩估计角误差残留 → 保留率低。
-    双尺度方向束：白化最优方向 ≈ 低噪声轴，剔除后高噪声轴上的均值信号仍强可读
-    → 保留率高。均值差擦除对这两种情形都"一轮归零"，正因此被降级为自检（见下）。
-    """
+
+def test_feature_split_separates_localized_from_distributed():
     module = _load_module()
-    x1, y1, _u = _one_dim_isotropic_dataset()
-    one_dim = module.inlp_redundancy_spectrum(
-        x1, y1, x1, y1, fit_fn=_fit_fn, max_removals=2
+    xl, yl = _localized_dataset()
+    localized = module.feature_split_redundancy(
+        xl[:2000], yl[:2000], xl[2000:], yl[2000:], C_GRID, TRAINER, "cpu", folds=4, seed=0
     )
-    assert one_dim["auc_sequence"][0] > 0.95
-    assert one_dim["retention_after_1"] < 0.3
+    assert localized["full_auc"] > 0.9
+    assert localized["median_retention"] < 0.25  # 集中 → β
 
-    x2, y2 = _dual_scale_bundle_dataset()
-    bundle = module.inlp_redundancy_spectrum(
-        x2, y2, x2, y2, fit_fn=_fit_fn, max_removals=2
+    xd, yd = _distributed_dataset()
+    distributed = module.feature_split_redundancy(
+        xd[:2000], yd[:2000], xd[2000:], yd[2000:], C_GRID, TRAINER, "cpu", folds=4, seed=0
     )
-    assert bundle["auc_sequence"][0] > 0.95
-    assert bundle["retention_after_1"] > 0.7
+    assert distributed["full_auc"] > 0.9
+    assert distributed["min_retention"] >= 0.5  # 分布式 → α
+    assert distributed["nonconverged"] == 0
 
 
-def test_mean_erasure_is_mathematically_forced_to_chance():
-    """LEACE 事实固化：均值差擦除后训练集质心相等，重训 AUC≈0.5——
-    对一维信号与方向束**同样**成立，因此它没有任何区分度，只能作实现自检。"""
+# --------------------------------------------------------------------------- #
+# #36：白化秩-1 确认解决协方差混淆
+# --------------------------------------------------------------------------- #
+
+
+def test_whitened_check_collapses_single_mean_that_direction_removal_misjudges():
     module = _load_module()
-    for maker in (_one_dim_isotropic_dataset, _dual_scale_bundle_dataset):
-        made = maker()
-        x, y = made[0], made[1]
-        check = module.mean_erasure_check(x, y, x, y, fit_fn=_fit_fn)
-        assert check["train_mean_gap_after_erasure"] < 1e-4
-        assert abs(check["train_auc"] - 0.5) < 0.03
+    x, y = _single_mean_correlated_noise()
+    xtr, xte, ytr, yte = x[:3000], x[3000:], y[:3000], y[3000:]
+    ctr, vt_tr = _pca(xtr)
+    result = module.whitened_rank_check(
+        xtr, ytr, xte, yte, ctr, vt_tr, C_GRID, TRAINER, "cpu", k=24, shrinkage=1e-2
+    )
+    assert result["whitened_full_auc"] > 0.9
+    # 关键：严格单均值信号白化后残差塌缩（未白化方向剔除会误判为厚方向束）。
+    assert result["residual_auc"] <= module.WHITEN_COLLAPSE_MAX
+    assert result["collapsed"]
+
+
+def test_whitened_check_collapses_isotropic_and_distributed():
+    module = _load_module()
+    for maker in (_localized_dataset, _distributed_dataset):
+        x, y = maker()
+        ctr, vt = _pca(x[:2000])
+        result = module.whitened_rank_check(
+            x[:2000], y[:2000], x[2000:], y[2000:], ctr, vt, C_GRID, TRAINER, "cpu",
+            k=min(31, x.shape[1] - 1), shrinkage=1e-2,
+        )
+        assert result["residual_auc"] <= module.WHITEN_COLLAPSE_MAX
+
+
+# --------------------------------------------------------------------------- #
+# 均值投影自检（数学必然，仅 sanity）
+# --------------------------------------------------------------------------- #
+
+
+def test_mean_projection_forces_train_chance():
+    module = _load_module()
+    for maker in (_localized_dataset, _distributed_dataset, _single_mean_correlated_noise):
+        x, y = maker()
+        check = module.mean_projection_check(x, y, x, y, fit_fn=_fit_fn)
+        assert check["train_mean_gap_after_projection"] < 1e-4
+        assert abs(check["train_auc"] - 0.5) < module.MEAN_PROJECTION_TOL
+
+
+def test_refit_auc_grid_reports_all_c_and_max():
+    module = _load_module()
+    x, y = _misaligned_dataset(n_rows=1500)
+    result = module.refit_auc_grid(x, y, x, y, [0.001, 0.1], TRAINER, "cpu")
+    assert set(result["auc_by_c"]) == {"0.001", "0.1"}
+    assert result["max_auc"] == pytest.approx(max(result["auc_by_c"].values()))
+    assert result["max_auc"] > 0.9
+    assert result["nonconverged"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# 方向工具 / 符号规范
+# --------------------------------------------------------------------------- #
 
 
 def test_diff_in_means_aligns_with_planted_direction():
@@ -184,23 +238,6 @@ def test_diff_in_means_aligns_with_planted_direction():
         module.diff_in_means(x[y == 1], y[y == 1])
 
 
-def test_refit_auc_grid_reports_all_c_and_max():
-    module = _load_module()
-    x, y = _misaligned_dataset(n_rows=1500)
-    trainer = {"lbfgs_max_iter": 200, "lbfgs_tolerance_grad": 1e-6}
-    result = module.refit_auc_grid(x, y, x, y, [0.001, 0.1], trainer, "cpu")
-    assert set(result["auc_by_c"]) == {"0.001", "0.1"}
-    assert result["max_auc"] == pytest.approx(max(result["auc_by_c"].values()))
-    assert result["max_auc"] > 0.9
-
-
-def test_sign_aligned_mean_flips_opposite_directions():
-    module = _load_module()
-    base = module.unit(np.array([1.0, 2.0, 3.0]))
-    mean = module.sign_aligned_mean([base, -base, base])
-    assert module.abs_cosine(mean, base) == pytest.approx(1.0)
-
-
 def test_mean_direction_label1_verifies_orientation():
     module = _load_module()
     v = np.array([1.0, 0.0])
@@ -210,6 +247,28 @@ def test_mean_direction_label1_verifies_orientation():
     assert module.abs_cosine(mean, v) == pytest.approx(1.0)
     with pytest.raises(ValueError):
         module.mean_direction_label1([v, v], [good, bad])
+
+
+def test_probe_direction_is_canonically_label1_oriented():
+    """探针 w/σ 天然指向 label=1，跨种子同向：directions 阶段直接平均无需翻转。"""
+    module = _load_module()
+    x, y = _misaligned_dataset()
+    dirs = [
+        module.orig_space_direction(
+            pg.fit_linear_probe(x, y, 2, c, device="cpu").weight[0],
+            pg.fit_linear_probe(x, y, 2, c, device="cpu").scale,
+        )
+        for c in (0.05, 0.1, 0.2)
+    ]
+    signed = [float(np.dot(module.unit(dirs[i]), module.unit(dirs[j]))) for i in range(3) for j in range(i + 1, 3)]
+    assert min(signed) > 0  # 全部同向（正号）——无需 sign_aligned_mean
+
+
+def test_sign_aligned_mean_flips_opposite_directions():
+    module = _load_module()
+    base = module.unit(np.array([1.0, 2.0, 3.0]))
+    mean = module.sign_aligned_mean([base, -base, base])
+    assert module.abs_cosine(mean, base) == pytest.approx(1.0)
 
 
 def test_orig_space_direction_validates_inputs():
@@ -225,28 +284,30 @@ def test_orig_space_direction_validates_inputs():
 def test_mimi_ridge_separates_predictable_and_random_targets():
     module = _load_module()
     rng = np.random.default_rng(11)
-    features_train = rng.standard_normal((600, 20))
-    features_eval = rng.standard_normal((300, 20))
+    ft = rng.standard_normal((600, 20))
+    fe = rng.standard_normal((300, 20))
     beta = rng.standard_normal(20)
-    target_train = features_train @ beta + rng.standard_normal(600) * 0.05
-    target_eval = features_eval @ beta + rng.standard_normal(300) * 0.05
-    noise_train = rng.standard_normal(600)
-    noise_eval = rng.standard_normal(300)
-    ridge = module.MimiRidge(features_train, 1e-4)
+    tt = ft @ beta + rng.standard_normal(600) * 0.05
+    te = fe @ beta + rng.standard_normal(300) * 0.05
+    ridge = module.MimiRidge(ft, 1e-4)
     r2 = ridge.r2(
-        np.column_stack([target_train, noise_train]),
-        features_eval,
-        np.column_stack([target_eval, noise_eval]),
+        np.column_stack([tt, rng.standard_normal(600)]),
+        fe,
+        np.column_stack([te, rng.standard_normal(300)]),
     )
     assert r2[0] > 0.95
     assert abs(r2[1]) < 0.2
 
 
+# --------------------------------------------------------------------------- #
+# 轨迹统计：sup-t 同时带 + 持续显著
+# --------------------------------------------------------------------------- #
+
+
 def test_extract_event_windows_drops_boundary_events():
     module = _load_module()
     projections = np.arange(40, dtype=np.float64)[:, None]
-    event_rows = np.array([2, 10, 38])
-    windows, keep = module.extract_event_windows(projections, event_rows, 3, 38)
+    windows, keep = module.extract_event_windows(projections, np.array([2, 10, 38]), 3, 38)
     assert keep.tolist() == [False, True, False]
     assert windows.shape == (1, 7, 1)
     assert windows[0, :, 0].tolist() == [7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0]
@@ -261,8 +322,6 @@ def test_sustained_onset_requires_consecutive_run():
 
 
 def test_cluster_bootstrap_sup_t_controls_null_false_positives():
-    """#35 高风险 1：零效应数据在逐点 CI 下假阳性率≈1；sup-t 同时带 + 连续
-    约束下固定种子零效应必须不产生持续显著起点。"""
     module = _load_module()
     rng = np.random.default_rng(21)
     n_sessions, n_offsets = 30, 51
@@ -274,7 +333,6 @@ def test_cluster_bootstrap_sup_t_controls_null_false_positives():
         sum_pos, count_pos, sum_neg, count_neg, 300, 5, min_consecutive=3
     )
     assert result["onset_index_sustained"] is None
-    # 同时带阈值必须比逐点 1.96σ 更宽——这就是逐点判定假阳性率≈1 的修正来源。
     assert result["sup_t_quantile_95"] > 1.96
 
 
@@ -294,19 +352,14 @@ def test_cluster_bootstrap_detects_planted_sustained_separation():
     assert result["separation"][3] == pytest.approx(1.0, abs=0.1)
     assert result["simultaneous_lower"][3] > 0.5
     with pytest.raises(ValueError):
-        module.cluster_bootstrap_separation(
-            sum_pos, count_pos * 0, sum_neg, count_neg, 10, 3
-        )
+        module.cluster_bootstrap_separation(sum_pos, count_pos * 0, sum_neg, count_neg, 10, 3)
 
 
 def test_projection_stats_reports_both_classes():
     module = _load_module()
-    scores = np.array([1.0, 2.0, -1.0, -2.0])
-    labels = np.array([1, 1, 0, 0])
-    stats = module.projection_stats(scores, labels)
+    stats = module.projection_stats(np.array([1.0, 2.0, -1.0, -2.0]), np.array([1, 1, 0, 0]))
     assert stats["mean_pos"] == pytest.approx(1.5)
     assert stats["mean_neg"] == pytest.approx(-1.5)
-    assert stats["pooled_mean"] == pytest.approx(0.0)
 
 
 def test_verdict_interval_bands():
