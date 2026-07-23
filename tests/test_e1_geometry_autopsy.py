@@ -358,3 +358,67 @@ def test_verdict_interval_bands():
     assert module._verdict_interval(0.4, 0.5, 0.8) == "alpha"
     assert module._verdict_interval(0.6, 0.5, 0.8) == "indeterminate"
     assert module._verdict_interval(0.9, 0.5, 0.8) == "beta"
+
+
+def _minimal_finalize_result(with_trajectory: bool) -> dict:
+    verdicts = {
+        name: {"values": [0.5], "worst": 0.5, "verdict": "alpha", "reading": "r"}
+        for name in (
+            "E16_misalignment", "coordinate_distribution", "top16_contribution",
+            "diff_means_alignment", "mimi_contrast", "t1_t4_relation",
+            "layer_condensation", "trajectory_onset",
+        )
+    }
+    trajectory = None
+    if with_trajectory:
+        trajectory = {
+            "layer": 29,
+            "total_events": 1234,
+            "random_direction_names": ["random_r0", "random_r1", "random_r2"],
+            "random_any_sustained": False,
+            "curves": {
+                "probe_meanseed": {"onset_ms_sustained": -320, "min_consecutive": 3},
+                "random_r0": {"onset_ms_sustained": None},
+                "random_r1": {"onset_ms_sustained": None},
+                "random_r2": {"onset_ms_sustained": None},
+            },
+        }
+    return {
+        "identity_gap_max": 1e-6,
+        "fit_audit": {
+            "full_refit_gap_max": 1e-4,
+            "nonconverged_fits_total": 0,
+            "mean_projection_sanity_ok": True,
+            "mean_projection_train_auc": [0.50, 0.50, 0.50],
+        },
+        "coordinate_concentration_descriptive": {
+            "pr_fraction_vstar": [0.31, 0.32, 0.33],
+            "pr_fraction_d": [0.30, 0.31, 0.32],
+            "native_half_split_median_retention_covariance_dependent": [0.9, 0.9, 0.9],
+        },
+        "alignment_rank_095_by_layer": {"29": 84, "30": 57, "31": 66},
+        "verdict_matrix": verdicts,
+        "directions": {
+            "min_fit_vs_cell_abs_cos": 0.999999,
+            "t4_layer_propagation": {
+                "28": {"adjacent_abs_cos": 0.95},
+                "29": {"adjacent_abs_cos": 0.96},
+                "30": {"adjacent_abs_cos": 0.97},
+            },
+        },
+        "trajectory": trajectory,
+    }
+
+
+def test_write_markdown_handles_trajectory_random_directions(tmp_path, monkeypatch):
+    """#37 F 修复回归：trajectory 存在时 _write_markdown 读 random_r{i}（非 curves['random']），
+    不再 KeyError。同时覆盖 trajectory 缺失分支。"""
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", str(tmp_path))
+    (tmp_path / "reports").mkdir()
+    for with_traj in (True, False):
+        path = module._write_markdown(_minimal_finalize_result(with_traj))
+        text = path.read_text(encoding="utf-8")
+        assert "判读矩阵结果" in text
+        if with_traj:
+            assert "3 个随机方向对照" in text  # 全部随机方向，非仅 r0

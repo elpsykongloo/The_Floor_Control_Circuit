@@ -61,6 +61,9 @@ MIMI_TOP_PCS = 32
 RIDGE_LAMBDA_SCALE = 1e-3
 FEATURE_SPLIT_FOLDS = 4
 FEATURE_SPLIT_SEED = 20260723
+# 坐标分布性阈值（暂定，#37）：参照随机高斯方向 PR/D≈1/3；α 门为其约 1/3，β 门≤~41 神经元。
+PR_ALPHA_MIN = 0.10
+PR_BETA_MAX = 0.01
 MEAN_PROJECTION_TOL = 0.05
 TRAJ_HALF_WINDOW = 25
 TRAJ_N_BOOT = 1000
@@ -183,13 +186,17 @@ def diff_in_means(features: np.ndarray, labels: np.ndarray) -> np.ndarray:
 
 
 def coordinate_concentration(direction: np.ndarray) -> dict:
-    """方向在原始神经元基上的坐标集中度（协方差无关，#37）。
+    """给定方向在原始神经元基上的坐标集中度（#37）。
 
     participation_ratio PR = (Σ v_i²)² / Σ v_i⁴ = 有效非零坐标数（1..D）：稠密均匀
-    → PR≈D（读出/信号密布于众多神经元）；集中于少数坐标 → PR≈少数。另报 PR/D、
-    前 16 坐标能量占比、Gini。这是纯粹的向量坐标分布度量，不涉及重训、不受类内
-    协方差旋转混淆——直接回答"读出方向权重多少个神经元"（取代 #36 受协方差混淆
-    的特征折 α/β 判读；后者实证会把稠密全局信号误判为局部化，见 tests）。
+    → PR≈D（方向密布于众多神经元）；集中于少数坐标 → PR≈少数。另报 PR/D、前 16
+    坐标能量占比、Gini。**PR 算子本身是向量坐标分布的纯函数（不重训、不涉及 Σ）**；
+    但注意读出方向 v\*=w/σ≈Σ⁻¹d 本身受类内协方差整形（实证：单神经元信号在相干负
+    相关协方差下 PR(v\*)/D 可达 0.965 → 单看 v\* 会误判分布式）。因此判读用 v\* 与
+    **信号方向 d=μ₊−μ₀（协方差无关）双门**：二者皆稠密才判分布式，读出因协方差稠密
+    但 d 稀疏时判 indeterminate（见 _summarize 与 tests）。d 取原始空间（"哪些神经元
+    承载原始均值移位"），其经验估计在近零信号上有 ~1/3 采样噪声底，故 d 门对强信号
+    （如 T4 AUC 0.83）才是有效证书。
     """
     v = unit(direction)
     squared = np.square(v)
@@ -599,7 +606,8 @@ def _protocol(probe_cfg: dict, summary: dict, roots: dict, train: list[str], eva
         "ridge_lambda_scale": RIDGE_LAMBDA_SCALE,
         # #37：feature_split 受协方差混淆（降为描述量）、whitened 残差塌缩为 tautology
         # 且漏信号也过（撤销）；坐标分布性判读改协方差无关的 participation ratio。
-        "distribution_method": "coordinate_participation_ratio_v1",
+        "distribution_method": "coordinate_participation_ratio_dual_gate_v1",
+        "pr_thresholds": {"alpha_min": PR_ALPHA_MIN, "beta_max": PR_BETA_MAX, "random_baseline": "≈1/3"},
         "feature_split_descriptive": {"folds": FEATURE_SPLIT_FOLDS, "seed": FEATURE_SPLIT_SEED},
         "rank_one_binary": "analytical_S_B_rank_1_no_experiment",
         "mean_projection": "sanity_check_only_not_a_criterion",
@@ -968,7 +976,7 @@ def _write_steering(
     # 聚合 diffmeans 在去重训练并集上重算，与 E1-X diff_means_direction(x_all) 一致。
     union_features, union_labels = _steering_union_features(store, train_rows, seeds)
     diffmeans = unit(diff_in_means(union_features, union_labels))
-    proj_union = union_features.astype(np.float32) @ diffmeans.astype(np.float32)
+    proj_union = union_features @ diffmeans.astype(np.float32)  # union_features 已是 float32
     if not proj_union[union_labels == 1].mean() > proj_union[union_labels == 0].mean():
         raise RuntimeError(f"L{layer} 聚合 diffmeans 未指向 label=1，符号约定被破坏")
     directions["diffmeans"] = diffmeans
@@ -1554,9 +1562,9 @@ def _summarize(protocol: dict, protocol_hash: str, roots: dict, args) -> dict:
     per_task_max = [max(a, b) for a, b in zip(pr_frac_vstar, pr_frac_d, strict=True)]
     worst_pr = min(per_task_min)  # 最集中任务里 {v*,d} 更稀疏的一个
     best_pr = max(per_task_max)
-    if worst_pr >= 0.10:
+    if worst_pr >= PR_ALPHA_MIN:
         distributed_verdict = "alpha"  # 每任务 v* 与 d 皆稠密
-    elif best_pr < 0.01:
+    elif best_pr < PR_BETA_MAX:
         distributed_verdict = "beta"  # 每任务 v* 与 d 皆稀疏
     else:
         distributed_verdict = "indeterminate"
@@ -1787,12 +1795,18 @@ def _write_markdown(result: dict) -> Path:
     trajectory = result.get("trajectory")
     if trajectory is not None:
         probe_curve = trajectory["curves"]["probe_meanseed"]
+        random_onsets = [
+            trajectory["curves"][name]["onset_ms_sustained"]
+            for name in trajectory["random_direction_names"]
+        ]
         lines.extend(
             [
                 f"- 事件锁定轨迹（L{trajectory['layer']}）：事件 {trajectory['total_events']}，"
                 f"probe_meanseed 持续显著起点 = {probe_curve['onset_ms_sustained']} ms"
                 f"（sup-t 同时带 + 连续 {probe_curve['min_consecutive']} 步）；"
-                f"随机方向对照 = {trajectory['curves']['random']['onset_ms_sustained']}。",
+                f"{len(random_onsets)} 个随机方向对照持续显著起点 = {random_onsets}"
+                f"（任一非 None 即触发经验零假设警报："
+                f"{'是' if trajectory['random_any_sustained'] else '否'}）。",
             ]
         )
     else:
