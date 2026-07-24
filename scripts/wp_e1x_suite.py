@@ -331,6 +331,16 @@ def stage_geometry(args) -> None:
 # ---------------------------------------------------------------------------
 
 
+def leadtime_checkpoint_valid(entry: dict | None, max_shift: int, seeds: list[int]) -> bool:
+    """#40(c) 断点守卫：网格扩展改变锚点下界后，旧断点（不同锚点集合）必须重算。"""
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("min_anchor_step") != int(max_shift):
+        return False
+    per_seed = entry.get("per_seed")
+    return isinstance(per_seed, dict) and set(per_seed) == {str(s) for s in seeds}
+
+
 def stage_leadtime(args) -> None:
     ctx = _ctx()
     engine._validate_devices([str(args.device)])
@@ -371,9 +381,11 @@ def stage_leadtime(args) -> None:
         shift_path = stage_dir / f"shift_{shift:02d}.json"
         cached = _load_json(shift_path)
         if cached is not None and not args.force:
-            results.append(cached)
-            print(f"[leadtime] shift={shift} 复用断点")
-            continue
+            if leadtime_checkpoint_valid(cached, max_shift, seeds):
+                results.append(cached)
+                print(f"[leadtime] shift={shift} 复用断点")
+                continue
+            print(f"[leadtime] shift={shift} 旧断点锚点下界不符（网格已扩展），重算")
         probe_cells, mimi_cells = [], []
         seed_stats = {}
         for seed in seeds:
@@ -418,6 +430,7 @@ def stage_leadtime(args) -> None:
         entry = {
             "shift_steps": shift,
             "lead_ms": shift * 80,
+            "min_anchor_step": int(max_shift),
             "per_seed": seed_stats,
             "probe_auc_mean": float(np.mean([v["probe_auc"] for v in seed_stats.values()])),
             "mimi_auc_mean": float(np.mean([v["mimi_auc"] for v in seed_stats.values()])),
