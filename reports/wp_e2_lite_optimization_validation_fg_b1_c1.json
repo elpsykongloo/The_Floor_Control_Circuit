@@ -1,0 +1,194 @@
+{
+ "generated_at": "2026-07-23T17:54:33.140752+00:00",
+ "schema": "e2_lite_optimization_validation_v1",
+ "plan": "D:\\data_storage\\The_Floor_Control_Circuit\\e2_lite\\e2_lite.plan.json",
+ "reference_root": "D:\\data_storage\\The_Floor_Control_Circuit\\e2_lite\\runs",
+ "candidate_root": "D:\\data_storage\\The_Floor_Control_Circuit\\e2_lite_validation\\fg_b1_c1\\runs",
+ "requested_runs": 3,
+ "compared_runs": 3,
+ "exact_runs": 3,
+ "equivalent_runs": 3,
+ "all_exact": true,
+ "all_equivalent": true,
+ "activation_atol": 0.0,
+ "activation_rtol": 0.0,
+ "missing_reference": [],
+ "missing_candidate": [],
+ "reference_wall_s": 1025.320871200005,
+ "candidate_unique_group_wall_s": 333.84114550001686,
+ "candidate_observed_encode_wall_s": 10.93728229997214,
+ "candidate_cold_encode_wall_s": 10.93728229997214,
+ "candidate_observed_wall_s": 344.778427799989,
+ "candidate_cold_wall_s": 344.778427799989,
+ "observed_speedup": 2.973854477330608,
+ "cold_speedup": 2.973854477330608,
+ "runs": [
+  {
+   "run_id": "2b52341f-05ff-4341-905a-c264b228e625__baseline",
+   "exact": true,
+   "equivalent": true,
+   "manifest_contract": {
+    "equal": true,
+    "mismatches": {}
+   },
+   "text_tokens": {
+    "equal": true,
+    "equivalent": true,
+    "shape": [
+     2999
+    ],
+    "dtype": "int32",
+    "different_values": 0,
+    "outside_tolerance": 0,
+    "atol": 0.0,
+    "rtol": 0.0
+   },
+   "agent_wav": {
+    "equal": true,
+    "file_equal": true,
+    "reference_sha256": "455c41017b4696aa5452f2e557b4766098dfb5cef09a1d6e4d0a66b00377375d",
+    "candidate_sha256": "455c41017b4696aa5452f2e557b4766098dfb5cef09a1d6e4d0a66b00377375d",
+    "reference_samples": 5758080,
+    "candidate_samples": 5758080,
+    "reference_sample_rate": 24000,
+    "candidate_sample_rate": 24000
+   },
+   "activations": {
+    "L28": {
+     "equal": true,
+     "equivalent": true,
+     "shape": [
+      3000,
+      4096
+     ],
+     "dtype": "float16",
+     "different_values": 0,
+     "outside_tolerance": 0,
+     "atol": 0.0,
+     "rtol": 0.0
+    },
+    "L29": {
+     "equal": true,
+     "equivalent": true,
+     "shape": [
+      3000,
+      4096
+     ],
+     "dtype": "float16",
+     "different_values": 0,
+     "outside_tolerance": 0,
+     "atol": 0.0,
+     "rtol": 0.0
+    },
+    "L30": {
+     "equal": true,
+     "equivalent": true,
+     "shape": [
+      3000,
+      4096
+     ],
+     "dtype": "float16",
+     "different_values": 0,
+     "outside_tolerance": 0,
+     "atol": 0.0,
+     "rtol": 0.0
+    },
+    "L31": {
+     "equal": true,
+     "equivalent": true,
+     "shape": [
+      3000,
+      4096
+     ],
+     "dtype": "float16",
+     "different_values": 0,
+     "outside_tolerance": 0,
+     "atol": 0.0,
+     "rtol": 0.0
+    }
+   },
+   "hook_calls_equal": true,
+   "reference_wall_s": 348.850016100012,
+   "candidate_wall_s": 111.6602269000141,
+   "candidate_backend": "full_graph",
+   "candidate_group_id": "2b52341f-05ff-4341-905a-c264b228e625__baseline",
+   "candidate_group_size": 1
+  },
+  {
+   "run_id": "2b52341f-05ff-4341-905a-c264b228e625__probe_a-4",
+   "exact": true,
+   "equivalent": true,
+   "manifest_contract": {
+    "equal": true,
+    "mismatches": {}
+   },
+   "text_tokens": {
+    "equal": true,
+    "equivalent": true,
+    "shape": [
+     2999
+    ],
+    "dtype": "int32",
+    "different_values": 0,
+    "outside_tolerance": 0,
+    "atol": 0.0,
+    "rtol": 0.0
+   },
+   "agent_wav": {
+    "equal": true,
+    "file_equal": true,
+    "reference_sha256": "c4148224984f2b65d107eb7da0c5da867d5dff5fedadc9b3c4d5e227af85f4d9",
+    "candidate_sha256": "c4148224984f2b65d107eb7da0c5da867d5dff5fedadc9b3c4d5e227af85f4d9",
+    "reference_samples": 5758080,
+    "candidate_samples": 5758080,
+    "reference_sample_rate": 24000,
+    "candidate_sample_rate": 24000
+   },
+   "activations": {},
+   "hook_calls_equal": true,
+   "reference_wall_s": 340.1402128000045,
+   "candidate_wall_s": 111.30348169995705,
+   "candidate_backend": "full_graph",
+   "candidate_group_id": "2b52341f-05ff-4341-905a-c264b228e625__probe_a-4",
+   "candidate_group_size": 1
+  },
+  {
+   "run_id": "2b52341f-05ff-4341-905a-c264b228e625__probe_a-2",
+   "exact": true,
+   "equivalent": true,
+   "manifest_contract": {
+    "equal": true,
+    "mismatches": {}
+   },
+   "text_tokens": {
+    "equal": true,
+    "equivalent": true,
+    "shape": [
+     2999
+    ],
+    "dtype": "int32",
+    "different_values": 0,
+    "outside_tolerance": 0,
+    "atol": 0.0,
+    "rtol": 0.0
+   },
+   "agent_wav": {
+    "equal": true,
+    "file_equal": true,
+    "reference_sha256": "fba5048066a4b7e0efc0fec39bd200de329ef9be548bee2519d3364dc5e25d42",
+    "candidate_sha256": "fba5048066a4b7e0efc0fec39bd200de329ef9be548bee2519d3364dc5e25d42",
+    "reference_samples": 5758080,
+    "candidate_samples": 5758080,
+    "reference_sample_rate": 24000,
+    "candidate_sample_rate": 24000
+   },
+   "activations": {},
+   "hook_calls_equal": true,
+   "reference_wall_s": 336.33064229998854,
+   "candidate_wall_s": 110.87743690004572,
+   "candidate_backend": "full_graph",
+   "candidate_group_id": "2b52341f-05ff-4341-905a-c264b228e625__probe_a-2",
+   "candidate_group_size": 1
+  }
+ ]
+}

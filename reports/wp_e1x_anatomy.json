@@ -1,0 +1,116 @@
+{
+ "generated_at": "2026-07-23T15:45:51.601224+00:00",
+ "schema": "e1x-suite-v1",
+ "layer": 29,
+ "families": {
+  "f0_final_slope": {
+   "edges": {
+    "q1": -12.21695048014323,
+    "q2": 0.6726999192010795,
+    "n_valid": 4952
+   },
+   "buckets": {
+    "falling": {
+     "n_sessions": 80,
+     "n_rows": 1642,
+     "probe_auc": 0.8518097918624311,
+     "mimi_auc": 0.7890280827127011,
+     "advantage": {
+      "advantage": 0.06278170914973003,
+      "ci95": [
+       0.04916459301083732,
+       0.07785735991155608
+      ],
+      "n_boot_effective": 1000
+     }
+    },
+    "middle": {
+     "n_sessions": 78,
+     "n_rows": 1641,
+     "probe_auc": 0.8330643923071971,
+     "mimi_auc": 0.7686250328127863,
+     "advantage": {
+      "advantage": 0.06443935949441082,
+      "ci95": [
+       0.04884511057236041,
+       0.07836475277918081
+      ],
+      "n_boot_effective": 1000
+     }
+    },
+    "rising": {
+     "n_sessions": 79,
+     "n_rows": 1633,
+     "probe_auc": 0.8169214555917743,
+     "mimi_auc": 0.7458011388788282,
+     "advantage": {
+      "advantage": 0.07112031671294616,
+      "ci95": [
+       0.05534730095766293,
+       0.08804706048889348
+      ],
+      "n_boot_effective": 1000
+     }
+    }
+   }
+  },
+  "prior_ipu_length": {
+   "edges": {
+    "q1": 0.64,
+    "q2": 1.68,
+    "n_valid": 5358
+   },
+   "buckets": {
+    "short": {
+     "n_sessions": 79,
+     "n_rows": 1766,
+     "probe_auc": 0.8026687545710843,
+     "mimi_auc": 0.7502129740542327,
+     "advantage": {
+      "advantage": 0.052455780516851624,
+      "ci95": [
+       0.03743098431355214,
+       0.06891926914072154
+      ],
+      "n_boot_effective": 1000
+     }
+    },
+    "middle": {
+     "n_sessions": 79,
+     "n_rows": 1793,
+     "probe_auc": 0.8458685680029122,
+     "mimi_auc": 0.764104304641291,
+     "advantage": {
+      "advantage": 0.08176426336162124,
+      "ci95": [
+       0.06537264228747683,
+       0.10072698033623956
+      ],
+      "n_boot_effective": 1000
+     }
+    },
+    "long": {
+     "n_sessions": 78,
+     "n_rows": 1762,
+     "probe_auc": 0.8450039579170546,
+     "mimi_auc": 0.7767734781198673,
+     "advantage": {
+      "advantage": 0.06823047979718733,
+      "ci95": [
+       0.05234334522360011,
+       0.0835450867116115
+      ],
+      "n_boot_effective": 1000
+     }
+    }
+   }
+  },
+  "take_speed_complete_only": {
+   "note": "仅 label=1（complete）行；fast = agent 于 ≤400 ms 内 SPEAK",
+   "buckets": {
+    "fast_take": null,
+    "slow_or_no_take": null
+   }
+  }
+ }
+}

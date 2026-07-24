@@ -1,0 +1,530 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "E1-X 与 E2-lite 实验综合结论",
+    "description": "Moshi 话语权方向的探索性定位、声学分解与方向级因果试点。",
+    "generatedAt": "2026-07-24T05:48:55.169897+00:00",
+    "cards": [],
+    "charts": [
+      {
+        "id": "leadtime_curve",
+        "title": "T4 先知曲线",
+        "subtitle": "共享锚点集合；13 个时间档，三种子均值",
+        "intent": "trend",
+        "question": "L29 的 T4 判别信息在话轮末端前多早仍可读？",
+        "rationale": "13 个有序时间档适合用双序列折线比较探针与 Mimi 的衰减形状。",
+        "type": "line",
+        "dataset": "leadtime",
+        "sourceId": "e1x_leadtime",
+        "encodings": {
+          "x": {
+            "field": "lead_ms",
+            "type": "quantitative",
+            "label": "相对锚点提前量（毫秒）"
+          },
+          "y": {
+            "fields": [
+              "probe_auc",
+              "mimi_auc"
+            ],
+            "type": "quantitative",
+            "format": "number",
+            "label": "AUC"
+          },
+          "tooltip": [
+            {
+              "field": "advantage",
+              "type": "quantitative",
+              "label": "探针优势"
+            },
+            {
+              "field": "ci_low",
+              "type": "quantitative",
+              "label": "95% CI 下界"
+            },
+            {
+              "field": "ci_high",
+              "type": "quantitative",
+              "label": "95% CI 上界"
+            }
+          ]
+        },
+        "layout": "full",
+        "palette": {
+          "kind": "categorical",
+          "name": "blue-orange"
+        },
+        "settings": {
+          "showValues": false
+        }
+      },
+      {
+        "id": "dose_speech",
+        "title": "L29 主方向剂量与发声占比变化",
+        "subtitle": "20 个会话内配对差；α=0 为同路径基线",
+        "intent": "comparison",
+        "question": "主探针方向是否以剂量单调方式改变模型发声倾向？",
+        "rationale": "五个预设离散剂量使用带零基线的柱形图，直接呈现方向与幅度。",
+        "type": "bar",
+        "dataset": "e2_dose",
+        "sourceId": "e2_dose",
+        "encodings": {
+          "x": {
+            "field": "alpha_label",
+            "type": "nominal",
+            "label": "注入剂量 α"
+          },
+          "y": {
+            "field": "agent_speech_delta",
+            "type": "quantitative",
+            "format": "number",
+            "label": "发声占比配对差"
+          },
+          "tooltip": [
+            {
+              "field": "ci_low",
+              "type": "quantitative",
+              "label": "95% CI 下界"
+            },
+            {
+              "field": "ci_high",
+              "type": "quantitative",
+              "label": "95% CI 上界"
+            },
+            {
+              "field": "n_sessions",
+              "type": "quantitative",
+              "label": "会话数"
+            },
+            {
+              "field": "n_positive",
+              "type": "quantitative",
+              "label": "正向会话"
+            },
+            {
+              "field": "n_negative",
+              "type": "quantitative",
+              "label": "负向会话"
+            }
+          ]
+        },
+        "layout": "full",
+        "palette": {
+          "kind": "sequential",
+          "name": "blue"
+        },
+        "settings": {
+          "groupMode": "grouped",
+          "sort": "custom",
+          "showValues": true
+        }
+      }
+    ],
+    "tables": [],
+    "sources": [
+      {
+        "id": "e1x_summary",
+        "label": "E1-X 探索套件机器可读汇总",
+        "path": "reports/wp_e1x_summary.json"
+      },
+      {
+        "id": "e1x_leadtime",
+        "label": "E1-X 先知曲线机器可读结果",
+        "path": "reports/wp_e1x_leadtime.json",
+        "query": {
+          "engine": "duckdb",
+          "description": "从 E1-X 先知曲线结果展开 13 个时间档。",
+          "tables_used": [
+            "reports/wp_e1x_leadtime.json"
+          ],
+          "metric_definitions": [
+            "probe_auc 与 mimi_auc 为三个训练种子的均值。",
+            "advantage 为共享锚点上的探针 AUC 减 Mimi AUC；区间按会话重采样。"
+          ],
+          "sql": "SELECT c.lead_ms,\n       c.probe_auc_mean AS probe_auc,\n       c.mimi_auc_mean AS mimi_auc,\n       c.advantage.advantage AS advantage,\n       c.advantage.ci95[1] AS ci_low,\n       c.advantage.ci95[2] AS ci_high,\n       c.advantage.n_boot_effective AS bootstrap_replicates\nFROM read_json_auto('reports/wp_e1x_leadtime.json') AS source,\n     UNNEST(source.curve) AS item(c)\nORDER BY c.lead_ms"
+        }
+      },
+      {
+        "id": "e2_summary",
+        "label": "E2-lite 完整行为汇总",
+        "path": "reports/wp_e2_lite_summary_optimized.json"
+      },
+      {
+        "id": "e2_dose",
+        "label": "E2-lite 主探针方向剂量效应",
+        "path": "reports/wp_e2_lite_summary_optimized.json",
+        "query": {
+          "engine": "duckdb",
+          "description": "从 E2-lite 汇总提取主探针方向各剂量相对基线的发声占比配对差。",
+          "tables_used": [
+            "reports/wp_e2_lite_summary_optimized.json"
+          ],
+          "metric_definitions": [
+            "agent_speech_delta 为同会话条件减 α=0 基线后的 20 会话均值。",
+            "ci_low 与 ci_high 为按会话重采样的 95% 置信区间。"
+          ],
+          "sql": "WITH source AS (\n  SELECT paired_deltas_vs_baseline AS d\n  FROM read_json_auto('reports/wp_e2_lite_summary_optimized.json')\n), dose AS (\n  SELECT 'probe_a-4' AS condition, -4 AS alpha, '-4' AS alpha_label,\n         d.\"probe_a-4\".agent_speech_frac AS m FROM source\n  UNION ALL\n  SELECT 'probe_a-2', -2, '-2', d.\"probe_a-2\".agent_speech_frac FROM source\n  UNION ALL\n  SELECT 'probe_a+2', 2, '+2', d.\"probe_a+2\".agent_speech_frac FROM source\n  UNION ALL\n  SELECT 'probe_a+4', 4, '+4', d.\"probe_a+4\".agent_speech_frac FROM source\n)\nSELECT condition, alpha, alpha_label, m.mean AS agent_speech_delta,\n       m.ci95[1] AS ci_low, m.ci95[2] AS ci_high,\n       m.n AS n_sessions, m.n_pos AS n_positive, m.n_neg AS n_negative\nFROM dose\nUNION ALL SELECT NULL, 0, '0', 0.0, NULL, NULL, NULL, NULL, NULL\nORDER BY alpha"
+        }
+      },
+      {
+        "id": "e2_validation",
+        "label": "E2-lite 优化版逐位等价验收",
+        "path": "reports/wp_e2_lite_optimization_validation_final_session13.json"
+      },
+      {
+        "id": "prereg",
+        "label": "预注册与探索性偏离登记",
+        "path": "PREREG.md"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# E1-X 与 E2-lite 实验综合结论",
+        "layout": "full"
+      },
+      {
+        "id": "technical_summary",
+        "type": "markdown",
+        "body": "## 技术摘要\n\n**L29 的稳定 T4 方向同时获得提前可读与方向级因果证据。** E1-X 显示该方向至少提前 2 秒可读，并保留 Mimi 序列基线无法解释的信息；E2-lite 显示发声占比随注入剂量单调变化（ρ=0.871），α=−4 与 α=+4 分别在 20/20 会话中产生相反效应，随机方向接近零。正式 G2 仍为 `fail`，正式 G3 尚未裁决。",
+        "layout": "full"
+      },
+      {
+        "id": "e1_lead_finding",
+        "type": "markdown",
+        "body": "## 判别信息至少提前两秒存在\n\n探针 AUC 从末端的 0.8359 平滑下降至提前 2 秒的 0.6816；Mimi 从 0.7694 降至 0.6554。全部 13 个时间档的探针优势置信区间高于零。当前左边界仍显著，因此“两秒”是下界。",
+        "layout": "full",
+        "sourceId": "e1x_summary"
+      },
+      {
+        "id": "leadtime_chart_block",
+        "type": "chart",
+        "chartId": "leadtime_curve",
+        "layout": "full"
+      },
+      {
+        "id": "e1_decompose_finding",
+        "type": "markdown",
+        "body": "## 额外信息无法由 Mimi 线性重建\n\nL29 相对 25 步 Mimi-GRU 的 AUC 优势为 +0.0464 [+0.0378,+0.0559]；减去 Mimi 可线性重建部分后，残差探针仍约为 0.699。前 16 个 PCA 主成分只承载约 21% 的 T4 方向质量，解释了有效秩 128 的错位形态。",
+        "layout": "full",
+        "sourceId": "e1x_summary"
+      },
+      {
+        "id": "e2_dose_finding",
+        "type": "markdown",
+        "body": "## 主探针方向产生双向剂量效应\n\n相对 α=0，发声占比在 α=−4、−2、+2、+4 下分别变化 −0.1208、−0.0823、+0.1033、+0.3000，剂量单调性 ρ=0.871（p=7.52×10⁻²⁶）。重叠与抢话也随 α 增大，响应延迟没有单调变化。",
+        "layout": "full",
+        "sourceId": "e2_summary"
+      },
+      {
+        "id": "dose_chart_block",
+        "type": "chart",
+        "chartId": "dose_speech",
+        "layout": "full"
+      },
+      {
+        "id": "control_finding",
+        "type": "markdown",
+        "body": "## 随机对照支持方向特异性\n\n三个随机方向在 ±4 下的发声占比变化绝对值均不超过约 0.0293，远小于主方向两端的 0.1208 与 0.3000。差分均值方向正负注入都降低发声，没有形成主方向的双向单调关系。",
+        "layout": "full",
+        "sourceId": "e2_summary"
+      },
+      {
+        "id": "scope_design",
+        "type": "markdown",
+        "body": "## 设计范围与指标\n\nE2-lite 使用 20 个会话、13 个条件和每会话 240 秒固定用户流，共 260 次生成。每步在 L29 注入 α·s_v·v̂；效应采用同会话条件减基线的配对差，置信区间按会话重采样。探索支线未读取 `causal_eval`。",
+        "layout": "full",
+        "sourceId": "prereg"
+      },
+      {
+        "id": "validation",
+        "type": "markdown",
+        "body": "## 优化执行保持逐位等价\n\n完整分析覆盖 260/260，缺失 0。完整 13 条件会话中 13/13 逐位一致，冷启动加速 3.45 倍。文本、PCM、基线 L28–L31 激活和注入计数均通过。",
+        "layout": "full",
+        "sourceId": "e2_validation"
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "body": "## 结论边界\n\n- 当前证据支持方向级充分性，尚未检验必要性。\n- 连续全窗注入无法定位有效事件窗口或具体注意力头/MLP。\n- 结果限于 Moshi、L29 和 20 个探索会话；正式 G3 保持未裁决。\n- 语义与声学来源仍需 E4 的受控最小对实验。",
+        "layout": "full"
+      },
+      {
+        "id": "next_steps",
+        "type": "markdown",
+        "body": "## 下一步应转向必要性、时间窗与组件定位\n\n1. 执行事件锁定注入、反向消融和捐体—受体换位。\n2. 对注意力头与 MLP 做预筛和真实换位。\n3. 细扫 α∈[−2,+2]，同步测量语义、音频质量与侵入性代价。\n4. 在 PersonaPlex 上复现并测试同架构方向移植。",
+        "layout": "full"
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## 仍待回答\n\n- 哪些组件承载并读取该方向？\n- 短窗注入能否保留控制力并降低抢话副作用？\n- 该方向主要依赖语义完整性、韵律预测，还是长程对话结构？",
+        "layout": "full"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-24T05:48:55.169897+00:00",
+    "status": "ready",
+    "datasets": {
+      "leadtime": [
+        {
+          "lead_ms": 0,
+          "probe_auc": 0.8358951115445112,
+          "mimi_auc": 0.7693641626595827,
+          "advantage": 0.0665309488849285,
+          "ci_low": 0.058757924853221566,
+          "ci_high": 0.0754313181429874,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 80,
+          "probe_auc": 0.8299604475604426,
+          "mimi_auc": 0.7680030618230456,
+          "advantage": 0.061957385737397064,
+          "ci_low": 0.05185797169457109,
+          "ci_high": 0.07187291454228413,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 160,
+          "probe_auc": 0.8209083377233787,
+          "mimi_auc": 0.7633450370071474,
+          "advantage": 0.05756330071623128,
+          "ci_low": 0.04731110111831097,
+          "ci_high": 0.06804803272280764,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 240,
+          "probe_auc": 0.8085566185069363,
+          "mimi_auc": 0.7494221486189104,
+          "advantage": 0.05913446988802584,
+          "ci_low": 0.04775421894430093,
+          "ci_high": 0.07032644013579277,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 320,
+          "probe_auc": 0.7937072904640745,
+          "mimi_auc": 0.7370080347168514,
+          "advantage": 0.05669925574722312,
+          "ci_low": 0.04549993617020554,
+          "ci_high": 0.06738774994742329,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 400,
+          "probe_auc": 0.7866636029755166,
+          "mimi_auc": 0.7245896241747648,
+          "advantage": 0.06207397880075183,
+          "ci_low": 0.050853492466225184,
+          "ci_high": 0.0722812033047564,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 480,
+          "probe_auc": 0.7751003405554249,
+          "mimi_auc": 0.7174312117272118,
+          "advantage": 0.05766912882821307,
+          "ci_low": 0.04607061623341692,
+          "ci_high": 0.06770541729117402,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 640,
+          "probe_auc": 0.7558663147158052,
+          "mimi_auc": 0.6949567720651147,
+          "advantage": 0.060909542650690485,
+          "ci_low": 0.049818803532229096,
+          "ci_high": 0.07142817812343295,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 800,
+          "probe_auc": 0.7353782070681597,
+          "mimi_auc": 0.6787892395320773,
+          "advantage": 0.056588967536082446,
+          "ci_low": 0.045263539990799614,
+          "ci_high": 0.06818143008934628,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 960,
+          "probe_auc": 0.7196845192059809,
+          "mimi_auc": 0.6695122099300955,
+          "advantage": 0.05017230927588534,
+          "ci_low": 0.03960564044403422,
+          "ci_high": 0.06077803436312863,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 1280,
+          "probe_auc": 0.698702438063,
+          "mimi_auc": 0.6598368771273039,
+          "advantage": 0.03886556093569615,
+          "ci_low": 0.029116863139128046,
+          "ci_high": 0.04877766548980173,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 1600,
+          "probe_auc": 0.6927902380338575,
+          "mimi_auc": 0.6573177617494425,
+          "advantage": 0.03547247628441508,
+          "ci_low": 0.02558976059188494,
+          "ci_high": 0.04511477752799143,
+          "bootstrap_replicates": 1000
+        },
+        {
+          "lead_ms": 2000,
+          "probe_auc": 0.6815702631411802,
+          "mimi_auc": 0.6554201646920803,
+          "advantage": 0.02615009844909988,
+          "ci_low": 0.015219465860174818,
+          "ci_high": 0.03691603438539915,
+          "bootstrap_replicates": 1000
+        }
+      ],
+      "e2_dose": [
+        {
+          "condition": "probe_a-4",
+          "alpha": -4,
+          "alpha_label": "-4",
+          "agent_speech_delta": -0.12077291666666667,
+          "ci_low": -0.13975656250000001,
+          "ci_high": -0.10219354166666668,
+          "n_sessions": 20,
+          "n_positive": 0,
+          "n_negative": 20
+        },
+        {
+          "condition": "probe_a-2",
+          "alpha": -2,
+          "alpha_label": "-2",
+          "agent_speech_delta": -0.08233333333333333,
+          "ci_low": -0.10765640625,
+          "ci_high": -0.056125677083333346,
+          "n_sessions": 20,
+          "n_positive": 2,
+          "n_negative": 18
+        },
+        {
+          "alpha": 0,
+          "alpha_label": "0",
+          "agent_speech_delta": 0.0
+        },
+        {
+          "condition": "probe_a+2",
+          "alpha": 2,
+          "alpha_label": "+2",
+          "agent_speech_delta": 0.10333125000000001,
+          "ci_low": 0.06495630208333335,
+          "ci_high": 0.14428171875,
+          "n_sessions": 20,
+          "n_positive": 16,
+          "n_negative": 4
+        },
+        {
+          "condition": "probe_a+4",
+          "alpha": 4,
+          "alpha_label": "+4",
+          "agent_speech_delta": 0.30004166666666665,
+          "ci_low": 0.22768161458333325,
+          "ci_high": 0.3767088020833333,
+          "n_sessions": 20,
+          "n_positive": 20,
+          "n_negative": 0
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "e1x_summary",
+      "label": "E1-X 探索套件机器可读汇总",
+      "path": "reports/wp_e1x_summary.json"
+    },
+    {
+      "id": "e1x_leadtime",
+      "label": "E1-X 先知曲线机器可读结果",
+      "path": "reports/wp_e1x_leadtime.json",
+      "query": {
+        "engine": "duckdb",
+        "description": "从 E1-X 先知曲线结果展开 13 个时间档。",
+        "tables_used": [
+          "reports/wp_e1x_leadtime.json"
+        ],
+        "metric_definitions": [
+          "probe_auc 与 mimi_auc 为三个训练种子的均值。",
+          "advantage 为共享锚点上的探针 AUC 减 Mimi AUC；区间按会话重采样。"
+        ],
+        "sql": "SELECT c.lead_ms,\n       c.probe_auc_mean AS probe_auc,\n       c.mimi_auc_mean AS mimi_auc,\n       c.advantage.advantage AS advantage,\n       c.advantage.ci95[1] AS ci_low,\n       c.advantage.ci95[2] AS ci_high,\n       c.advantage.n_boot_effective AS bootstrap_replicates\nFROM read_json_auto('reports/wp_e1x_leadtime.json') AS source,\n     UNNEST(source.curve) AS item(c)\nORDER BY c.lead_ms"
+      }
+    },
+    {
+      "id": "e2_summary",
+      "label": "E2-lite 完整行为汇总",
+      "path": "reports/wp_e2_lite_summary_optimized.json"
+    },
+    {
+      "id": "e2_dose",
+      "label": "E2-lite 主探针方向剂量效应",
+      "path": "reports/wp_e2_lite_summary_optimized.json",
+      "query": {
+        "engine": "duckdb",
+        "description": "从 E2-lite 汇总提取主探针方向各剂量相对基线的发声占比配对差。",
+        "tables_used": [
+          "reports/wp_e2_lite_summary_optimized.json"
+        ],
+        "metric_definitions": [
+          "agent_speech_delta 为同会话条件减 α=0 基线后的 20 会话均值。",
+          "ci_low 与 ci_high 为按会话重采样的 95% 置信区间。"
+        ],
+        "sql": "WITH source AS (\n  SELECT paired_deltas_vs_baseline AS d\n  FROM read_json_auto('reports/wp_e2_lite_summary_optimized.json')\n), dose AS (\n  SELECT 'probe_a-4' AS condition, -4 AS alpha, '-4' AS alpha_label,\n         d.\"probe_a-4\".agent_speech_frac AS m FROM source\n  UNION ALL\n  SELECT 'probe_a-2', -2, '-2', d.\"probe_a-2\".agent_speech_frac FROM source\n  UNION ALL\n  SELECT 'probe_a+2', 2, '+2', d.\"probe_a+2\".agent_speech_frac FROM source\n  UNION ALL\n  SELECT 'probe_a+4', 4, '+4', d.\"probe_a+4\".agent_speech_frac FROM source\n)\nSELECT condition, alpha, alpha_label, m.mean AS agent_speech_delta,\n       m.ci95[1] AS ci_low, m.ci95[2] AS ci_high,\n       m.n AS n_sessions, m.n_pos AS n_positive, m.n_neg AS n_negative\nFROM dose\nUNION ALL SELECT NULL, 0, '0', 0.0, NULL, NULL, NULL, NULL, NULL\nORDER BY alpha"
+      }
+    },
+    {
+      "id": "e2_validation",
+      "label": "E2-lite 优化版逐位等价验收",
+      "path": "reports/wp_e2_lite_optimization_validation_final_session13.json"
+    },
+    {
+      "id": "prereg",
+      "label": "预注册与探索性偏离登记",
+      "path": "PREREG.md"
+    }
+  ],
+  "package_info": {
+    "report_kind": "technical",
+    "chart_map": [
+      {
+        "section": "E1-X 先知曲线",
+        "family": "trend",
+        "type": "line",
+        "fields": [
+          "lead_ms",
+          "probe_auc",
+          "mimi_auc"
+        ],
+        "claim": "探针优势贯穿两秒窗口",
+        "palette": "blue-orange"
+      },
+      {
+        "section": "E2-lite 剂量反应",
+        "family": "comparison",
+        "type": "bar",
+        "fields": [
+          "alpha_label",
+          "agent_speech_delta"
+        ],
+        "claim": "发声占比随 α 双向单调变化",
+        "palette": "blue"
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+ "generated_at": "2026-07-23T16:39:05.779776+00:00",
+ "plan_path": "D:\\data_storage\\The_Floor_Control_Circuit\\e2_lite\\e2_lite.plan.json",
+ "n_sessions": 20,
+ "n_conditions": 13,
+ "n_runs": 260,
+ "conditions": [
+  "baseline",
+  "probe_a-4",
+  "probe_a-2",
+  "probe_a+2",
+  "probe_a+4",
+  "diffmeans_a-4",
+  "diffmeans_a+4",
+  "random_r0_a-4",
+  "random_r0_a+4",
+  "random_r1_a-4",
+  "random_r1_a+4",
+  "random_r2_a-4",
+  "random_r2_a+4"
+ ],
+ "estimated_generation_steps": 780000
+}

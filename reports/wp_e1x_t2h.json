@@ -1,0 +1,133 @@
+{
+ "generated_at": "2026-07-23T15:51:43.774675+00:00",
+ "schema": "e1x-suite-v1",
+ "layer": 28,
+ "grid_variant_note": "步栅近似（80 ms 状态离开发声态），非正式 dt=10 ms 合格 OFFSET",
+ "agreement_h5_vs_formal": 0.7954587071964841,
+ "curve": [
+  {
+   "horizon_steps": 3,
+   "horizon_ms": 240,
+   "per_seed": {
+    "0": {
+     "probe_auc": 0.8788986632108764,
+     "mimi_auc": 0.890610294421082,
+     "positive_rate_train": 0.27889827806122447
+    },
+    "1": {
+     "probe_auc": 0.878968883910208,
+     "mimi_auc": 0.8903291620241133,
+     "positive_rate_train": 0.28080645161290324
+    },
+    "2": {
+     "probe_auc": 0.8782254929759332,
+     "mimi_auc": 0.8900320552500456,
+     "positive_rate_train": 0.27751931712447914
+    }
+   },
+   "probe_auc_mean": 0.8786976800323393,
+   "mimi_auc_mean": 0.8903238372317469,
+   "advantage": {
+    "advantage": -0.011626157199407627,
+    "ci95": [
+     -0.018288087433565515,
+     -0.005149988269917963
+    ],
+    "n_boot_effective": 1000
+   }
+  },
+  {
+   "horizon_steps": 5,
+   "horizon_ms": 400,
+   "per_seed": {
+    "0": {
+     "probe_auc": 0.8418889377158972,
+     "mimi_auc": 0.8439967347710724,
+     "positive_rate_train": 0.4016262755102041
+    },
+    "1": {
+     "probe_auc": 0.8413330978511789,
+     "mimi_auc": 0.8440707169597215,
+     "positive_rate_train": 0.4055241935483871
+    },
+    "2": {
+     "probe_auc": 0.8406860318290288,
+     "mimi_auc": 0.8438949397295478,
+     "positive_rate_train": 0.399813908329625
+    }
+   },
+   "probe_auc_mean": 0.8413026891320351,
+   "mimi_auc_mean": 0.8439874638201138,
+   "advantage": {
+    "advantage": -0.002684774688078706,
+    "ci95": [
+     -0.010592528608316285,
+     0.004954738498416723
+    ],
+    "n_boot_effective": 1000
+   }
+  },
+  {
+   "horizon_steps": 10,
+   "horizon_ms": 800,
+   "per_seed": {
+    "0": {
+     "probe_auc": 0.8087882594792143,
+     "mimi_auc": 0.8023130584852236,
+     "positive_rate_train": 0.5766103316326531
+    },
+    "1": {
+     "probe_auc": 0.8054325205297458,
+     "mimi_auc": 0.8025263008057415,
+     "positive_rate_train": 0.5825806451612904
+    },
+    "2": {
+     "probe_auc": 0.8061539719899453,
+     "mimi_auc": 0.8018796772620238,
+     "positive_rate_train": 0.5740928031069218
+    }
+   },
+   "probe_auc_mean": 0.8067915839996352,
+   "mimi_auc_mean": 0.8022396788509963,
+   "advantage": {
+    "advantage": 0.004551905148638902,
+    "ci95": [
+     -0.007949953151402006,
+     0.016895505397923442
+    ],
+    "n_boot_effective": 1000
+   }
+  },
+  {
+   "horizon_steps": 20,
+   "horizon_ms": 1600,
+   "per_seed": {
+    "0": {
+     "probe_auc": 0.8008295814017009,
+     "mimi_auc": 0.7765495551864239,
+     "positive_rate_train": 0.7403140943877551
+    },
+    "1": {
+     "probe_auc": 0.8016402732564094,
+     "mimi_auc": 0.7723681554153251,
+     "positive_rate_train": 0.7460483870967742
+    },
+    "2": {
+     "probe_auc": 0.8004874171123709,
+     "mimi_auc": 0.7714483569434115,
+     "positive_rate_train": 0.7403212104049517
+    }
+   },
+   "probe_auc_mean": 0.800985757256827,
+   "mimi_auc_mean": 0.7734553558483869,
+   "advantage": {
+    "advantage": 0.027530401408440097,
+    "ci95": [
+     0.011655601070691116,
+     0.041482990988005335
+    ],
+    "n_boot_effective": 1000
+   }
+  }
+ ]
+}

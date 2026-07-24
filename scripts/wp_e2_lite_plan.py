@@ -35,7 +35,11 @@ def _sha256(path: Path) -> str:
 def build_conditions(cfg: dict, direction_names: list[str]) -> list[dict]:
     """确定性条件网格；baseline = 主方向 α=0（注入向量为零，方向仅作记账）。"""
     conditions: list[dict] = []
-    for alpha in [float(a) for a in cfg["alphas_primary"]]:
+    primary_alphas = [float(a) for a in cfg["alphas_primary"]]
+    if primary_alphas.count(0.0) != 1:
+        raise ValueError("主方向档位必须恰好包含一个 α=0 基线")
+    # 基线置首，让 --limit 2 冒烟必然覆盖激活缓存路径。
+    for alpha in [0.0, *(a for a in primary_alphas if a != 0.0)]:
         name = "baseline" if alpha == 0.0 else f"probe_a{alpha:+g}"
         conditions.append(
             {
@@ -52,9 +56,7 @@ def build_conditions(cfg: dict, direction_names: list[str]) -> list[dict]:
     random_names = sorted(n for n in direction_names if n.startswith("random_r"))
     for rand in random_names:
         for alpha in [float(a) for a in cfg["alphas_random"]]:
-            conditions.append(
-                {"name": f"{rand}_a{alpha:+g}", "direction": rand, "alpha": alpha, "cache_acts": False}
-            )
+            conditions.append({"name": f"{rand}_a{alpha:+g}", "direction": rand, "alpha": alpha, "cache_acts": False})
     names = [c["name"] for c in conditions]
     if len(names) != len(set(names)):
         raise ValueError("条件名重复")
@@ -79,11 +81,7 @@ def main() -> None:
     grids = load_config("grids")
     cfg = grids["e1"]["e2_lite"]
     base = data_root()
-    directions_npz = (
-        Path(args.directions_npz)
-        if args.directions_npz
-        else base / "e1x" / "directions" / "T4_L29.npz"
-    )
+    directions_npz = Path(args.directions_npz) if args.directions_npz else base / "e1x" / "directions" / "T4_L29.npz"
     if not directions_npz.is_file():
         raise SystemExit(
             f"缺方向文件 {directions_npz}：先跑 wp_e1x_suite.py --stage geometry，"
@@ -103,9 +101,7 @@ def main() -> None:
     if meta.get("schema") != "e1x-directions-v1":
         raise SystemExit(f"方向包 schema={meta.get('schema')} 非 e1x-directions-v1")
     if int(meta.get("layer", -1)) != int(cfg["layer"]):
-        raise SystemExit(
-            f"方向包层号 {meta.get('layer')} ≠ 计划层号 {cfg['layer']}（拒绝跨层注入）"
-        )
+        raise SystemExit(f"方向包层号 {meta.get('layer')} ≠ 计划层号 {cfg['layer']}（拒绝跨层注入）")
     required_keys = {"probe_meanseed", "diffmeans"}
     missing_keys = required_keys - set(direction_names)
     if missing_keys:
